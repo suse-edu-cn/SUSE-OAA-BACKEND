@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"growthos/internal/model"
 	"growthos/internal/request"
 	"growthos/internal/service"
 	"growthos/pkg/response"
@@ -26,8 +25,7 @@ func NewAuthHandler(userService service.UserService, JwtSecret string, jwtExpire
 
 func (a *AuthHandler) Login(c *gin.Context) {
 	var req request.LoginReq
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, 400, "获取json失败")
 		return
 	}
@@ -37,25 +35,26 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 	token, err := utils.GenerateToken(user.Username, user.ID, a.JwtSecret, a.JwtExpire)
-	response.Success(c, token)
-	return
-}
-
-func (a *AuthHandler) Register(c *gin.Context) {
-	var req model.User
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		response.Fail(c, 400, "获取json失败")
-		return
-	}
-	err = a.UserService.Register(req)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	response.Success(c, 200)
-	return
+	response.Success(c, token)
 }
+
+func (a *AuthHandler) Register(c *gin.Context) {
+	var req request.RegisterReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取json失败")
+		return
+	}
+	if err := a.UserService.Register(req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (a *AuthHandler) GetInfo(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	user, err := a.UserService.Repo.FindUserById(id)
@@ -64,5 +63,4 @@ func (a *AuthHandler) GetInfo(c *gin.Context) {
 		return
 	}
 	response.Success(c, user)
-	return
 }

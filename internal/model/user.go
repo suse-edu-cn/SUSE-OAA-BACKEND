@@ -6,7 +6,7 @@ type User struct {
 	ID           uint64      `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	StudentID    string      `gorm:"type:varchar(32);not null;unique;column:student_id" json:"student_id"`
 	Username     string      `gorm:"type:varchar(64);not null;column:username" json:"username"`
-	Name         string      `gorm:"type:varchar(64);not null;unique;column:name" json:"name"`
+	Name         string      `gorm:"type:varchar(64);not null;column:name" json:"name"`
 	Email        string      `gorm:"type:varchar(128);not null;unique;column:email" json:"email"`
 	Password     string      `gorm:"type:varchar(255);not null;column:password" json:"-"` // 默认不进行 JSON 序列化
 	DepartmentID *uint64     `gorm:"index;column:department_id" json:"department_id,omitempty"`

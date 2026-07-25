@@ -15,12 +15,12 @@ type Router struct {
 
 func RouterInit(authHandler handler.AuthHandler) *gin.Engine {
 	r := gin.Default()
-	public := r.Group("api/v1")
+	public := r.Group("api/v2/auth")
 	{
 		public.POST("login", authHandler.Login)
 		public.POST("register", authHandler.Register)
 	}
-	private := r.Group("api/v1")
+	private := r.Group("api/v2")
 	{
 		private.Use(middleware.JWTAuth(authHandler.JwtSecret))
 		private.GET("info", authHandler.GetInfo)
