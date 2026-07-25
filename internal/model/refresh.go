@@ -11,3 +11,5 @@ type RefreshToken struct {
 	CreatedAt time.Time `gorm:"not null;column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"not null;column:updated_at" json:"updated_at"`
 }
+
+func (RefreshToken) TableName() string { return "refresh_tokens" }

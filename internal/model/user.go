@@ -18,4 +18,4 @@ type User struct {
 	UpdatedAt    time.Time   `gorm:"not null;column:updated_at" json:"updated_at"`
 }
 
-func (User) TableName() string { return "user" }
+func (User) TableName() string { return "users" }
