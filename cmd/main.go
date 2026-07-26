@@ -19,11 +19,16 @@ func main() {
 	departmentRepo := repository.NewDepartmentRepository(db)
 
 	userService := service.NewUserService(repo, roleRepo, departmentRepo)
+	departmentService := service.NewDepartmentService(departmentRepo)
+	roleService := service.NewRoleService(roleRepo)
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(userService, Config.Jwt.Secret, Config.Jwt.ExpireHour)
-	totalHadler := handler.NewTotalHandler(authHandler, userHandler)
+	departmentHandler := handler.NewDepartmentHandler(departmentService)
+	roleHandler := handler.NewRoleHandler(roleService)
 
-	r := router.RouterInit(totalHadler)
+	totalHandler := handler.NewTotalHandler(authHandler, userHandler, departmentHandler, roleHandler)
+
+	r := router.RouterInit(totalHandler)
 	r.Run(":" + Config.Server.Port)
 }
