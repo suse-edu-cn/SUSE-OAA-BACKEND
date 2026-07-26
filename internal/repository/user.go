@@ -56,3 +56,24 @@ func (u *UserRepository) FindUserById(id uint64) (model.User, error) {
 func (u *UserRepository) UpdateUserInfo(user model.User) error {
 	return u.DB.Save(&user).Error
 }
+
+func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
+	var user model.User
+	var info model.UserInfo
+	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
+	if err != nil {
+		return info, err
+	}
+	if user.Role != nil {
+		info.Role = user.Role.Name
+	}
+	if user.Department != nil {
+		info.Department = user.Department.Name
+	}
+	info.Email = user.Email
+	info.Username = user.Username
+	info.Name = user.Name
+	info.StudentID = user.StudentID
+
+	return info, nil
+}

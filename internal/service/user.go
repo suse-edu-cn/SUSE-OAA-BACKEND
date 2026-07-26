@@ -12,11 +12,17 @@ import (
 )
 
 type UserService struct {
-	Repo repository.UserRepository
+	Repo           repository.UserRepository
+	RoleRepo       repository.RoleRepository
+	DepartmentRepo repository.DepartmentRepository
 }
 
-func NewUserService(repo repository.UserRepository) UserService {
-	return UserService{Repo: repo}
+func NewUserService(repo repository.UserRepository, roleRepo repository.RoleRepository, departmentRepo repository.DepartmentRepository) UserService {
+	return UserService{
+		Repo:           repo,
+		RoleRepo:       roleRepo,
+		DepartmentRepo: departmentRepo,
+	}
 }
 
 func (u *UserService) Register(req request.RegisterReq) error {
@@ -36,13 +42,15 @@ func (u *UserService) Register(req request.RegisterReq) error {
 	if err != nil {
 		return errors.New("密码加密失败")
 	}
-
+	role, err := u.RoleRepo.FindByName("会员")
 	user := model.User{
 		StudentID: req.StudentID,
 		Username:  req.Username,
 		Name:      req.Name,
 		Email:     req.Email,
 		Password:  string(hash),
+		Role:      role,
+		RoleID:    &role.ID,
 	}
 	if err := u.Repo.CreateUser(user); err != nil {
 		return errors.New("创建失败" + err.Error())
@@ -59,4 +67,12 @@ func (u *UserService) Login(req request.LoginReq) (model.User, error) {
 		return user, errors.New("密码错误")
 	}
 	return user, nil
+}
+
+func (u *UserService) GetUserInfo(id uint64) (model.UserInfo, error) {
+	info, err := u.Repo.GetUserInfoById(id)
+	if err != nil {
+		return model.UserInfo{}, errors.New("查询失败" + err.Error())
+	}
+	return info, nil
 }

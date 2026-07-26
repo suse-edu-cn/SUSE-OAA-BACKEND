@@ -18,4 +18,14 @@ type User struct {
 	UpdatedAt    time.Time   `gorm:"not null;column:updated_at" json:"updated_at"`
 }
 
-func (User) TableName() string { return "users" }
+type UserInfo struct {
+	StudentID  string `json:"student_id"`
+	Username   string `json:"username"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Department string `json:"department"`
+	Role       string `json:"role"`
+}
+
+func (User) TableName() string     { return "user" }
+func (UserInfo) TableName() string { return "user" }

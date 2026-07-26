@@ -13,9 +13,17 @@ func main() {
 	Config := config.ConfigInit()
 	db := database.MysqlInit(Config.Mysql)
 	rdb := database.RedisInit(Config.Redis)
+
 	repo := repository.NewUserRepository(db, rdb)
-	userService := service.NewUserService(repo)
+	roleRepo := repository.NewRoleRepository(db)
+	departmentRepo := repository.NewDepartmentRepository(db)
+
+	userService := service.NewUserService(repo, roleRepo, departmentRepo)
+
+	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(userService, Config.Jwt.Secret, Config.Jwt.ExpireHour)
-	r := router.RouterInit(authHandler)
+	totalHadler := handler.NewTotalHandler(authHandler, userHandler)
+
+	r := router.RouterInit(totalHadler)
 	r.Run(":" + Config.Server.Port)
 }

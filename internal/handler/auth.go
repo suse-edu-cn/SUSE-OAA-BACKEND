@@ -54,13 +54,3 @@ func (a *AuthHandler) Register(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
-
-func (a *AuthHandler) GetInfo(c *gin.Context) {
-	id := c.GetUint64("user_id")
-	user, err := a.UserService.Repo.FindUserById(id)
-	if err != nil {
-		response.Fail(c, 400, "获取信息失败")
-		return
-	}
-	response.Success(c, user)
-}

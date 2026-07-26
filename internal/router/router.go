@@ -13,17 +13,17 @@ type Router struct {
 	JwtExpire uint64
 }
 
-func RouterInit(authHandler handler.AuthHandler) *gin.Engine {
+func RouterInit(total handler.TotalHandler) *gin.Engine {
 	r := gin.Default()
-	public := r.Group("api/v2/auth")
+	auth := r.Group("api/v2/auth")
 	{
-		public.POST("login", authHandler.Login)
-		public.POST("register", authHandler.Register)
+		auth.POST("login", total.Auth.Login)
+		auth.POST("register", total.Auth.Register)
 	}
-	private := r.Group("api/v2")
+	r.Use(middleware.JWTAuth(total.Auth.JwtSecret))
+	user := r.Group("api/v2/users")
 	{
-		private.Use(middleware.JWTAuth(authHandler.JwtSecret))
-		private.GET("info", authHandler.GetInfo)
+		user.GET("/me", total.User.GetInfo)
 	}
 	return r
 }
