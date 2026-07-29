@@ -31,17 +31,12 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		response.Fail(c, 400, "获取json失败")
 		return
 	}
-	user, err := a.UserService.Login(req)
+	user, refreshToken, err := a.UserService.Login(req, a.JwtRefreshTime)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
 	}
 	token, err := utils.GenerateToken(user.Username, user.ID, a.JwtSecret, a.JwtExpire)
-	if err != nil {
-		response.Fail(c, 400, err.Error())
-		return
-	}
-	refreshToken, err := a.UserService.SaveRefreshToken(user.ID, req.Device, a.JwtRefreshTime)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

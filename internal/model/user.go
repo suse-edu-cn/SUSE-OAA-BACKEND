@@ -27,5 +27,5 @@ type UserInfo struct {
 	Role       string `json:"role"`
 }
 
-func (User) TableName() string     { return "user" }
-func (UserInfo) TableName() string { return "user" }
+func (User) TableName() string     { return "users" }
+func (UserInfo) TableName() string { return "users" }

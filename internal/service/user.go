@@ -52,7 +52,6 @@ func (u *UserService) Register(req request.RegisterReq) error {
 		Email:     req.Email,
 		Password:  string(hash),
 		Role:      role,
-		RoleID:    &role.ID,
 	}
 	if err := u.Repo.CreateUser(user); err != nil {
 		return errors.New("创建失败" + err.Error())
@@ -60,15 +59,19 @@ func (u *UserService) Register(req request.RegisterReq) error {
 	return nil
 }
 
-func (u *UserService) Login(req request.LoginReq) (model.User, error) {
+func (u *UserService) Login(req request.LoginReq, refreshTime uint) (model.User, string, error) {
 	user, err := u.Repo.FindUserByAccount(req.Account)
 	if err != nil {
-		return user, errors.New("获取用户信息失败")
+		return model.User{}, "", errors.New("获取用户信息失败")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		return user, errors.New("密码错误")
+		return model.User{}, "", errors.New("密码错误")
 	}
-	return user, nil
+	refreshToken, err := u.SaveRefreshToken(user.ID, req.Device, refreshTime)
+	if err != nil {
+		return model.User{}, "", err
+	}
+	return user, refreshToken, nil
 }
 
 func (u *UserService) GetUserInfo(id uint64) (model.UserInfo, error) {
