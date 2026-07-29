@@ -11,4 +11,11 @@ type RegisterReq struct {
 type LoginReq struct {
 	Account  string `json:"account"`
 	Password string `json:"password"`
+	Device   string `json:"device"`
+}
+
+type RefreshReq struct {
+	RefreshToken string `json:"refresh_token"`
+	UserId       uint64 `json:"user_id"`
+	Device       string `json:"device"`
 }

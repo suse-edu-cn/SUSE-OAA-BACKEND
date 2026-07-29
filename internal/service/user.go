@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"growthos/pkg/utils"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -75,4 +77,30 @@ func (u *UserService) GetUserInfo(id uint64) (model.UserInfo, error) {
 		return model.UserInfo{}, errors.New("查询失败" + err.Error())
 	}
 	return info, nil
+}
+
+func (u *UserService) SaveRefreshToken(id uint64, device string, time uint) (string, error) {
+	token, err := utils.GetUUID()
+	if err != nil {
+		return "", errors.New("生成refresh_token失败")
+	}
+	err = u.Repo.SaveRefreshToken(id, device, token, time, context.Background())
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+func (u *UserService) DeleteRefreshToken(id uint64, device string) error {
+	err := u.Repo.DeleteRefreshToken(id, device, context.Background())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (u *UserService) GetRefreshToken(id uint64, device string) (string, error) {
+	token, err := u.Repo.GetRefreshToken(id, device, context.Background())
+	if err != nil {
+		return "", err
+	}
+	return token, nil
 }

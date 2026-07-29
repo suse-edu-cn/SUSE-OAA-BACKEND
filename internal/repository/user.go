@@ -1,8 +1,11 @@
 package repository
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"growthos/internal/model"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -76,4 +79,48 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	info.StudentID = user.StudentID
 
 	return info, nil
+}
+
+func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string, times uint, ctx context.Context) error {
+	key := fmt.Sprintf("%d-%s", id, device)
+	err := u.Rdb.Set(ctx, key, token, time.Duration(times)*time.Hour*24).Err()
+	if err != nil {
+		return errors.New("存入redis失败，" + err.Error())
+	}
+	res := model.RefreshToken{
+		Device: device,
+		Token:  token,
+		UserID: id,
+	}
+	err1 := u.DB.Where(model.RefreshToken{UserID: id, Device: device}).
+		Assign(model.RefreshToken{Token: token}).
+		FirstOrCreate(&res).Error
+	if err1 != nil {
+		return errors.New("更新refresh表失败")
+	}
+	return nil
+}
+
+func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx context.Context) error {
+	key := fmt.Sprintf("%d-%s", id, device)
+	err := u.Rdb.Del(ctx, key).Err()
+	if err != nil {
+		return errors.New("redis删除失败")
+	}
+	err1 := u.DB.Where("user_id = ? AND device = ? ", id, device).Delete(&model.RefreshToken{}).Error
+	if err1 != nil {
+		return errors.New("refresh表删除失败")
+	}
+	return nil
+}
+func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.Context) (string, error) {
+	key := fmt.Sprintf("%d-%s", id, device)
+	token, err := u.Rdb.Get(ctx, key).Result()
+	fmt.Println(token)
+	fmt.Println(key)
+	fmt.Println(err)
+	if errors.Is(err, redis.Nil) {
+		return "", errors.New("refresh_token不存在或者过期")
+	}
+	return token, nil
 }

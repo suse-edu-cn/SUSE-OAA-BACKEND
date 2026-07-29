@@ -10,16 +10,18 @@ import (
 )
 
 type AuthHandler struct {
-	UserService service.UserService
-	JwtSecret   string
-	JwtExpire   int
+	UserService    service.UserService
+	JwtSecret      string
+	JwtExpire      int
+	JwtRefreshTime uint
 }
 
-func NewAuthHandler(userService service.UserService, JwtSecret string, jwtExpire int) AuthHandler {
+func NewAuthHandler(userService service.UserService, JwtSecret string, jwtExpire int, refreshTime uint) AuthHandler {
 	return AuthHandler{
-		UserService: userService,
-		JwtSecret:   JwtSecret,
-		JwtExpire:   jwtExpire,
+		UserService:    userService,
+		JwtSecret:      JwtSecret,
+		JwtExpire:      jwtExpire,
+		JwtRefreshTime: refreshTime,
 	}
 }
 
@@ -39,7 +41,47 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	response.Success(c, token)
+	refreshToken, err := a.UserService.SaveRefreshToken(user.ID, req.Device, a.JwtRefreshTime)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	res := map[string]string{
+		"token":        token,
+		"refreshToken": refreshToken,
+	}
+	response.Success(c, res)
+}
+func (a *AuthHandler) Refresh(c *gin.Context) {
+	var req request.RefreshReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取json失败")
+		return
+	}
+	refreshToken, err := a.UserService.GetRefreshToken(req.UserId, req.Device)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	if refreshToken != req.RefreshToken {
+		response.Fail(c, 400, "refresh token 错误")
+		return
+	}
+	user, err := a.UserService.Repo.FindUserById(req.UserId)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	token, err := utils.GenerateToken(user.Username, user.ID, a.JwtSecret, a.JwtExpire)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	res := map[string]string{
+		"token":        token,
+		"refreshToken": refreshToken,
+	}
+	response.Success(c, res)
 }
 
 func (a *AuthHandler) Register(c *gin.Context) {

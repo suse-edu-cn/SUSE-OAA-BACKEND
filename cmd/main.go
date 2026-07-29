@@ -23,7 +23,7 @@ func main() {
 	roleService := service.NewRoleService(roleRepo)
 
 	userHandler := handler.NewUserHandler(userService)
-	authHandler := handler.NewAuthHandler(userService, Config.Jwt.Secret, Config.Jwt.ExpireHour)
+	authHandler := handler.NewAuthHandler(userService, Config.Jwt.Secret, Config.Jwt.ExpireHour, Config.Jwt.RefreshTime)
 	departmentHandler := handler.NewDepartmentHandler(departmentService)
 	roleHandler := handler.NewRoleHandler(roleService)
 

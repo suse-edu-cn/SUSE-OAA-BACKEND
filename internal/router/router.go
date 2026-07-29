@@ -19,6 +19,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	{
 		auth.POST("login", total.Auth.Login)
 		auth.POST("register", total.Auth.Register)
+		auth.POST("refresh", total.Auth.Refresh)
 	}
 	r.Use(middleware.JWTAuth(total.Auth.JwtSecret))
 	user := r.Group("api/v2/user")
