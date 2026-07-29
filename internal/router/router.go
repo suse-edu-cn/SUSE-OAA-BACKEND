@@ -20,20 +20,23 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		auth.POST("login", total.Auth.Login)
 		auth.POST("register", total.Auth.Register)
 		auth.POST("refresh", total.Auth.Refresh)
+
+		auth.Use(middleware.JWTAuth(total.Auth.JwtSecret))
+		auth.POST("logout", total.Auth.Logout)
 	}
 	r.Use(middleware.JWTAuth(total.Auth.JwtSecret))
 	user := r.Group("api/v2/user")
 	{
-		user.GET("/me", total.User.GetInfo)
-		user.GET("/list", total.User.GetUserList)
+		user.GET("me", total.User.GetInfo)
+		user.GET("list", total.User.GetUserList)
 	}
 	department := r.Group("api/v2/department")
 	{
-		department.GET("/list", total.Department.GetAll)
+		department.GET("list", total.Department.GetAll)
 	}
 	role := r.Group("api/v2/role")
 	{
-		role.GET("/list", total.Role.FindAll)
+		role.GET("list", total.Role.FindAll)
 	}
 	return r
 }
