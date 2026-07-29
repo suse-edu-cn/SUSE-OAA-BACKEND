@@ -25,6 +25,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	user := r.Group("api/v2/user")
 	{
 		user.GET("/me", total.User.GetInfo)
+		user.GET("/list", total.User.GetUserList)
 	}
 	department := r.Group("api/v2/department")
 	{

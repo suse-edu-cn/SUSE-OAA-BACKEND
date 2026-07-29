@@ -116,11 +116,49 @@ func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx contex
 func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.Context) (string, error) {
 	key := fmt.Sprintf("%d-%s", id, device)
 	token, err := u.Rdb.Get(ctx, key).Result()
-	fmt.Println(token)
-	fmt.Println(key)
-	fmt.Println(err)
 	if errors.Is(err, redis.Nil) {
 		return "", errors.New("refresh_token不存在或者过期")
 	}
 	return token, nil
+}
+func (u *UserRepository) GetUserList(keyword string, department string, role string, page int, pageSize int) ([]model.UserInfo, int64, error) {
+	var userList []model.UserInfo
+	var users []model.User
+	var total int64
+	query := u.DB.Model(&model.User{})
+	if department != "" {
+		query = query.Where("department LIKE % ?", "%"+department+"%")
+	}
+	if role != "" {
+		query = query.Where("role LIKE ?", "%"+role+"%")
+	}
+	if keyword != "" {
+		query = query.Where("username LIKE ? OR name LIKE ? OR student_id LIKE ? ", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, errors.New("获取数据个数失败")
+	}
+	offset := (page - 1) * pageSize
+	err = query.Preload("Department").Preload("Role").Limit(pageSize).Offset(offset).Find(&users).Error
+	if err != nil {
+		return nil, 0, errors.New("查询数据失败")
+	}
+
+	for _, user := range users {
+		userInfo := model.UserInfo{
+			StudentID: user.StudentID,
+			Username:  user.Username,
+			Name:      user.Name,
+			Email:     user.Email,
+		}
+		if user.Role != nil {
+			userInfo.Role = user.Role.Name
+		}
+		if user.Department != nil {
+			userInfo.Department = user.Department.Name
+		}
+		userList = append(userList, userInfo)
+	}
+	return userList, total, nil
 }

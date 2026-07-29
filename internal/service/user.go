@@ -104,3 +104,17 @@ func (u *UserService) GetRefreshToken(id uint64, device string) (string, error) 
 	}
 	return token, nil
 }
+func (u *UserService) GetUserList(keyword string, department string, role string, page int, pageSize int) ([]model.UserInfo, int64, error) {
+	if pageSize == 0 {
+		pageSize = 20
+	}
+	if page == 0 {
+		page = 1
+	}
+	userList, total, err := u.Repo.GetUserList(keyword, department, role, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	return userList, total, nil
+
+}

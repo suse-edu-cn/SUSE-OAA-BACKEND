@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"growthos/internal/request"
 	"growthos/internal/service"
 	"growthos/pkg/response"
 
@@ -23,4 +24,22 @@ func (u *UserHandler) GetInfo(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (u *UserHandler) GetUserList(c *gin.Context) {
+	var req request.UserListReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, "获取query失败")
+		return
+	}
+	userList, total, err := u.UserService.GetUserList(req.Keyword, req.Department, req.Role, req.Page, req.PageSize)
+	if err != nil {
+		response.Fail(c, 500, err.Error())
+		return
+	}
+	res := map[string]any{
+		"total": total,
+		"list":  userList,
+	}
+	response.Success(c, res)
 }
