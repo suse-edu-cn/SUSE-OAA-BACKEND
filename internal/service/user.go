@@ -121,3 +121,22 @@ func (u *UserService) GetUserList(keyword string, department string, role string
 	return userList, total, nil
 
 }
+
+func (u *UserService) ResetPassword(id uint64, oldPassword string, newPassword1 string, newPassword2 string) error {
+	if newPassword1 != newPassword2 {
+		return errors.New("新密码两次不一致")
+	}
+	user, err := u.Repo.FindUserById(id)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
+		return errors.New("旧密码错误")
+	}
+	password, err := bcrypt.GenerateFromPassword([]byte(newPassword1), bcrypt.DefaultCost)
+	err = u.Repo.ResetPassword(id, string(password))
+	if err != nil {
+		return err
+	}
+	return nil
+}

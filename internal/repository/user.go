@@ -55,6 +55,13 @@ func (u *UserRepository) FindUserById(id uint64) (model.User, error) {
 	err := u.DB.Where("id = ?", id).First(&user).Error
 	return user, err
 }
+func (u *UserRepository) ResetPassword(id uint64, password string) error {
+	err := u.DB.Model(&model.User{}).Where("id = ?", id).Update("password", password).Error
+	if err != nil {
+		return errors.New("更新失败")
+	}
+	return nil
+}
 
 func (u *UserRepository) UpdateUserInfo(user model.User) error {
 	return u.DB.Save(&user).Error
