@@ -33,6 +33,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	{
 		user.GET("me", total.User.GetInfo)
 		user.GET("list", total.User.GetUserList)
+		user.POST("me/update", total.User.UpdateUserInfo)
 	}
 	department := r.Group("api/v2/department")
 	{

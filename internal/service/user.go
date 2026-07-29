@@ -140,3 +140,10 @@ func (u *UserService) ResetPassword(id uint64, oldPassword string, newPassword1 
 	}
 	return nil
 }
+func (u *UserService) UpdateUserInfo(id uint64, username string) error {
+	err := u.Repo.UpdateUsername(id, username)
+	if err != nil {
+		return err
+	}
+	return nil
+}

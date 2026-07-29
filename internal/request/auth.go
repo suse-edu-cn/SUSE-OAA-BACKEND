@@ -36,3 +36,7 @@ type ResetPasswordReq struct {
 	NewPassword1 string `json:"new_password1"`
 	NewPassword2 string `json:"new_password2"`
 }
+
+type UpdateUserInfoReq struct {
+	Username string `json:"username"`
+}

@@ -63,8 +63,12 @@ func (u *UserRepository) ResetPassword(id uint64, password string) error {
 	return nil
 }
 
-func (u *UserRepository) UpdateUserInfo(user model.User) error {
-	return u.DB.Save(&user).Error
+func (u *UserRepository) UpdateUsername(id uint64, username string) error {
+	err := u.DB.Model(&model.User{}).Where("id = ?", id).Update("username", username).Error
+	if err != nil {
+		return errors.New("更新失败")
+	}
+	return nil
 }
 
 func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
