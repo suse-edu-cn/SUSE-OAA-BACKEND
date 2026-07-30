@@ -17,13 +17,15 @@ type UserService struct {
 	Repo           repository.UserRepository
 	RoleRepo       repository.RoleRepository
 	DepartmentRepo repository.DepartmentRepository
+	Email          EmailService
 }
 
-func NewUserService(repo repository.UserRepository, roleRepo repository.RoleRepository, departmentRepo repository.DepartmentRepository) UserService {
+func NewUserService(repo repository.UserRepository, roleRepo repository.RoleRepository, departmentRepo repository.DepartmentRepository, email EmailService) UserService {
 	return UserService{
 		Repo:           repo,
 		RoleRepo:       roleRepo,
 		DepartmentRepo: departmentRepo,
+		Email:          email,
 	}
 }
 
@@ -122,7 +124,7 @@ func (u *UserService) GetUserList(keyword string, department string, role string
 
 }
 
-func (u *UserService) ResetPassword(id uint64, oldPassword string, newPassword1 string, newPassword2 string) error {
+func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword1 string, newPassword2 string) error {
 	if newPassword1 != newPassword2 {
 		return errors.New("新密码两次不一致")
 	}
@@ -146,4 +148,40 @@ func (u *UserService) UpdateUserInfo(id uint64, username string) error {
 		return err
 	}
 	return nil
+}
+
+func (u *UserService) SendVerificationCode(id uint64, types string) error {
+	user, err := u.Repo.FindUserById(id)
+	if err != nil {
+		return err
+	}
+	if user.Email == "" {
+		return errors.New("请先绑定邮箱")
+	}
+	if u.Repo.CheckCooldown(id, context.Background()) {
+		return errors.New("间隔太短")
+	}
+	code := u.Email.NewVerificationCode(6)
+	expire := u.Email.GetExpireTime()
+	err = u.Repo.SaveVerificationCode(id, code, types, expire, context.Background())
+	if err != nil {
+		return err
+	}
+	err = u.Email.SendVerificationCode(user.Email, code)
+	if err != nil {
+		return err
+	}
+	err = u.Repo.SetCooldown(id, u.Email.Cooldown, context.Background())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *UserService) GetVerificationCode(id uint64, types string) (string, error) {
+	code, err := u.Repo.GetVerificationCode(id, types, context.Background())
+	if err != nil {
+		return "", err
+	}
+	return code, nil
 }

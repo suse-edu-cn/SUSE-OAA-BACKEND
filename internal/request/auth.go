@@ -31,7 +31,7 @@ type UserListReq struct {
 type LogoutReq struct {
 	Device string `json:"device"`
 }
-type ResetPasswordReq struct {
+type UpdatePasswordReq struct {
 	OldPassword  string `json:"old_password"`
 	NewPassword1 string `json:"new_password1"`
 	NewPassword2 string `json:"new_password2"`
@@ -39,4 +39,8 @@ type ResetPasswordReq struct {
 
 type UpdateUserInfoReq struct {
 	Username string `json:"username"`
+}
+
+type SendVerificationCodeReq struct {
+	Type string `json:"type"`
 }

@@ -173,3 +173,37 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 	}
 	return userList, total, nil
 }
+
+func (u *UserRepository) SaveVerificationCode(id uint64, code string, types string, expire time.Duration, ctx context.Context) error {
+	key := fmt.Sprintf("%d-%sVerificationCode", id, types)
+	err := u.Rdb.Set(ctx, key, code, expire).Err()
+	if err != nil {
+		return errors.New("存入redis失败," + err.Error())
+	}
+	return nil
+}
+func (u *UserRepository) GetVerificationCode(id uint64, types string, ctx context.Context) (string, error) {
+	key := fmt.Sprintf("%d-%sVerificationCode", id, types)
+	code, err := u.Rdb.Get(ctx, key).Result()
+	if err != nil {
+		return "", errors.New("获取验证码失败，" + err.Error())
+	}
+	return code, nil
+}
+func (u *UserRepository) SetCooldown(id uint64, cooldown time.Duration, ctx context.Context) error {
+	key := fmt.Sprintf("%d-CoolDown", id)
+	err := u.Rdb.Set(ctx, key, "cooldown", cooldown).Err()
+	if err != nil {
+		return errors.New("设置失败" + err.Error())
+	}
+	return nil
+}
+
+func (u *UserRepository) CheckCooldown(id uint64, ctx context.Context) bool {
+	key := fmt.Sprintf("%d-CoolDown", id)
+	_, err := u.Rdb.Get(ctx, key).Result()
+	if err != nil {
+		return false
+	}
+	return true
+}

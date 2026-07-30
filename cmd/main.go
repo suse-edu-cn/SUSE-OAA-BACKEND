@@ -18,7 +18,8 @@ func main() {
 	roleRepo := repository.NewRoleRepository(db)
 	departmentRepo := repository.NewDepartmentRepository(db)
 
-	userService := service.NewUserService(repo, roleRepo, departmentRepo)
+	emailService := service.NewEmailService(Config.Email.Host, Config.Email.Port, Config.Email.User, Config.Email.Pass, Config.Email.Expire, Config.Email.CoolDown)
+	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService)
 	departmentService := service.NewDepartmentService(departmentRepo)
 	roleService := service.NewRoleService(roleRepo)
 

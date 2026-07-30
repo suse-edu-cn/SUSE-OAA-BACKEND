@@ -1,12 +1,15 @@
 package config
 
-import "github.com/spf13/viper"
+import (
+	"github.com/spf13/viper"
+)
 
 type Config struct {
 	Mysql  Mysql
 	Server Server
 	Jwt    Jwt
 	Redis  Redis
+	Email  Email
 }
 
 type Mysql struct {
@@ -31,6 +34,15 @@ type Redis struct {
 	Port     int    `mapstructure:"port"`
 	Password string `mapstructure:"password"`
 	Database int    `mapstructure:"database"`
+}
+
+type Email struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Pass     string `mapstructure:"pass"`
+	Expire   int    `mapstructure:"expire"`
+	CoolDown int    `mapstructure:"cool_down"`
 }
 
 func ConfigInit() Config {

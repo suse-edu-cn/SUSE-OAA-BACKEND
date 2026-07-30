@@ -23,11 +23,12 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 
 		auth.Use(middleware.JWTAuth(total.Auth.JwtSecret))
 		auth.POST("logout", total.Auth.Logout)
+		auth.POST("send", total.Auth.SendVerificationCode)
 	}
 	r.Use(middleware.JWTAuth(total.Auth.JwtSecret))
 	password := r.Group("api/v2/password")
 	{
-		password.POST("reset", total.Auth.ResetPassword)
+		password.POST("update", total.Auth.UpdatePassword)
 	}
 	user := r.Group("api/v2/user")
 	{
