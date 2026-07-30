@@ -44,3 +44,8 @@ type UpdateUserInfoReq struct {
 type SendVerificationCodeReq struct {
 	Type string `json:"type"`
 }
+
+type ResetPasswordReq struct {
+	Code string `json:"code"`
+	Type string `json:"type"`
+}

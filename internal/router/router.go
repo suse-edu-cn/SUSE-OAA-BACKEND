@@ -29,6 +29,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	password := r.Group("api/v2/password")
 	{
 		password.POST("update", total.Auth.UpdatePassword)
+		password.POST("reset", total.Auth.ResetPassword)
 	}
 	user := r.Group("api/v2/user")
 	{

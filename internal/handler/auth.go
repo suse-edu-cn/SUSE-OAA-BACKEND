@@ -136,3 +136,18 @@ func (a *AuthHandler) SendVerificationCode(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+func (a *AuthHandler) ResetPassword(c *gin.Context) {
+	var req request.ResetPasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取json失败")
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := a.UserService.ResetPassword(id, req.Code, req.Type)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, nil)
+
+}

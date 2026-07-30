@@ -178,10 +178,21 @@ func (u *UserService) SendVerificationCode(id uint64, types string) error {
 	return nil
 }
 
-func (u *UserService) GetVerificationCode(id uint64, types string) (string, error) {
-	code, err := u.Repo.GetVerificationCode(id, types, context.Background())
+func (u *UserService) ResetPassword(id uint64, code string, types string) error {
+	verificationCode, err := u.Repo.GetVerificationCode(id, types, context.Background())
 	if err != nil {
-		return "", err
+		return err
 	}
-	return code, nil
+	if verificationCode != code {
+		return errors.New("验证码错误或者失效")
+	}
+	password, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	err = u.Repo.ResetPassword(id, string(password))
+	if err != nil {
+		return err
+	}
+	return nil
 }
