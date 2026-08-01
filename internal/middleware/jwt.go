@@ -31,7 +31,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		}
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
-
+		c.Set("department_id", claims.DepartmentID)
+		c.Set("role_id", claims.RoleID)
 		c.Next()
 	}
 }

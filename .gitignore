@@ -5,3 +5,4 @@ configs/config.yaml
 tmp/
 .cache
 .DS_Store
+.tmp

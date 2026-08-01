@@ -33,3 +33,15 @@ func (d *DepartmentRepository) FindAll() (*[]model.Department, error) {
 	}
 	return &departments, nil
 }
+
+func (d *DepartmentRepository) GetDepartmentMap() (map[uint64]*model.Department, error) {
+	result := make(map[uint64]*model.Department)
+	departments, err := d.FindAll()
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range *departments {
+		result[value.ID] = &value
+	}
+	return result, nil
+}

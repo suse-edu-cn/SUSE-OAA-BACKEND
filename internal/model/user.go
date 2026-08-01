@@ -19,6 +19,7 @@ type User struct {
 }
 
 type UserInfo struct {
+	ID         uint64 `json:"id"`
 	StudentID  string `json:"student_id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
@@ -27,5 +28,23 @@ type UserInfo struct {
 	Role       string `json:"role"`
 }
 
-func (User) TableName() string     { return "users" }
-func (UserInfo) TableName() string { return "users" }
+type BatchUserInfo struct {
+	StudentID    string `json:"student_id"`
+	Username     string `json:"username"`
+	Name         string `json:"name"`
+	Department   string `json:"department"`
+	Role         string `json:"role"`
+	ToDepartment string `json:"to_department"`
+	ToRole       string `json:"to_role"`
+	ErrorMessage string `json:"error_message"`
+}
+type UpdateUserItems struct {
+	UserID       uint64  `json:"user_id"`
+	DepartmentID *uint64 `json:"department_id"`
+	RoleID       *uint64 `json:"role_id"`
+}
+
+func (User) TableName() string            { return "users" }
+func (UserInfo) TableName() string        { return "users" }
+func (BatchUserInfo) TableName() string   { return "users" }
+func (UpdateUserItems) TableName() string { return "users" }

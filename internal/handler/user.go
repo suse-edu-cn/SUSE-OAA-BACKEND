@@ -58,3 +58,20 @@ func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+func (u *UserHandler) BatchUserInfo(c *gin.Context) {
+	var req []request.BatchUserInfoReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取json失败")
+		return
+	}
+	departmentID := c.GetUint64("department_id")
+	roleID := c.GetUint64("role_id")
+
+	res, err := u.UserService.BatchUserInfo(req, departmentID, roleID)
+	if err != nil {
+		response.Fail(c, 500, err.Error())
+		return
+	}
+	response.Success(c, res)
+
+}

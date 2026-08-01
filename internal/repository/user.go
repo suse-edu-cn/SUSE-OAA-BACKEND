@@ -84,6 +84,7 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	if user.Department != nil {
 		info.Department = user.Department.Name
 	}
+	info.ID = id
 	info.Email = user.Email
 	info.Username = user.Username
 	info.Name = user.Name
@@ -158,6 +159,7 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 
 	for _, user := range users {
 		userInfo := model.UserInfo{
+			ID:        user.ID,
 			StudentID: user.StudentID,
 			Username:  user.Username,
 			Name:      user.Name,
@@ -206,4 +208,53 @@ func (u *UserRepository) CheckCooldown(id uint64, ctx context.Context) bool {
 		return false
 	}
 	return true
+}
+
+func (u *UserRepository) BatchUserInfoList(ctx context.Context, items []model.UpdateUserItems) error {
+	if len(items) == 0 {
+		return nil
+	}
+	return u.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, item := range items {
+			updateData := map[string]any{
+				"department_id": item.DepartmentID,
+				"role_id":       item.RoleID,
+			}
+			err := tx.Model(&model.User{}).
+				Where("id = ? ", item.UserID).
+				Updates(updateData).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (u *UserRepository) GetUsersInfo(ids []uint64) (map[uint64]model.BatchUserInfo, error) {
+	var userList []model.User
+	err := u.DB.Model(&model.User{}).
+		Preload("Department").
+		Preload("Role").
+		Where("id in (?)", ids).
+		Find(&userList).Error
+	if err != nil {
+		return nil, errors.New("批量获取数据失败")
+	}
+	var res = make(map[uint64]model.BatchUserInfo, len(ids))
+	for _, user := range userList {
+		temp := model.BatchUserInfo{
+			StudentID: user.StudentID,
+			Username:  user.Username,
+			Name:      user.Name,
+		}
+		if user.Department != nil {
+			temp.Department = user.Department.Name
+		}
+		if user.Role != nil {
+			temp.Role = user.Role.Name
+		}
+		res[user.ID] = temp
+	}
+	return res, nil
 }

@@ -36,7 +36,15 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	token, err := utils.GenerateToken(user.Username, user.ID, a.JwtSecret, a.JwtExpire)
+	var departmentID uint64
+	var roleID uint64
+	if user.DepartmentID != nil {
+		departmentID = *user.DepartmentID
+	}
+	if user.RoleID != nil {
+		roleID = *user.RoleID
+	}
+	token, err := utils.GenerateToken(user.Username, user.ID, departmentID, roleID, a.JwtSecret, a.JwtExpire)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
@@ -67,7 +75,15 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	token, err := utils.GenerateToken(user.Username, user.ID, a.JwtSecret, a.JwtExpire)
+	var departmentID uint64
+	var roleID uint64
+	if user.DepartmentID != nil {
+		departmentID = *user.DepartmentID
+	}
+	if user.RoleID != nil {
+		roleID = *user.RoleID
+	}
+	token, err := utils.GenerateToken(user.Username, user.ID, departmentID, roleID, a.JwtSecret, a.JwtExpire)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
