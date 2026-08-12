@@ -15,6 +15,8 @@ type Router struct {
 
 func RouterInit(total handler.TotalHandler) *gin.Engine {
 	r := gin.Default()
+	r.Use(middleware.CORS())
+
 	auth := r.Group("api/v2/auth")
 	{
 		auth.POST("login", total.Auth.Login)
