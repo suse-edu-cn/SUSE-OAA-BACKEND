@@ -1,19 +1,24 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type Announcement struct {
-	ID           uint64      `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	Title        string      `gorm:"type:varchar(255);not null;column:title" json:"title"`
-	Content      string      `gorm:"type:mediumtext;not null;column:content" json:"content"`
-	IsActive     bool        `gorm:"not null;default:false;column:is_active" json:"is_active"`
-	DepartmentID uint64      `gorm:"index;not null;column:department_id" json:"department_id"`
-	Department   *Department `gorm:"foreignKey:DepartmentID;references:ID" json:"department,omitempty"`
-	PublisherID  *uint64     `gorm:"index;column:publisher_id" json:"publisher_id"`
-	Publisher    *User       `gorm:"foreignKey:PublisherID;references:ID" json:"publisher,omitempty"`
-	PublishedAt  *time.Time  `gorm:"column:published_at" json:"published_at,omitempty"`
-	CreatedAt    time.Time   `gorm:"not null;column:created_at" json:"created_at"`
-	UpdatedAt    time.Time   `gorm:"not null;column:updated_at" json:"updated_at"`
+	ID           uint64         `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	Title        string         `gorm:"type:varchar(255);not null;column:title" json:"title"`
+	Content      string         `gorm:"type:mediumtext;not null;column:content" json:"content"`
+	IsActive     bool           `gorm:"not null;default:false;column:is_active" json:"is_active"`
+	DepartmentID uint64         `gorm:"index;not null;column:department_id" json:"department_id"`
+	Department   *Department    `gorm:"foreignKey:DepartmentID;references:ID" json:"department,omitempty"`
+	PublisherID  *uint64        `gorm:"index;column:publisher_id" json:"publisher_id"`
+	Publisher    *User          `gorm:"foreignKey:PublisherID;references:ID" json:"publisher,omitempty"`
+	PublishedAt  *time.Time     `gorm:"column:published_at" json:"published_at,omitempty"`
+	CreatedAt    time.Time      `gorm:"not null;column:created_at" json:"created_at"`
+	UpdatedAt    time.Time      `gorm:"not null;column:updated_at" json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 type AnnouncementInfo struct {

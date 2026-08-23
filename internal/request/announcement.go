@@ -16,3 +16,6 @@ type UpdateAnnouncementReq struct {
 type PushAnnouncementReq struct {
 	AnnouncementID uint64 `json:"announcement_id" binding:"required"`
 }
+type DeleteAnnouncementReq struct {
+	AnnouncementID uint64 `json:"announcement_id" binding:"required"`
+}

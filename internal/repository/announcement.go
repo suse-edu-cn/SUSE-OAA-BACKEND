@@ -39,6 +39,9 @@ func (a *AnnouncementRepository) UpdateAnnouncement(announcement model.Announcem
 	}
 	return nil
 }
+func (a *AnnouncementRepository) DeleteAnnouncement(id uint64) error {
+	return a.DB.Delete(&model.Announcement{}, id).Error
+}
 func (a *AnnouncementRepository) GetDepartmentIDByID(id uint64) (uint64, error) {
 	var announcement model.Announcement
 	err := a.DB.Model(&model.Announcement{}).Where("id = ?", id).First(&announcement).Error

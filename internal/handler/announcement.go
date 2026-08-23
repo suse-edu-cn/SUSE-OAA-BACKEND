@@ -129,3 +129,19 @@ func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
 	response.Success(c, announcementInfos)
 	return
 }
+func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
+	userID := c.GetUint64("user_id")
+	var req request.DeleteAnnouncementReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.Fail(c, 400, "获取参数失败")
+		return
+	}
+	err = a.AnnouncementService.DeleteAnnouncement(req.AnnouncementID, userID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "删除公告成功")
+	return
+}

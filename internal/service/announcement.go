@@ -94,3 +94,15 @@ func (a *AnnouncementService) GetAnnouncementInfoList(id uint64) (*[]model.Annou
 	}
 	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(level, department.ID)
 }
+
+func (a *AnnouncementService) DeleteAnnouncement(id uint64, userID uint64) error {
+	departmentID, err := a.AnnouncementRepo.GetDepartmentIDByID(id)
+	if err != nil {
+		return err
+	}
+	err = a.check(userID, departmentID)
+	if err != nil {
+		return err
+	}
+	return a.AnnouncementRepo.DeleteAnnouncement(id)
+}
