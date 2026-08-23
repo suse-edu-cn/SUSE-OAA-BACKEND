@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"growthos/internal/model"
+	"suseoaa/internal/model"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -91,6 +91,17 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	info.StudentID = user.StudentID
 
 	return info, nil
+}
+func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {
+	var user model.User
+	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
+	if err != nil {
+		return 0, "", err
+	}
+	if user.Department != nil && user.Role != nil {
+		return user.Role.Level, user.Department.Name, nil
+	}
+	return 0, "", errors.New("关联字段获取失败")
 }
 
 func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string, times uint, ctx context.Context) error {

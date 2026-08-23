@@ -2,7 +2,7 @@ package repository
 
 import (
 	"errors"
-	"growthos/internal/model"
+	"suseoaa/internal/model"
 
 	"gorm.io/gorm"
 )
@@ -44,4 +44,12 @@ func (d *DepartmentRepository) GetDepartmentMap() (map[uint64]*model.Department,
 		result[value.ID] = &value
 	}
 	return result, nil
+}
+func (d *DepartmentRepository) GetDepartmentByID(id uint64) (string, error) {
+	var department model.Department
+	err := d.DB.Where("id = ?", id).First(&department).Error
+	if err != nil {
+		return "", err
+	}
+	return department.Name, nil
 }

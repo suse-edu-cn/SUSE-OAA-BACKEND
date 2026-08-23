@@ -2,9 +2,9 @@ package database
 
 import (
 	"fmt"
-	"growthos/internal/config"
-	"growthos/internal/model"
 	"log"
+	"suseoaa/internal/config"
+	"suseoaa/internal/model"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -22,7 +22,7 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
-	err = db.AutoMigrate(&model.User{}, model.Department{}, model.RefreshToken{}, model.Role{})
+	err = db.AutoMigrate(&model.User{}, &model.Department{}, &model.RefreshToken{}, &model.Role{}, &model.Announcement{})
 	if err != nil {
 		panic(err)
 	}
@@ -59,6 +59,7 @@ func InitData(db *gorm.DB) {
 		{Name: "秘书处"},
 		{Name: "理事会"},
 		{Name: "项目部"},
+		{Name: "开放原子开源协会"},
 	}
 
 	deptMap := make(map[string]uint64)

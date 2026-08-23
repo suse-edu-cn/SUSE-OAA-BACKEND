@@ -2,7 +2,7 @@ package repository
 
 import (
 	"errors"
-	"growthos/internal/model"
+	"suseoaa/internal/model"
 
 	"gorm.io/gorm"
 )
@@ -50,6 +50,15 @@ func (r *RoleRepository) GetLevelByName(name string) (uint64, error) {
 	err := r.DB.Model(&model.Role{}).Where("name = ?", name).First(&role).Error
 	if err != nil {
 		return 0, errors.New("获取" + name + "失败" + err.Error())
+	}
+	return role.Level, nil
+}
+
+func (r *RoleRepository) GetLevelByID(id uint64) (uint64, error) {
+	var role model.Role
+	err := r.DB.Model(&model.Role{}).Where("id = ?", id).First(&role).Error
+	if err != nil {
+		return 0, errors.New("获取level失败" + err.Error())
 	}
 	return role.Level, nil
 }

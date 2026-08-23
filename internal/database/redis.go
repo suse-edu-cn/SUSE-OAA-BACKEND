@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
-	"growthos/internal/config"
+	"suseoaa/internal/config"
 	"time"
 
 	"github.com/redis/go-redis/v9"

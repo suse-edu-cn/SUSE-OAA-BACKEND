@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"growthos/internal/request"
-	"growthos/internal/service"
-	"growthos/pkg/response"
-	"growthos/pkg/utils"
+	"suseoaa/internal/request"
+	"suseoaa/internal/service"
+	"suseoaa/pkg/response"
+	"suseoaa/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,8 +41,8 @@ func (a *AuthHandler) Login(c *gin.Context) {
 	if user.DepartmentID != nil {
 		departmentID = *user.DepartmentID
 	}
-	if user.RoleID != nil {
-		roleID = *user.RoleID
+	if user.RoleID != 0 {
+		roleID = user.RoleID
 	}
 	token, err := utils.GenerateToken(user.Username, user.ID, departmentID, roleID, a.JwtSecret, a.JwtExpire)
 	if err != nil {
@@ -80,8 +80,8 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 	if user.DepartmentID != nil {
 		departmentID = *user.DepartmentID
 	}
-	if user.RoleID != nil {
-		roleID = *user.RoleID
+	if user.RoleID != 0 {
+		roleID = user.RoleID
 	}
 	token, err := utils.GenerateToken(user.Username, user.ID, departmentID, roleID, a.JwtSecret, a.JwtExpire)
 	if err != nil {

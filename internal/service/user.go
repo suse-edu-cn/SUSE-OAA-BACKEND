@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 	"errors"
-	"growthos/pkg/utils"
+	"suseoaa/pkg/utils"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
-	"growthos/internal/model"
-	"growthos/internal/repository"
-	"growthos/internal/request"
+	"suseoaa/internal/model"
+	"suseoaa/internal/repository"
+	"suseoaa/internal/request"
 )
 
 type UserService struct {

@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"growthos/internal/request"
-	"growthos/internal/service"
-	"growthos/pkg/response"
+	"suseoaa/internal/request"
+	"suseoaa/internal/service"
+	"suseoaa/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )

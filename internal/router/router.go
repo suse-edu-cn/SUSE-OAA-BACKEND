@@ -1,8 +1,8 @@
 package router
 
 import (
-	"growthos/internal/handler"
-	"growthos/internal/middleware"
+	"suseoaa/internal/handler"
+	"suseoaa/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,6 +47,11 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	role := r.Group("api/v2/role")
 	{
 		role.GET("list", total.Role.FindAll)
+	}
+	announcement := r.Group("api/v2/announcement")
+	{
+		announcement.POST("create", total.Announcement.CreateAnnouncement)
+		announcement.POST("update", total.Announcement.UpdateAnnouncement)
 	}
 	return r
 }

@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"growthos/pkg/response"
-	"growthos/pkg/utils"
+	"suseoaa/pkg/response"
+	"suseoaa/pkg/utils"
 	"strings"
 
 	"github.com/gin-gonic/gin"

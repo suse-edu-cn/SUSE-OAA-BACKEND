@@ -2,8 +2,8 @@ package service
 
 import (
 	"errors"
-	"growthos/internal/model"
-	"growthos/internal/repository"
+	"suseoaa/internal/model"
+	"suseoaa/internal/repository"
 )
 
 type DepartmentService struct {
