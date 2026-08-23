@@ -60,14 +60,14 @@ func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64) (model.Announcem
 	}
 	return announcement.ToInfo(), nil
 }
-func (a *AnnouncementRepository) GetAnnouncementInfoList() (*[]model.AnnouncementInfo, error) {
+func (a *AnnouncementRepository) GetAnnouncementInfoList(isActive bool) (*[]model.AnnouncementInfo, error) {
 	var announcementsInfo []model.AnnouncementInfo
 	var announcements []model.Announcement
 	err := a.DB.Model(&model.Announcement{}).
 		Preload("Department").
 		Preload("Publisher").
 		Preload("Publisher.Role").
-		Where("is_active = ?", true).Find(&announcements).Error
+		Where("is_active = ? AND  publisher_id IS NOT NULL ", isActive).Find(&announcements).Error
 	if err != nil {
 		return nil, err
 	}

@@ -100,3 +100,22 @@ func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
 	response.Success(c, "推送成功")
 	return
 }
+
+func (a *AnnouncementHandler) GetAnnouncementActiveList(c *gin.Context) {
+	announcements, err := a.AnnouncementService.GetAnnouncementActiveList()
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, announcements)
+	return
+}
+func (a *AnnouncementHandler) GetAnnouncementHistoryList(c *gin.Context) {
+	announcements, err := a.AnnouncementService.GetAnnouncementHistoryList()
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, announcements)
+	return
+}

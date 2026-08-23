@@ -76,3 +76,10 @@ func (a *AnnouncementService) PushAnnouncement(ctx context.Context, announcement
 	err = a.AnnouncementRepo.PushAnnouncement(ctx, announcementID, departmentID, pushedID)
 	return err
 }
+
+func (a *AnnouncementService) GetAnnouncementActiveList() (*[]model.AnnouncementInfo, error) {
+	return a.AnnouncementRepo.GetAnnouncementInfoList(true)
+}
+func (a *AnnouncementService) GetAnnouncementHistoryList() (*[]model.AnnouncementInfo, error) {
+	return a.AnnouncementRepo.GetAnnouncementInfoList(false)
+}
