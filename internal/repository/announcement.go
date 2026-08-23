@@ -60,6 +60,28 @@ func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64) (model.Announcem
 	}
 	return announcement.ToInfo(), nil
 }
+func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(level uint64, departmentID uint64) (*[]model.AnnouncementInfo, error) {
+	var announcementsInfo []model.AnnouncementInfo
+	var announcements []model.Announcement
+	tx := a.DB.Model(&model.Announcement{}).
+		Preload("Department").
+		Preload("Publisher").
+		Preload("Publisher.Role")
+	if level < 30 {
+		tx.Where("publisher_id IS NOT NULL")
+	} else if level < 80 {
+		tx.Where("department_id = ? OR publisher_id IS NOT NULL", departmentID)
+	}
+	err := tx.Find(&announcements).Error
+	if err != nil {
+		return &[]model.AnnouncementInfo{}, err
+	}
+	for _, announcement := range announcements {
+
+		announcementsInfo = append(announcementsInfo, announcement.ToInfo())
+	}
+	return &announcementsInfo, nil
+}
 func (a *AnnouncementRepository) GetAnnouncementInfoList(isActive bool) (*[]model.AnnouncementInfo, error) {
 	var announcementsInfo []model.AnnouncementInfo
 	var announcements []model.Announcement

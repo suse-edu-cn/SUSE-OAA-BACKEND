@@ -55,6 +55,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		announcement.POST("push", total.Announcement.PushAnnouncement)
 		announcement.GET("active", total.Announcement.GetAnnouncementActiveList)
 		announcement.GET("history", total.Announcement.GetAnnouncementHistoryList)
+		announcement.GET("list", total.Announcement.GetAnnouncementList)
 	}
 	return r
 }

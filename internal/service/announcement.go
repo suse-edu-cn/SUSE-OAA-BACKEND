@@ -83,3 +83,14 @@ func (a *AnnouncementService) GetAnnouncementActiveList() (*[]model.Announcement
 func (a *AnnouncementService) GetAnnouncementHistoryList() (*[]model.AnnouncementInfo, error) {
 	return a.AnnouncementRepo.GetAnnouncementInfoList(false)
 }
+func (a *AnnouncementService) GetAnnouncementInfoList(id uint64) (*[]model.AnnouncementInfo, error) {
+	level, userDepartment, err := a.UserRepo.GetRoleLevelAndDepartment(id)
+	if err != nil {
+		return nil, err
+	}
+	department, err := a.DepartmentRepo.FindByName(userDepartment)
+	if err != nil {
+		return nil, err
+	}
+	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(level, department.ID)
+}

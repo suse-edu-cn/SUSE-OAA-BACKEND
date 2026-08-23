@@ -119,3 +119,13 @@ func (a *AnnouncementHandler) GetAnnouncementHistoryList(c *gin.Context) {
 	response.Success(c, announcements)
 	return
 }
+func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
+	id := c.GetUint64("user_id")
+	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, announcementInfos)
+	return
+}
