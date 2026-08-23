@@ -62,3 +62,10 @@ func (r *RoleRepository) GetLevelByID(id uint64) (uint64, error) {
 	}
 	return role.Level, nil
 }
+
+func (r *RoleRepository) CreateRole(role *model.Role) error {
+	return r.DB.Create(role).Error
+}
+func (r *RoleRepository) UpdateRole(role *model.Role) error {
+	return r.DB.Updates(&role).Error
+}

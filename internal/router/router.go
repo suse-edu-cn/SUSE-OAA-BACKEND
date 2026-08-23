@@ -47,6 +47,8 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	role := r.Group("api/v2/role")
 	{
 		role.GET("list", total.Role.FindAll)
+		role.POST("create", total.Role.Create)
+		role.POST("update", total.Role.Update)
 	}
 	announcement := r.Group("api/v2/announcement")
 	{
