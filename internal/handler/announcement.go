@@ -82,3 +82,21 @@ func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
 	response.Success(c, "公告更新成功")
 	return
 }
+
+func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
+	var req request.PushAnnouncementReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.Fail(c, 400, "获取参数失败")
+		return
+	}
+	userID := c.GetUint64("user_id")
+	ctx := c.Request.Context()
+	err = a.AnnouncementService.PushAnnouncement(ctx, req.AnnouncementID, userID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "推送成功")
+	return
+}
