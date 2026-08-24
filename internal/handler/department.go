@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"suseoaa/internal/model"
+	"suseoaa/internal/request"
 	"suseoaa/internal/service"
 	"suseoaa/pkg/response"
 
@@ -24,4 +26,39 @@ func (d *DepartmentHandler) GetAll(c *gin.Context) {
 		return
 	}
 	response.Success(c, departments)
+}
+func (d *DepartmentHandler) Create(c *gin.Context) {
+	var req request.CreateDepartmentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取参数失败")
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := d.DepartmentService.CreateDepartment(id, &model.Department{
+		Name: req.Name,
+	})
+	if err != nil {
+		response.Fail(c, 500, err.Error())
+		return
+	}
+	response.Success(c, nil)
+	return
+}
+func (d *DepartmentHandler) Update(c *gin.Context) {
+	var req request.UpdateDepartmentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取参数失败")
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := d.DepartmentService.UpdateDepartment(id, &model.Department{
+		ID:   req.DepartmentID,
+		Name: req.Name,
+	})
+	if err != nil {
+		response.Fail(c, 500, err.Error())
+		return
+	}
+	response.Success(c, nil)
+	return
 }

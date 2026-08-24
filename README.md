@@ -33,7 +33,8 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis**。
 
 ### Department
 - `GET /api/v2/department/list` 部门列表
-
+- `POST /api/v2/department/create` 新建部门
+- `POST /api/v2/department/update` 更新部门
 ### Role
 - `GET /api/v2/role/list` 职位列表
 - `POST /api/v2/role/create` 新建职位

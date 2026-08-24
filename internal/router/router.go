@@ -43,6 +43,8 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	department := r.Group("api/v2/department")
 	{
 		department.GET("list", total.Department.GetAll)
+		department.POST("create", total.Department.Create)
+		department.POST("update", total.Department.Update)
 	}
 	role := r.Group("api/v2/role")
 	{

@@ -21,7 +21,7 @@ func main() {
 
 	emailService := service.NewEmailService(Config.Email.Host, Config.Email.Port, Config.Email.User, Config.Email.Pass, Config.Email.Expire, Config.Email.CoolDown)
 	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService)
-	departmentService := service.NewDepartmentService(departmentRepo)
+	departmentService := service.NewDepartmentService(departmentRepo, roleRepo)
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo)
 
