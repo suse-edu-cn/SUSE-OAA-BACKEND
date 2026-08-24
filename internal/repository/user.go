@@ -145,8 +145,11 @@ func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx contex
 func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.Context) (string, error) {
 	key := fmt.Sprintf("%d-%s", id, device)
 	token, err := u.Rdb.Get(ctx, key).Result()
-	if errors.Is(err, redis.Nil) {
-		return "", errors.New("refresh_token不存在或者过期")
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return "", errors.New("refresh_token不存在或者过期")
+		}
+		return "", errors.New("获取refresh_token失败: " + err.Error())
 	}
 	return token, nil
 }
@@ -218,6 +221,14 @@ func (u *UserRepository) GetVerificationCode(id uint64, types string, ctx contex
 	}
 	return code, nil
 }
+
+func (u *UserRepository) DeleteVerificationCode(id uint64, types string, ctx context.Context) error {
+	key := fmt.Sprintf("%d-%sVerificationCode", id, types)
+	if err := u.Rdb.Del(ctx, key).Err(); err != nil {
+		return errors.New("删除验证码失败，" + err.Error())
+	}
+	return nil
+}
 func (u *UserRepository) SetCooldown(id uint64, cooldown time.Duration, ctx context.Context) error {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	err := u.Rdb.Set(ctx, key, "cooldown", cooldown).Err()
@@ -227,13 +238,16 @@ func (u *UserRepository) SetCooldown(id uint64, cooldown time.Duration, ctx cont
 	return nil
 }
 
-func (u *UserRepository) CheckCooldown(id uint64, ctx context.Context) bool {
+func (u *UserRepository) CheckCooldown(id uint64, ctx context.Context) (bool, error) {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	_, err := u.Rdb.Get(ctx, key).Result()
 	if err != nil {
-		return false
+		if errors.Is(err, redis.Nil) {
+			return false, nil
+		}
+		return false, errors.New("检查冷却时间失败: " + err.Error())
 	}
-	return true
+	return true, nil
 }
 
 func (u *UserRepository) BatchUserInfoList(ctx context.Context, items []model.UpdateUserItems) error {

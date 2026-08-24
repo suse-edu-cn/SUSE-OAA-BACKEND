@@ -40,7 +40,8 @@ func (r *RoleRepository) GetRoleMap() (map[uint64]*model.Role, error) {
 		return nil, err
 	}
 	for _, value := range *roles {
-		res[value.ID] = &value
+		v := value
+		res[v.ID] = &v
 	}
 	return res, nil
 }

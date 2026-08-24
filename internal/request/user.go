@@ -8,7 +8,7 @@ type UserListReq struct {
 	Keyword    string `form:"keyword"`
 	Department string `form:"department"`
 	Role       string `form:"role"`
-	Page       int    `form:"page, default:1"`
+	Page       int    `form:"page,default=1"`
 	PageSize   int    `form:"page_size, default=20"`
 }
 

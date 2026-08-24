@@ -41,7 +41,8 @@ func (d *DepartmentRepository) GetDepartmentMap() (map[uint64]*model.Department,
 		return nil, err
 	}
 	for _, value := range *departments {
-		result[value.ID] = &value
+		v := value
+		result[v.ID] = &v
 	}
 	return result, nil
 }

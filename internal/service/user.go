@@ -49,7 +49,7 @@ func (u *UserService) Register(req request.RegisterReq) error {
 		return errors.New("密码加密失败")
 	}
 
-	role, err := u.RoleRepo.FindByName("成员") // 填入你的默认角色名称
+	role, err := u.RoleRepo.FindByName("会员")
 	if err != nil {
 		return errors.New("获取默认角色失败: " + err.Error())
 	}
@@ -147,6 +147,9 @@ func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword1
 		return errors.New("旧密码错误")
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte(newPassword1), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("密码加密失败")
+	}
 	err = u.Repo.ResetPassword(id, string(password))
 	if err != nil {
 		return err
@@ -169,7 +172,9 @@ func (u *UserService) SendVerificationCode(id uint64, types string) error {
 	if user.Email == "" {
 		return errors.New("请先绑定邮箱")
 	}
-	if u.Repo.CheckCooldown(id, context.Background()) {
+	if cooldown, err := u.Repo.CheckCooldown(id, context.Background()); err != nil {
+		return err
+	} else if cooldown {
 		return errors.New("间隔太短")
 	}
 	code := u.Email.NewVerificationCode(6)
@@ -196,6 +201,9 @@ func (u *UserService) ResetPassword(id uint64, code string, types string) error 
 	}
 	if verificationCode != code {
 		return errors.New("验证码错误或者失效")
+	}
+	if err := u.Repo.DeleteVerificationCode(id, types, context.Background()); err != nil {
+		return err
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
 	if err != nil {
@@ -236,6 +244,12 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 			continue
 		}
 		status[req[i].UserID] = true
+		if _, err := u.Repo.FindUserById(req[i].UserID); err != nil {
+			userIdList = append(userIdList, req[i].UserID)
+			errorItems[req[i].UserID] = model.UpdateUserItems{UserID: req[i].UserID, DepartmentID: &req[i].DepartmentID, RoleID: &req[i].RoleID}
+			errorMessage[req[i].UserID] = "用户不存在"
+			continue
+		}
 		if roleMap[req[i].RoleID] == nil || departmentMap[req[i].DepartmentID] == nil {
 			userIdList = append(userIdList, req[i].UserID)
 			tempItem := model.UpdateUserItems{}
