@@ -38,14 +38,16 @@ func (u *UserRepository) FindUserByUsername(username string) (model.User, error)
 	err := u.DB.Model(&model.User{}).Where("username = ?", username).First(&user).Error
 	return user, err
 }
-func (u *UserRepository) CheckExist(studentId string, email string) error {
+func (u *UserRepository) CheckExist(studentId string, email string, username string) error {
 	var num int64
-	err := u.DB.Model(&model.User{}).Where("email = ? or student_id = ? ", email, studentId).Count(&num).Error
+	err := u.DB.Model(&model.User{}).
+		Where("email = ? OR student_id = ? OR username = ?", email, studentId, username).
+		Count(&num).Error
 	if err != nil {
-		return errors.New("查询失败，" + err.Error())
+		return errors.New("检查用户唯一性失败: " + err.Error())
 	}
 	if num > 0 {
-		return errors.New("学号或者邮箱已存在")
+		return errors.New("学号、邮箱或用户名已被占用")
 	}
 	return nil
 }
@@ -98,10 +100,14 @@ func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, e
 	if err != nil {
 		return 0, "", err
 	}
-	if user.Department != nil && user.Role != nil {
-		return user.Role.Level, user.Department.Name, nil
+	if user.Role == nil {
+		return 0, "", errors.New("角色不存在")
 	}
-	return 0, "", errors.New("关联字段获取失败")
+	deptName := ""
+	if user.Department != nil {
+		deptName = user.Department.Name
+	}
+	return user.Role.Level, deptName, nil
 }
 
 func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string, times uint, ctx context.Context) error {
@@ -148,22 +154,31 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 	var userList []model.UserInfo
 	var users []model.User
 	var total int64
-	query := u.DB.Model(&model.User{})
+	query := u.DB.Model(&model.User{}).
+		Joins("LEFT JOIN departments ON departments.id = users.department_id").
+		Joins("LEFT JOIN roles ON roles.id = users.role_id")
+
 	if department != "" {
-		query = query.Where("department LIKE % ?", "%"+department+"%")
+		query = query.Where("departments.name LIKE ?", "%"+department+"%")
 	}
 	if role != "" {
-		query = query.Where("role LIKE ?", "%"+role+"%")
+		query = query.Where("roles.name LIKE ?", "%"+role+"%")
 	}
 	if keyword != "" {
-		query = query.Where("username LIKE ? OR name LIKE ? OR student_id LIKE ? ", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+		kw := "%" + keyword + "%"
+		query = query.Where("(users.username LIKE ? OR users.name LIKE ? OR users.student_id LIKE ?)", kw, kw, kw)
 	}
 	err := query.Count(&total).Error
 	if err != nil {
-		return nil, 0, errors.New("获取数据个数失败")
+		return nil, 0, errors.New("查询用户数量失败: " + err.Error())
 	}
 	offset := (page - 1) * pageSize
-	err = query.Preload("Department").Preload("Role").Limit(pageSize).Offset(offset).Find(&users).Error
+	err = query.Select("users.*").
+		Preload("Department").
+		Preload("Role").
+		Limit(pageSize).
+		Offset(offset).
+		Find(&users).Error
 	if err != nil {
 		return nil, 0, errors.New("查询数据失败")
 	}

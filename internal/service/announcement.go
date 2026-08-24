@@ -34,11 +34,14 @@ func (a *AnnouncementService) check(userID uint64, departmentID uint64) error {
 	if err != nil {
 		return err
 	}
+	if level >= 80 {
+		return nil
+	}
 	department, err := a.DepartmentRepo.GetDepartmentByID(departmentID)
 	if err != nil {
 		return err
 	}
-	if level < 50 || (level < 80 && department != userDepartment) {
+	if level < 50 || department != userDepartment {
 		return errors.New("权限不够")
 	}
 	return nil
@@ -88,11 +91,14 @@ func (a *AnnouncementService) GetAnnouncementInfoList(id uint64) (*[]model.Annou
 	if err != nil {
 		return nil, err
 	}
-	department, err := a.DepartmentRepo.FindByName(userDepartment)
-	if err != nil {
-		return nil, err
+	var deptID uint64
+	if userDepartment != "" {
+		dept, err := a.DepartmentRepo.FindByName(userDepartment)
+		if err == nil && dept != nil {
+			deptID = dept.ID
+		}
 	}
-	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(level, department.ID)
+	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(level, deptID)
 }
 
 func (a *AnnouncementService) DeleteAnnouncement(id uint64, userID uint64) error {

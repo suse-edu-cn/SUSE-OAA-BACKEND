@@ -71,9 +71,9 @@ func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(level uint64, dep
 		Preload("Publisher").
 		Preload("Publisher.Role")
 	if level < 30 {
-		tx.Where("publisher_id IS NOT NULL")
+		tx = tx.Where("publisher_id IS NOT NULL")
 	} else if level < 80 {
-		tx.Where("department_id = ? OR publisher_id IS NOT NULL", departmentID)
+		tx = tx.Where("department_id = ? OR publisher_id IS NOT NULL", departmentID)
 	}
 	err := tx.Find(&announcements).Error
 	if err != nil {

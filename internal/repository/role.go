@@ -67,5 +67,17 @@ func (r *RoleRepository) CreateRole(role *model.Role) error {
 	return r.DB.Create(role).Error
 }
 func (r *RoleRepository) UpdateRole(role *model.Role) error {
-	return r.DB.Updates(&role).Error
+	return r.DB.Model(&model.Role{}).Where("id = ?", role.ID).Updates(role).Error
+}
+
+func (r *RoleRepository) GetRoleByUserID(id uint64) (uint64, uint64, error) {
+	var user model.User
+	err := r.DB.Preload("Role").Where("id = ?", id).First(&user).Error
+	if err != nil {
+		return 0, 0, err
+	}
+	if user.Role != nil {
+		return user.Role.ID, user.Role.Level, nil
+	}
+	return 0, 0, errors.New("用户role缺失")
 }

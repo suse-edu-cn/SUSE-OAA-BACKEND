@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"errors"
-	"suseoaa/pkg/utils"
 	"strings"
+	"suseoaa/pkg/utils"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -34,11 +34,13 @@ func (u *UserService) Register(req request.RegisterReq) error {
 	req.Username = strings.TrimSpace(req.Username)
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.TrimSpace(req.Email)
+
 	if req.StudentID == "" || req.Username == "" || req.Name == "" || req.Email == "" || req.Password == "" {
-		return errors.New("参数错误")
+		return errors.New("注册信息不能为空")
 	}
 
-	if err := u.Repo.CheckExist(req.StudentID, req.Email); err != nil {
+	// 传入 req.Username 校验
+	if err := u.Repo.CheckExist(req.StudentID, req.Email, req.Username); err != nil {
 		return err
 	}
 
@@ -46,7 +48,12 @@ func (u *UserService) Register(req request.RegisterReq) error {
 	if err != nil {
 		return errors.New("密码加密失败")
 	}
-	role, err := u.RoleRepo.FindByName("会员")
+
+	role, err := u.RoleRepo.FindByName("成员") // 填入你的默认角色名称
+	if err != nil {
+		return errors.New("获取默认角色失败: " + err.Error())
+	}
+
 	user := model.User{
 		StudentID: req.StudentID,
 		Username:  req.Username,
@@ -55,8 +62,9 @@ func (u *UserService) Register(req request.RegisterReq) error {
 		Password:  string(hash),
 		Role:      role,
 	}
+
 	if err := u.Repo.CreateUser(user); err != nil {
-		return errors.New("创建失败" + err.Error())
+		return errors.New("创建用户失败: " + err.Error())
 	}
 	return nil
 }
@@ -122,6 +130,9 @@ func (u *UserService) GetUserList(keyword string, department string, role string
 	}
 	return userList, total, nil
 
+}
+func (u *UserService) FindUserByID(id uint64) (model.User, error) {
+	return u.Repo.FindUserById(id)
 }
 
 func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword1 string, newPassword2 string) error {
@@ -220,7 +231,7 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	}
 	var userIdList []uint64
 	//区分出是否能改
-	for i := 0; i < len(req); i++ {
+	for i := range req {
 		if status[req[i].UserID] {
 			continue
 		}
@@ -274,7 +285,7 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	if err != nil {
 		return res, errors.New("存入修改失败")
 	}
-	//拼接味修改的数据
+	//拼接未修改的数据
 	usersInfo, err := u.Repo.GetUsersInfo(userIdList)
 	if err != nil {
 		return res, err

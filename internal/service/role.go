@@ -24,15 +24,7 @@ func (r *RoleService) GetAll() (*[]model.Role, error) {
 	return role, nil
 }
 func (r *RoleService) GetRoleByUserID(id uint64) (uint64, uint64, error) {
-	var user model.User
-	err := r.RoleRepo.DB.Preload("Role").Where("id = ?", id).First(&user).Error
-	if err != nil {
-		return 0, 0, err
-	}
-	if user.Role != nil {
-		return user.Role.ID, user.Role.Level, nil
-	}
-	return 0, 0, errors.New("用户role缺失")
+	return r.RoleRepo.GetRoleByUserID(id)
 }
 
 func (r *RoleService) Create(id uint64, role *model.Role) error {

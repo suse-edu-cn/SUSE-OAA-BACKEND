@@ -70,7 +70,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 400, "refresh token 错误")
 		return
 	}
-	user, err := a.UserService.Repo.FindUserById(req.UserId)
+	user, err := a.UserService.FindUserByID(req.UserId)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

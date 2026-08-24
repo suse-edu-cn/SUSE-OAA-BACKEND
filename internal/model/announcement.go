@@ -43,18 +43,20 @@ func (a *Announcement) ToInfo() AnnouncementInfo {
 		return AnnouncementInfo{}
 	}
 	info := AnnouncementInfo{
-		ID:             a.ID,
-		Title:          a.Title,
-		Content:        a.Content,
-		IsActive:       a.IsActive,
-		DepartmentName: a.Department.Name,
-		CreatedAt:      a.CreatedAt,
-		UpdatedAt:      a.UpdatedAt,
+		ID:          a.ID,
+		Title:       a.Title,
+		Content:     a.Content,
+		IsActive:    a.IsActive,
+		PublisherID: a.PublisherID,
+		PublishedAt: a.PublishedAt,
+		CreatedAt:   a.CreatedAt,
+		UpdatedAt:   a.UpdatedAt,
+	}
+	if a.Department != nil {
+		info.DepartmentName = a.Department.Name
 	}
 	if a.Publisher != nil {
 		info.PublisherName = a.Publisher.Name
-		info.PublishedAt = a.PublishedAt
-		info.PublisherID = a.PublisherID
 		if a.Publisher.Role != nil {
 			info.PublisherRole = a.Publisher.Role.Name
 		}
