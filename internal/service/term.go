@@ -4,6 +4,7 @@ import (
 	"errors"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
+	"time"
 )
 
 type TermService struct {
@@ -32,6 +33,7 @@ func (t *TermService) CreateTerm(term model.Term) error {
 	if err != nil {
 		return err
 	}
+	term.ExecutedAt = term.QueryEndAt.Add(1 * time.Minute)
 	err = t.TermRepo.CreateTerm(term)
 	if err != nil {
 		return err
@@ -43,9 +45,20 @@ func (t *TermService) UpdateTerm(term model.Term) error {
 	if err != nil {
 		return err
 	}
+	term.ExecutedAt = term.QueryEndAt.Add(1 * time.Minute)
 	err = t.TermRepo.UpdateTerm(term)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, error) {
+	termList, err := t.TermRepo.GetTermList(year, termType)
+	if err != nil {
+		return nil, err
+	}
+	if len(termList) == 0 {
+		return nil, errors.New("无匹配数据")
+	}
+	return termList, nil
 }

@@ -55,4 +55,9 @@ func (t *TimePeriod) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type GetTermListReq struct {
+	Year uint64 `form:"year"`
+	Type string `form:"type"`
+}
+
 //--------------------------------------------------

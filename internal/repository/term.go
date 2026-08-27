@@ -54,6 +54,21 @@ func (t *TermRepository) UpdateTerm(term model.Term) error {
 
 	return nil
 }
+func (t *TermRepository) GetTermList(year uint64, termType string) ([]*model.Term, error) {
+	var termList []*model.Term
+	tx := t.DB.Model(&model.Term{})
+	if year != 0 {
+		tx = tx.Where("year = ?", year)
+	}
+	if termType != "" {
+		tx = tx.Where("type = ?", termType)
+	}
+	err := tx.Find(&termList).Error
+	if err != nil {
+		return nil, err
+	}
+	return termList, nil
+}
 
 //面试官
 

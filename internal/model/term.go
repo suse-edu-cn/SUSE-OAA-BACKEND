@@ -22,8 +22,8 @@ type Term struct {
 	QueryEndAt   time.Time `gorm:"not null" json:"query_end_at"`   // 结果公示/允许查询的结束时间
 
 	// 最终批量执行状态 (Execute: 执行/生效)
-	IsExecuted bool       `gorm:"default:false" json:"is_executed"` // 查询期结束后，是否已执行批量更新 users 表的事务
-	ExecutedAt *time.Time `json:"executed_at"`                      // 事务具体执行生效的时间戳
+	IsExecuted bool      `gorm:"default:false" json:"is_executed"` // 查询期结束后，是否已执行批量更新 users 表的事务
+	ExecutedAt time.Time `gorm:"not null" json:"executed_at"`      // 事务具体执行生效的时间戳
 
 	CreatedAt time.Time      `json:"created_at"`     // 记录创建时间
 	UpdatedAt time.Time      `json:"updated_at"`     // 记录更新时间

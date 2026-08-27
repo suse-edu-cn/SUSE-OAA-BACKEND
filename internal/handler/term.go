@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
@@ -72,5 +73,26 @@ func (t *TermHandler) UpdateTerm(c *gin.Context) {
 		return
 	}
 	response.Success(c, "term 更新成功")
+	return
+}
+func (t *TermHandler) GetTermList(c *gin.Context) {
+	var req request.GetTermListReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, "获取参数失败")
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := t.TermService.CheckLevel(id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	fmt.Println(req)
+	termList, err := t.TermService.GetTermList(req.Year, req.Type)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, termList)
 	return
 }
