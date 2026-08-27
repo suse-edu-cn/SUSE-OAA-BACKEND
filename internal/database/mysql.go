@@ -22,7 +22,15 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
-	err = db.AutoMigrate(&model.User{}, &model.Department{}, &model.RefreshToken{}, &model.Role{}, &model.Announcement{})
+	err = db.AutoMigrate(&model.User{},
+		&model.Department{},
+		&model.RefreshToken{},
+		&model.Role{},
+		&model.Announcement{},
+		&model.Application{},
+		&model.Interviewer{},
+		&model.Term{},
+		&model.TermHistory{})
 	if err != nil {
 		panic(err)
 	}

@@ -62,5 +62,9 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		announcement.GET("list", total.Announcement.GetAnnouncementList)
 		announcement.POST("delete", total.Announcement.DeleteAnnouncement)
 	}
+	term := r.Group("api/v2/term")
+	{
+		term.POST("create", total.Term.CreateTerm)
+	}
 	return r
 }
