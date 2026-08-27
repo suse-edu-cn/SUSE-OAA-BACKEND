@@ -35,6 +35,25 @@ func (t *TermRepository) CreateTerm(term model.Term) error {
 	}
 	return nil
 }
+func (t *TermRepository) UpdateTerm(term model.Term) error {
+	tx := t.DB.Model(&model.Term{}).Where("id = ?", term.ID).Updates(map[string]any{
+		"title":          term.Title,
+		"edit_start_at":  term.EditStartAt,
+		"edit_end_at":    term.EditEndAt,
+		"query_start_at": term.QueryStartAt,
+		"query_end_at":   term.QueryEndAt,
+	})
+
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	if tx.RowsAffected == 0 {
+		return errors.New("数据不存在")
+	}
+
+	return nil
+}
 
 //面试官
 

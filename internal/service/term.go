@@ -17,12 +17,7 @@ func NewTerService(termRepo repository.TermRepository, service UserService) Term
 		UserService: service,
 	}
 }
-
-func (t *TermService) CreateTerm(userID uint64, term model.Term) error {
-	err := term.CheckPeriod()
-	if err != nil {
-		return err
-	}
+func (t *TermService) CheckLevel(userID uint64) error {
 	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
 	if err != nil {
 		return err
@@ -30,7 +25,25 @@ func (t *TermService) CreateTerm(userID uint64, term model.Term) error {
 	if level < 80 {
 		return errors.New("权力不够")
 	}
+	return nil
+}
+func (t *TermService) CreateTerm(term model.Term) error {
+	err := term.CheckPeriod()
+	if err != nil {
+		return err
+	}
 	err = t.TermRepo.CreateTerm(term)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (t *TermService) UpdateTerm(term model.Term) error {
+	err := term.CheckPeriod()
+	if err != nil {
+		return err
+	}
+	err = t.TermRepo.UpdateTerm(term)
 	if err != nil {
 		return err
 	}

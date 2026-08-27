@@ -26,7 +26,12 @@ func (t *TermHandler) CreateTerm(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := t.TermService.CreateTerm(id, model.Term{
+	err := t.TermService.CheckLevel(id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err = t.TermService.CreateTerm(model.Term{
 		Title:        req.Title,
 		Type:         req.Type,
 		Year:         req.Year,
@@ -39,6 +44,33 @@ func (t *TermHandler) CreateTerm(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	response.Success(c, "创建成功")
+	response.Success(c, "term创建成功")
+	return
+}
+func (t *TermHandler) UpdateTerm(c *gin.Context) {
+	var req request.UpdateTermReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := t.TermService.CheckLevel(id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err = t.TermService.UpdateTerm(model.Term{
+		ID:           req.ID,
+		Title:        req.Title,
+		EditStartAt:  req.EditPeriod.StartAt,
+		EditEndAt:    req.EditPeriod.EndAt,
+		QueryStartAt: req.QueryPeriod.StartAt,
+		QueryEndAt:   req.QueryPeriod.EndAt,
+	})
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "term 更新成功")
 	return
 }
