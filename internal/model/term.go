@@ -9,9 +9,9 @@ import (
 
 type Term struct {
 	ID    uint64 `gorm:"primaryKey;autoIncrement" json:"id"` // 周期唯一自增ID
-	Year  uint64 `gorm:"index;not null;unique" json:"year"`  // 对应年份/学年 (如: 2026)
-	Type  string `gorm:"size:16;not null;index" json:"type"` // 业务类型: 招新 或 换届
-	Title string `gorm:"size:64;not null" json:"title"`      // 周期展示标题 (如: "2026年秋季招新")
+	Year  uint64 `gorm:"not null;uniqueIndex:idx_year_type" json:"year"`
+	Type  string `gorm:"size:16;not null;uniqueIndex:idx_year_type" json:"type"`
+	Title string `gorm:"size:64;not null" json:"title"` // 周期展示标题 (如: "2026年秋季招新")
 
 	// 修改/填报时间窗口 (Edit: 编辑/修改)
 	EditStartAt time.Time `gorm:"not null" json:"edit_start_at"` // 允许填报/修改的开始时间
@@ -105,7 +105,7 @@ type Application struct {
 	Resume string `gorm:"type:text" json:"resume"` // 个人简历 / 在会工作经历
 	Reason string `gorm:"type:text" json:"reason"` // 竞选理由 / 申请阐述
 
-	Decision       DecisionStatus   `gorm:"size:32;default:'待定';index" json:"decision"`  // 录取决策状态 (默认: '待定')
+	Decision       DecisionStatus   `gorm:"size:32;default:'待定';index" json:"decision"`    // 录取决策状态 (默认: '待定')
 	Result         OrganizationRole `gorm:"embedded;embeddedPrefix:result_" json:"result"` // 最终录取结果 (映射为 result_department_id, result_role_id)
 	OperatorID     uint64           `gorm:"default:0" json:"operator_id"`                  // 做出决定的操作人UserID
 	DecisionRemark string           `gorm:"size:255" json:"decision_remark"`               // 决策说明/调剂备注

@@ -29,7 +29,7 @@ func (t *TermRepository) CreateTerm(term model.Term) error {
 	if err := t.DB.Create(&term).Error; err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-			return errors.New("创建失败，该年份已存在")
+			return errors.New("创建失败，该年份类型的数据已存在")
 		}
 		return err
 	}
