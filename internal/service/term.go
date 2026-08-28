@@ -71,5 +71,33 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, 
 //申请表
 
 func (t *TermService) CreateApplication(application model.Application) error {
+	err := t.CheckApplicationDepartmentPosition(application)
+	if err != nil {
+		return err
+	}
+	term, err := t.TermRepo.GetTermByID(application.TermID)
+	if err != nil {
+		return err
+	}
+	application.Type = term.Type
 	return t.TermRepo.CreateApplication(application)
+}
+
+func (t *TermService) CheckApplicationDepartmentPosition(application model.Application) error {
+	err := t.UserService.VerifyDepartmentPosition(application.FirstChoice.DepartmentID, application.FirstChoice.RoleID)
+	if err != nil {
+		return err
+	}
+	err = t.UserService.VerifyDepartmentPosition(application.SecondChoice.DepartmentID, application.SecondChoice.RoleID)
+	if err != nil {
+		return err
+	}
+	level, err := t.UserService.RoleRepo.GetLevelByID(application.FirstChoice.RoleID)
+	if err != nil {
+		return err
+	}
+	if level > 90 {
+		return errors.New("不能申请成为该职位")
+	}
+	return nil
 }

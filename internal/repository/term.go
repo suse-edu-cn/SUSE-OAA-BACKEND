@@ -54,6 +54,14 @@ func (t *TermRepository) UpdateTerm(term model.Term) error {
 
 	return nil
 }
+func (t *TermRepository) GetTermByID(termID uint64) (model.Term, error) {
+	var term model.Term
+	err := t.DB.Model(&model.Term{}).Where("id = ?", termID).First(&term).Error
+	if err != nil {
+		return model.Term{}, err
+	}
+	return term, nil
+}
 func (t *TermRepository) GetTermList(year uint64, termType string) ([]*model.Term, error) {
 	var termList []*model.Term
 	tx := t.DB.Model(&model.Term{})

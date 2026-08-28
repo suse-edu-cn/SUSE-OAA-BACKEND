@@ -71,7 +71,6 @@ func (Interviewer) TableName() string { return "interviewers" }
 type DecisionStatus string
 
 const (
-	DecisionPending          DecisionStatus = "待定"
 	DecisionAdmittedFirst    DecisionStatus = "录取第一志愿"
 	DecisionAdmittedSecond   DecisionStatus = "录取第二志愿"
 	DecisionAdmittedAdjusted DecisionStatus = "已调剂"
