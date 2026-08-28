@@ -15,14 +15,14 @@ type UpdateRoleReq struct {
 }
 
 func (c *CreateRoleReq) CheckType() error {
-	if c.Type == "开发" || c.Type == "普通" || c.Type == "部门" || c.Type == "协会" {
+	if c.Type == "部门" || c.Type == "协会" {
 		return nil
 	}
 	return errors.New("type 错误")
 }
 
-func (c *UpdateRoleReq) CheckType() error {
-	if c.Type == "开发" || c.Type == "普通" || c.Type == "部门" || c.Type == "协会" {
+func (u *UpdateRoleReq) CheckType() error {
+	if u.Type == "部门" || u.Type == "协会" {
 		return nil
 	}
 	return errors.New("type 错误")
