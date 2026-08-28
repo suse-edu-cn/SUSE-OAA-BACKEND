@@ -71,6 +71,8 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	application := r.Group("api/v2/application")
 	{
 		application.POST("create", total.Term.CreateApplication)
+		application.GET("department", total.Term.GetApplicationDepartmentList)
+		application.GET("role", total.Term.GetApplicationRoleList)
 	}
 	return r
 }

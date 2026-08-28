@@ -101,3 +101,41 @@ func (t *TermService) CheckApplicationDepartmentPosition(application model.Appli
 	}
 	return nil
 }
+func (t *TermService) GetRolesByDepartmentsID(departmentID uint64) ([]*model.Role, error) {
+	var departmentType string
+	var err error
+	departmentType = ""
+	if departmentID != 0 {
+		departmentType, err = t.UserService.DepartmentRepo.GetTypeByDepartmentID(departmentID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	roles, err := t.UserService.RoleRepo.GetRoleByType(departmentType)
+	if err != nil {
+		return nil, err
+	}
+	var result []*model.Role
+	for _, role := range roles {
+		if role.Level <= 90 {
+			result = append(result, role)
+		}
+	}
+	return result, nil
+}
+func (t *TermService) GetDepartmentByRoleID(roleID uint64) ([]*model.Department, error) {
+	var roleType string
+	var err error
+	roleType = ""
+	if roleID != 0 {
+		roleType, err = t.UserService.RoleRepo.GetTypeByRoleID(roleID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	departments, err := t.UserService.DepartmentRepo.GetDepartmentByType(roleType)
+	if err != nil {
+		return nil, err
+	}
+	return departments, nil
+}

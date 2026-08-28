@@ -90,3 +90,15 @@ func (r *RoleRepository) GetTypeByRoleID(roleID uint64) (string, error) {
 	}
 	return role.Type, nil
 }
+func (r *RoleRepository) GetRoleByType(roleType string) ([]*model.Role, error) {
+	var roles []*model.Role
+	tx := r.DB.Model(&model.Role{})
+	if roleType != "" {
+		tx = tx.Where("type = ?", roleType)
+	}
+	err := tx.Find(&roles).Error
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
+}

@@ -82,3 +82,9 @@ type CreateApplicationReq struct {
 	Resume          string           `json:"resume" binding:"required"`
 	Reason          string           `json:"reason" binding:"required"`
 }
+type GetApplicationDepartmentReq struct {
+	RoleID uint64 `form:"role_id"`
+}
+type GetApplicationRoleReq struct {
+	DepartmentID uint64 `form:"department_id"`
+}

@@ -69,3 +69,15 @@ func (d *DepartmentRepository) GetTypeByDepartmentID(departmentID uint64) (strin
 	}
 	return department.Type, nil
 }
+func (d *DepartmentRepository) GetDepartmentByType(departmentType string) ([]*model.Department, error) {
+	var departments []*model.Department
+	tx := d.DB.Model(&model.Department{})
+	if departmentType != "" {
+		tx = tx.Where("type = ?", departmentType)
+	}
+	err := tx.Find(&departments).Error
+	if err != nil {
+		return nil, err
+	}
+	return departments, nil
+}

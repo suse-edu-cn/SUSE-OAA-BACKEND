@@ -143,3 +143,32 @@ func (t *TermHandler) CreateApplication(c *gin.Context) {
 	response.Success(c, "创建成功")
 	return
 }
+
+func (t *TermHandler) GetApplicationDepartmentList(c *gin.Context) {
+	var req request.GetApplicationDepartmentReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	departments, err := t.TermService.GetDepartmentByRoleID(req.RoleID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, departments)
+	return
+}
+func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
+	var req request.GetApplicationRoleReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	roles, err := t.TermService.GetRolesByDepartmentsID(req.DepartmentID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, roles)
+	return
+}
