@@ -41,15 +41,7 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 func InitData(db *gorm.DB) {
 	log.Println("开始初始化基础数据...")
 
-	roles := []model.Role{
-		{Name: "开发者", Level: 100},
-		{Name: "会长", Level: 90},
-		{Name: "副会长", Level: 80},
-		{Name: "部长", Level: 60},
-		{Name: "副部长", Level: 50},
-		{Name: "干事", Level: 20},
-		{Name: "会员", Level: 10},
-	}
+	roles := model.DefaultRoles
 
 	roleMap := make(map[string]uint64)
 	for _, r := range roles {
@@ -61,15 +53,7 @@ func InitData(db *gorm.DB) {
 		}
 	}
 
-	departments := []model.Department{
-		{Name: "算法竞赛部"},
-		{Name: "组织宣传部"},
-		{Name: "秘书处"},
-		{Name: "理事会"},
-		{Name: "项目部"},
-		{Name: "开放原子开源协会"},
-	}
-
+	departments := model.DefaultDepartments
 	deptMap := make(map[string]uint64)
 	for _, d := range departments {
 		dept := d

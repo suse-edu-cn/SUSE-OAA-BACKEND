@@ -34,8 +34,14 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := d.DepartmentService.CreateDepartment(id, &model.Department{
+	err := req.CheckType()
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err = d.DepartmentService.CreateDepartment(id, &model.Department{
 		Name: req.Name,
+		Type: req.Type,
 	})
 	if err != nil {
 		response.Fail(c, 500, err.Error())
@@ -51,9 +57,15 @@ func (d *DepartmentHandler) Update(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := d.DepartmentService.UpdateDepartment(id, &model.Department{
+	err := req.CheckType()
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err = d.DepartmentService.UpdateDepartment(id, &model.Department{
 		ID:   req.DepartmentID,
 		Name: req.Name,
+		Type: req.Type,
 	})
 	if err != nil {
 		response.Fail(c, 500, err.Error())

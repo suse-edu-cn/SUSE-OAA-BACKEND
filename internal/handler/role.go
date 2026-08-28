@@ -33,9 +33,15 @@ func (r RoleHandler) Create(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := r.RoleService.Create(id, &model.Role{
+	err := req.CheckType()
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err = r.RoleService.Create(id, &model.Role{
 		Name:  req.Name,
 		Level: req.Level,
+		Type:  req.Type,
 	})
 	if err != nil {
 		response.Fail(c, 400, err.Error())
@@ -51,10 +57,16 @@ func (r RoleHandler) Update(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := r.RoleService.Update(id, &model.Role{
+	err := req.CheckType()
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err = r.RoleService.Update(id, &model.Role{
 		ID:    req.RoleID,
 		Name:  req.Name,
 		Level: req.Level,
+		Type:  req.Type,
 	})
 	if err != nil {
 		response.Fail(c, 400, err.Error())
