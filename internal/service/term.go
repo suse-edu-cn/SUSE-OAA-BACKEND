@@ -71,11 +71,15 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, 
 //申请表
 
 func (t *TermService) CreateApplication(application model.Application) error {
-	err := t.CheckApplicationDepartmentPosition(application)
+	term, err := t.TermRepo.GetTermByID(application.TermID)
 	if err != nil {
 		return err
 	}
-	term, err := t.TermRepo.GetTermByID(application.TermID)
+	ok := term.IsInEditPeriod(time.Now())
+	if !ok {
+		return errors.New("不在时间范围内")
+	}
+	err = t.CheckApplicationDepartmentPosition(application)
 	if err != nil {
 		return err
 	}
