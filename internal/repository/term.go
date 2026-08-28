@@ -116,6 +116,9 @@ func (t *TermRepository) GetTermMap() (map[uint64]model.Term, error) {
 func (t *TermRepository) CreateInterviewers(interviewer []model.Interviewer) error {
 	return t.DB.Create(&interviewer).Error
 }
+func (t *TermRepository) UpdateInterviewers(interviewers model.Interviewer) error {
+	return t.DB.Where("id = ?", interviewers.ID).Updates(&interviewers).Error
+}
 
 func (t *TermRepository) GetInterviewerListByTermID(termID uint64) ([]model.Interviewer, error) {
 	var interviewerList []model.Interviewer

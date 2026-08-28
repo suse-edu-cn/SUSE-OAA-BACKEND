@@ -111,6 +111,13 @@ type CreateInterviewer struct {
 	TermID       uint64        `json:"term_id" binding:"required"`
 	Interviewers []Interviewer `json:"interviewers" binding:"required"`
 }
+
+type UpdateInterviewer struct {
+	TermID uint64 `json:"term_id" binding:"required"`
+	ID     uint64 `json:"id" binding:"required"`
+	UserID uint64 `json:"user_id" binding:"required"`
+	Remark string `json:"remark" `
+}
 type Interviewer struct {
 	UserID uint64 `json:"user_id" binding:"required"`
 	Remark string `json:"remark" binding:"required"`

@@ -229,6 +229,30 @@ func (t *TermService) GetInterviewerListByTermID(termID uint64) ([]model.Intervi
 	if len(interviews) == 0 {
 		return nil, errors.New("该周期暂无面试官")
 	}
+	return t.InterviewerToInterviewerInfo(interviews)
+}
+
+func (t *TermService) UpdateInterviewer(id uint64, interviewer request.UpdateInterviewer) error {
+	err := t.CheckLevel(id)
+	var temp model.Interviewer
+	if err != nil {
+		return err
+	}
+	hasInterviewer, err := t.TermRepo.GetInterviewerListByTermID(interviewer.TermID)
+	if err != nil {
+		return err
+	}
+	if hasInterviewer[interviewer.ID] != temp {
+		return t.TermRepo.UpdateInterviewers(model.Interviewer{
+			UserID: interviewer.UserID,
+			TermID: interviewer.TermID,
+			Remark: interviewer.Remark,
+			ID:     interviewer.ID,
+		})
+	}
+	return errors.New("请先创建该数据")
+}
+func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
 	var result []model.InterviewerInfo
 	termMap, err := t.TermRepo.GetTermMap()
 	if err != nil {
@@ -241,6 +265,7 @@ func (t *TermService) GetInterviewerListByTermID(termID uint64) ([]model.Intervi
 	usersMap, err := t.UserService.Repo.GetUserMapByUserIDs(ids)
 	for _, interview := range interviews {
 		result = append(result, model.InterviewerInfo{
+			ID:             interview.ID,
 			DepartmentName: usersMap[interview.UserID].Department,
 			TermType:       termMap[interview.TermID].Type,
 			Year:           termMap[interview.TermID].Year,

@@ -67,6 +67,7 @@ type Interviewer struct {
 	DeletedAt    soft_delete.DeletedAt `gorm:"uniqueIndex:idx_term_user" json:"-"`
 }
 type InterviewerInfo struct {
+	ID             uint64 `json:"id"`
 	Year           uint64 `json:"year"`
 	TermType       string `json:"term_type"`
 	Name           string `json:"name"`

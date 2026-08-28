@@ -251,3 +251,19 @@ func (t *TermHandler) GetInterviewerList(c *gin.Context) {
 	response.Success(c, interviewerList)
 	return
 }
+
+func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
+	var req request.UpdateInterviewer
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := t.TermService.UpdateInterviewer(id, req)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "更新成功")
+	return
+}
