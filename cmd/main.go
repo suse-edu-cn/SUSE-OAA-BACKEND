@@ -25,7 +25,7 @@ func main() {
 	departmentService := service.NewDepartmentService(departmentRepo, roleRepo)
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo)
-	termService := service.NewTerService(termRepo, userService)
+	termService := service.NewTermService(termRepo, userService)
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(userService, Config.Jwt.Secret, Config.Jwt.ExpireHour, Config.Jwt.RefreshTime)

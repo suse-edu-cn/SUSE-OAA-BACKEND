@@ -87,7 +87,7 @@ type Application struct {
 	ID              uint64           `gorm:"primaryKey;autoIncrement" json:"id"`                   // 申请单自增ID
 	TermID          uint64           `gorm:"index;not null" json:"term_id"`                        // 关联的周期ID (对应 terms.id)
 	Type            string           `gorm:"size:16;not null;index" json:"type"`                   // 业务类型: 招新 或 换届
-	UserID          uint64           `gorm:"index;not null" json:"user_id"`                        // 申请人系统账号ID (对应 users.id)
+	UserID          uint64           `gorm:"index;not null;unique" json:"user_id"`                 // 申请人系统账号ID (对应 users.id)
 	Name            string           `gorm:"size:32;not null" json:"name"`                         // 申请人姓名
 	Gender          string           `gorm:"size:8;not null" json:"gender"`                        // 性别 (男 / 女)
 	Avatar          string           `gorm:"size:255" json:"avatar"`                               // 照片/证件照链接
@@ -96,11 +96,11 @@ type Application struct {
 	MajorClass      string           `gorm:"size:64;not null" json:"major_class"`                  // 专业班级 (如: 计科241)
 	PoliticalStatus string           `gorm:"size:32;not null" json:"political_status"`             // 政治面貌 (如: 共青团员 / 中共党员)
 	BirthDate       string           `gorm:"size:32;not null" json:"birth_date"`                   // 出生年月 (如: "2005-09")
-	QQ              string           `gorm:"size:20" json:"qq"`                                    // QQ 号码
+	QQ              string           `gorm:"size:20;not null" json:"qq"`                           // QQ 号码
 	Phone           string           `gorm:"size:20;not null" json:"phone"`                        // 联系电话 (手机号)
 	FirstChoice     OrganizationRole `gorm:"embedded;embeddedPrefix:first_" json:"first_choice"`   // 第一志愿 (映射为 first_department_id, first_role_id)
 	SecondChoice    OrganizationRole `gorm:"embedded;embeddedPrefix:second_" json:"second_choice"` // 第二志愿 (映射为 second_department_id, second_role_id)
-	AllowAdjust     bool             `gorm:"default:true" json:"allow_adjust"`                     // 是否服从调剂
+	AllowAdjust     *bool            `gorm:"default:true" json:"allow_adjust"`                     // 是否服从调剂
 
 	Resume string `gorm:"type:text" json:"resume"` // 个人简历 / 在会工作经历
 	Reason string `gorm:"type:text" json:"reason"` // 竞选理由 / 申请阐述

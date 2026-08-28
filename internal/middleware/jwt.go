@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"strings"
 	"suseoaa/pkg/response"
 	"suseoaa/pkg/utils"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,9 +30,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 		c.Set("user_id", claims.UserID)
-		c.Set("username", claims.Username)
-		c.Set("department_id", claims.DepartmentID)
-		c.Set("role_id", claims.RoleID)
+		c.Set("name", claims.Name)
+		c.Set("student_id", claims.StudentID)
 		c.Next()
 	}
 }

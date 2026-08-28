@@ -60,4 +60,25 @@ type GetTermListReq struct {
 	Type string `form:"type"`
 }
 
-//--------------------------------------------------
+// --------------------------------------------------
+// 申请表
+
+type OrganizationRole struct {
+	DepartmentID uint64 `gorm:"default:0" json:"department_id"` // 部门ID
+	RoleID       uint64 `gorm:"default:0" json:"role_id"`       // 职位/角色ID
+}
+type CreateApplicationReq struct {
+	TermID          uint64           `json:"term_id" binding:"required"`
+	College         string           `json:"college" binding:"required"`
+	MajorClass      string           `json:"major_class" binding:"required"`
+	Gender          string           `json:"gender" binding:"required"`
+	Phone           string           `json:"phone" binding:"required"`
+	QQ              string           `json:"qq" binding:"required"`
+	PoliticalStatus string           `json:"political_status" binding:"required"`
+	BirthDate       string           `json:"birth_date" binding:"required"`
+	FirstChoice     OrganizationRole `json:"first_choice" binding:"required"`
+	SecondChoice    OrganizationRole `json:"second_choice" binding:"required"`
+	AllowAdjust     *bool            `json:"allow_adjust" binding:"required"`
+	Resume          string           `json:"resume" binding:"required"`
+	Reason          string           `json:"reason" binding:"required"`
+}

@@ -68,5 +68,9 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		term.POST("update", total.Term.UpdateTerm)
 		term.GET("list", total.Term.GetTermList)
 	}
+	application := r.Group("api/v2/application")
+	{
+		application.POST("create", total.Term.CreateApplication)
+	}
 	return r
 }

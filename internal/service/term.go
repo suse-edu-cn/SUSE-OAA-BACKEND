@@ -12,12 +12,16 @@ type TermService struct {
 	UserService UserService
 }
 
-func NewTerService(termRepo repository.TermRepository, service UserService) TermService {
+func NewTermService(termRepo repository.TermRepository, service UserService) TermService {
 	return TermService{
 		TermRepo:    termRepo,
 		UserService: service,
 	}
 }
+
+//-----------------------
+//业务周期
+
 func (t *TermService) CheckLevel(userID uint64) error {
 	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
 	if err != nil {
@@ -61,4 +65,11 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, 
 		return nil, errors.New("无匹配数据")
 	}
 	return termList, nil
+}
+
+//----------------------------
+//申请表
+
+func (t *TermService) CreateApplication(application model.Application) error {
+	return t.TermRepo.CreateApplication(application)
 }

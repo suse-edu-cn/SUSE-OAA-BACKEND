@@ -20,6 +20,9 @@ func NewTermHandler(termService service.TermService) TermHandler {
 	}
 }
 
+//----------------------------
+//业务周期
+
 func (t *TermHandler) CreateTerm(c *gin.Context) {
 	var req request.CreateTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -78,7 +81,7 @@ func (t *TermHandler) UpdateTerm(c *gin.Context) {
 func (t *TermHandler) GetTermList(c *gin.Context) {
 	var req request.GetTermListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败: "+err.Error())
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -94,5 +97,49 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 		return
 	}
 	response.Success(c, termList)
+	return
+}
+
+//-------------------------------
+//申请表
+
+func (t *TermHandler) CreateApplication(c *gin.Context) {
+	var req request.CreateApplicationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取参数失败: "+err.Error())
+		return
+	}
+	id := c.GetUint64("user_id")
+	studentID := c.GetString("student_id")
+	name := c.GetString("name")
+	err := t.TermService.CreateApplication(model.Application{
+		TermID:          req.TermID,
+		UserID:          id,
+		Name:            name,
+		Gender:          req.Gender,
+		StudentID:       studentID,
+		College:         req.College,
+		MajorClass:      req.MajorClass,
+		PoliticalStatus: req.PoliticalStatus,
+		BirthDate:       req.BirthDate,
+		QQ:              req.QQ,
+		Phone:           req.Phone,
+		FirstChoice: model.OrganizationRole{
+			DepartmentID: req.FirstChoice.DepartmentID,
+			RoleID:       req.FirstChoice.RoleID,
+		},
+		SecondChoice: model.OrganizationRole{
+			DepartmentID: req.SecondChoice.DepartmentID,
+			RoleID:       req.SecondChoice.RoleID,
+		},
+		AllowAdjust: req.AllowAdjust,
+		Resume:      req.Resume,
+		Reason:      req.Reason,
+	})
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "创建成功")
 	return
 }
