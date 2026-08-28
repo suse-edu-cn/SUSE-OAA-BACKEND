@@ -4,6 +4,7 @@ import (
 	"errors"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
+	"suseoaa/internal/request"
 	"time"
 )
 
@@ -172,4 +173,50 @@ func (t *TermService) GetDepartmentByRoleID(roleID uint64) ([]*model.Department,
 		return nil, err
 	}
 	return departments, nil
+}
+
+//--------------------------------------
+//面试官
+
+func (t *TermService) CreateInterviewers(id uint64, interviewer request.CreateInterviewer) error {
+	err := t.CheckLevel(id)
+	if err != nil {
+		return err
+	}
+	var interviewers []model.Interviewer
+	var userIDs []uint64
+	status := make(map[uint64]bool)
+	hasInterviewer, err := t.TermRepo.GetInterviewerListByTermID(interviewer.TermID)
+	if err != nil {
+		return err
+	}
+	for _, interviewer := range hasInterviewer { //去除已在数据库内的面试官
+		status[interviewer.UserID] = true
+	}
+	for _, user := range interviewer.Interviewers {
+		if status[user.UserID] {
+			continue
+		}
+		userIDs = append(userIDs, user.UserID)
+	}
+	DepartmentIDMap, err := t.UserService.Repo.GetDepartmentByUserIDs(userIDs)
+	if err != nil {
+		return err
+	}
+	for _, value := range interviewer.Interviewers {
+		if status[value.UserID] { //去重
+			continue
+		}
+		status[value.UserID] = true
+		interviewers = append(interviewers, model.Interviewer{
+			UserID:       value.UserID,
+			TermID:       interviewer.TermID,
+			Remark:       value.Remark,
+			DepartmentID: DepartmentIDMap[value.UserID],
+		})
+	}
+	if len(interviewers) == 0 {
+		return errors.New("全部都已经是面试官")
+	}
+	return t.TermRepo.CreateInterviewers(interviewers)
 }

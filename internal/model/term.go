@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/plugin/soft_delete"
 )
 
 type Term struct {
@@ -56,14 +57,14 @@ func (t Term) IsInQueryPeriod(now time.Time) bool {
 }
 
 type Interviewer struct {
-	ID           uint64         `gorm:"primaryKey;autoIncrement" json:"id"` // 自增ID
-	TermID       uint64         `gorm:"index;not null" json:"term_id"`      // 关联的周期ID (对应 terms.id)
-	UserID       uint64         `gorm:"index;not null" json:"user_id"`      // 面试官的系统用户ID (对应 users.id)
-	DepartmentID uint64         `gorm:"default:0" json:"department_id"`     // 负责面试的部门ID (0表示全协会/全部门)
-	Remark       string         `gorm:"size:255" json:"remark"`             // 备注说明
-	CreatedAt    time.Time      `json:"created_at"`                         // 创建时间
-	UpdatedAt    time.Time      `json:"updated_at"`                         // 更新时间
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`                     // 软删除标记
+	ID           uint64                `gorm:"primaryKey;autoIncrement" json:"id"`
+	TermID       uint64                `gorm:"uniqueIndex:idx_term_user;not null" json:"term_id"`
+	UserID       uint64                `gorm:"uniqueIndex:idx_term_user;not null" json:"user_id"`
+	DepartmentID uint64                `gorm:"not null" json:"department_id"`
+	Remark       string                `gorm:"size:255" json:"remark"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
+	DeletedAt    soft_delete.DeletedAt `gorm:"uniqueIndex:idx_term_user" json:"-"`
 }
 
 func (Interviewer) TableName() string { return "interviewers" }

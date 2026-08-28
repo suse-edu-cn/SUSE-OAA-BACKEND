@@ -53,14 +53,18 @@ func (u *UserService) Register(req request.RegisterReq) error {
 	if err != nil {
 		return errors.New("获取默认角色失败: " + err.Error())
 	}
-
+	department, err := u.DepartmentRepo.GetDepartmentByName("开放原子开源协会")
+	if err != nil {
+		return errors.New("获取默认部门失败" + err.Error())
+	}
 	user := model.User{
-		StudentID: req.StudentID,
-		Username:  req.Username,
-		Name:      req.Name,
-		Email:     req.Email,
-		Password:  string(hash),
-		Role:      role,
+		StudentID:  req.StudentID,
+		Username:   req.Username,
+		Name:       req.Name,
+		Email:      req.Email,
+		Password:   string(hash),
+		Role:       role,
+		Department: department,
 	}
 
 	if err := u.Repo.CreateUser(user); err != nil {

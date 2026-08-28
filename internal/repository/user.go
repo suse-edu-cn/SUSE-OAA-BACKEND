@@ -306,3 +306,16 @@ func (u *UserRepository) GetUsersInfo(ids []uint64) (map[uint64]model.BatchUserI
 	}
 	return res, nil
 }
+
+func (u *UserRepository) GetDepartmentByUserIDs(userIDs []uint64) (map[uint64]uint64, error) {
+	result := make(map[uint64]uint64)
+	var users []*model.User
+	err := u.DB.Where("id IN (?)", userIDs).Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range users {
+		result[value.ID] = value.DepartmentID
+	}
+	return result, nil
+}

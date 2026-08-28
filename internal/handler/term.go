@@ -217,3 +217,22 @@ func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
 	response.Success(c, roles)
 	return
 }
+
+//----------------------
+//面试官
+
+func (t *TermHandler) CreateInterviewers(c *gin.Context) {
+	var req request.CreateInterviewer
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := t.TermService.CreateInterviewers(id, req)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "ok")
+	return
+}

@@ -12,13 +12,13 @@ type Role struct {
 }
 
 var DefaultRoles = []Role{
-	{Name: "开发者", Level: 100, Type: "协会"},
-	{Name: "会长", Level: 90, Type: "协会"},
-	{Name: "副会长", Level: 80, Type: "协会"},
-	{Name: "部长", Level: 60, Type: "部门"},
-	{Name: "副部长", Level: 50, Type: "部门"},
-	{Name: "干事", Level: 20, Type: "部门"},
-	{Name: "会员", Level: 10, Type: "协会"},
+	{ID: 1, Name: "开发者", Level: 100, Type: "协会"},
+	{ID: 2, Name: "会长", Level: 90, Type: "协会"},
+	{ID: 3, Name: "副会长", Level: 80, Type: "协会"},
+	{ID: 4, Name: "部长", Level: 60, Type: "部门"},
+	{ID: 5, Name: "副部长", Level: 50, Type: "部门"},
+	{ID: 6, Name: "干事", Level: 20, Type: "部门"},
+	{ID: 7, Name: "会员", Level: 10, Type: "协会"},
 }
 
 func (Role) TableName() string { return "roles" }

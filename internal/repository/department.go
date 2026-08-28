@@ -54,6 +54,15 @@ func (d *DepartmentRepository) GetDepartmentByID(id uint64) (string, error) {
 	}
 	return department.Name, nil
 }
+func (d *DepartmentRepository) GetDepartmentByName(name string) (*model.Department, error) {
+	var department model.Department
+	err := d.DB.Where("name = ?", name).First(&department).Error
+	if err != nil {
+		return nil, err
+	}
+	return &department, nil
+}
+
 func (d *DepartmentRepository) CreateDepartment(department *model.Department) error {
 	return d.DB.Create(department).Error
 }

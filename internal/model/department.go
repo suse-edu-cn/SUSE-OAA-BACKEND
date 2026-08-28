@@ -11,12 +11,12 @@ type Department struct {
 }
 
 var DefaultDepartments = []Department{
-	{Name: "算法竞赛部", Type: "部门"},
-	{Name: "组织宣传部", Type: "部门"},
-	{Name: "秘书处", Type: "部门"},
-	{Name: "理事会", Type: "部门"},
-	{Name: "项目部", Type: "部门"},
-	{Name: "开放原子开源协会", Type: "协会"},
+	{ID: 1, Name: "算法竞赛部", Type: "部门"},
+	{ID: 2, Name: "组织宣传部", Type: "部门"},
+	{ID: 3, Name: "秘书处", Type: "部门"},
+	{ID: 4, Name: "理事会", Type: "部门"},
+	{ID: 5, Name: "项目部", Type: "部门"},
+	{ID: 6, Name: "开放原子开源协会", Type: "协会"},
 }
 
 func (Department) TableName() string { return "departments" }

@@ -100,4 +100,21 @@ func (t *TermRepository) GetTermList(year uint64, termType string) ([]*model.Ter
 
 //面试官
 
+func (t *TermRepository) CreateInterviewers(interviewer []model.Interviewer) error {
+	return t.DB.Create(&interviewer).Error
+}
+
+func (t *TermRepository) GetInterviewerListByTermID(termID uint64) ([]model.Interviewer, error) {
+	var interviewerList []model.Interviewer
+	tx := t.DB.Model(&model.Interviewer{})
+	if termID != 0 {
+		tx = tx.Where("term_id = ?", termID)
+	}
+	err := tx.Find(&interviewerList).Error
+	if err != nil {
+		return nil, err
+	}
+	return interviewerList, nil
+}
+
 //招新换届的历史

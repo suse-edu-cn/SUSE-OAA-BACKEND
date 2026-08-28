@@ -103,3 +103,15 @@ type UpdateApplicationReq struct {
 	Resume          string           `json:"resume" binding:"required"`
 	Reason          string           `json:"reason" binding:"required"`
 }
+
+//------------------------------
+//面试官
+
+type CreateInterviewer struct {
+	TermID       uint64        `json:"term_id" binding:"required"`
+	Interviewers []Interviewer `json:"interviewers" binding:"required"`
+}
+type Interviewer struct {
+	UserID uint64 `json:"user_id" binding:"required"`
+	Remark string `json:"remark" binding:"required"`
+}

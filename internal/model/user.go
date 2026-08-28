@@ -13,9 +13,9 @@ type User struct {
 	Name         string         `gorm:"type:varchar(64);not null;column:name" json:"name"`
 	Email        string         `gorm:"type:varchar(128);not null;unique;column:email" json:"email"`
 	Password     string         `gorm:"type:varchar(255);not null;column:password" json:"-"`
-	DepartmentID *uint64        `gorm:"index;column:department_id" json:"department_id,omitempty"`
+	DepartmentID uint64         `gorm:"index;column:department_id;not null" json:"department_id,omitempty"`
 	Department   *Department    `gorm:"foreignKey:DepartmentID;references:ID" json:"department,omitempty"`
-	RoleID       uint64         `gorm:"index;column:role_id" json:"role_id,omitempty"`
+	RoleID       uint64         `gorm:"index;column:role_id;not null" json:"role_id,omitempty"`
 	Role         *Role          `gorm:"foreignKey:RoleID;references:ID" json:"role,omitempty"`
 	Avatar       string         `gorm:"type:varchar(255);default:'images/default.jpg';column:avatar" json:"avatar"`
 	CreatedAt    time.Time      `gorm:"not null;column:created_at" json:"created_at"`
