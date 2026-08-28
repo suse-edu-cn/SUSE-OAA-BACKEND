@@ -60,3 +60,12 @@ func (d *DepartmentRepository) CreateDepartment(department *model.Department) er
 func (d *DepartmentRepository) UpdateDepartment(department *model.Department) error {
 	return d.DB.Model(&model.Department{}).Where("id = ?", department.ID).Updates(department).Error
 }
+
+func (d *DepartmentRepository) GetTypeByDepartmentID(departmentID uint64) (string, error) {
+	var department model.Department
+	err := d.DB.Where("id = ?", departmentID).First(&department).Error
+	if err != nil {
+		return "", err
+	}
+	return department.Type, nil
+}

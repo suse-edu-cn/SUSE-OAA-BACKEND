@@ -64,9 +64,12 @@ func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 		response.Fail(c, 400, "获取json失败")
 		return
 	}
-	departmentID := c.GetUint64("department_id")
-	roleID := c.GetUint64("role_id")
-
+	id := c.GetUint64("user_id")
+	departmentID, roleID, err := u.UserService.GetDepartmentIDAndRoleIDByID(id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
 	res, err := u.UserService.BatchUserInfo(req, departmentID, roleID)
 	if err != nil {
 		response.Fail(c, 500, err.Error())

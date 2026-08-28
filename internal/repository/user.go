@@ -33,11 +33,6 @@ func (u *UserRepository) FindUserByAccount(message string) (model.User, error) {
 	return user, err
 }
 
-func (u *UserRepository) FindUserByUsername(username string) (model.User, error) {
-	var user model.User
-	err := u.DB.Model(&model.User{}).Where("username = ?", username).First(&user).Error
-	return user, err
-}
 func (u *UserRepository) CheckExist(studentId string, email string, username string) error {
 	var num int64
 	err := u.DB.Model(&model.User{}).
@@ -109,7 +104,20 @@ func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, e
 	}
 	return user.Role.Level, deptName, nil
 }
-
+func (u *UserRepository) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
+	var user model.User
+	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
+	if err != nil {
+		return 0, 0, err
+	}
+	if user.Role == nil {
+		return 0, 0, errors.New("职位不存在")
+	}
+	if user.Department == nil {
+		return 0, 0, errors.New("部门不存在")
+	}
+	return user.Department.ID, user.Role.ID, nil
+}
 func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string, times uint, ctx context.Context) error {
 	key := fmt.Sprintf("%d-%s", id, device)
 	err := u.Rdb.Set(ctx, key, token, time.Duration(times)*time.Hour*24).Err()

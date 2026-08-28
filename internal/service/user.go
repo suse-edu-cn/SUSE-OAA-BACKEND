@@ -91,7 +91,9 @@ func (u *UserService) GetUserInfo(id uint64) (model.UserInfo, error) {
 	}
 	return info, nil
 }
-
+func (u *UserService) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
+	return u.Repo.GetDepartmentIDAndRoleIDByID(id)
+}
 func (u *UserService) SaveRefreshToken(id uint64, device string, time uint) (string, error) {
 	token, err := utils.GetUUID()
 	if err != nil {
@@ -270,6 +272,14 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 
 			}
 			errorItems[req[i].UserID] = tempItem
+		} else if err := u.VerifyDepartmentPosition(req[i].DepartmentID, req[i].RoleID); err != nil { //职位和部门不合理
+			userIdList = append(userIdList, req[i].UserID)
+			errorMessage[req[i].UserID] = err.Error()
+			errorItems[req[i].UserID] = model.UpdateUserItems{
+				UserID:       req[i].UserID,
+				DepartmentID: &req[i].DepartmentID,
+				RoleID:       &req[i].RoleID,
+			}
 		} else if (roleMap[roleID].Level >= level || //副会长以及以上
 			(roleMap[roleID].Level > roleMap[req[i].RoleID].Level && //职位比要设置的职位大
 				departmentMap[departmentID] != nil &&
@@ -322,4 +332,18 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 		res = append(res, temp)
 	}
 	return res, nil
+}
+func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint64) error {
+	departmentType, err := u.DepartmentRepo.GetTypeByDepartmentID(departmentID)
+	if err != nil {
+		return err
+	}
+	roleType, err := u.RoleRepo.GetTypeByRoleID(roleID)
+	if err != nil {
+		return err
+	}
+	if departmentType != roleType {
+		return errors.New("部门和职位不匹配")
+	}
+	return nil
 }

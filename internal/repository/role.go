@@ -82,3 +82,11 @@ func (r *RoleRepository) GetRoleByUserID(id uint64) (uint64, uint64, error) {
 	}
 	return 0, 0, errors.New("用户role缺失")
 }
+func (r *RoleRepository) GetTypeByRoleID(roleID uint64) (string, error) {
+	var role model.Role
+	err := r.DB.Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error
+	if err != nil {
+		return "", err
+	}
+	return role.Type, nil
+}
