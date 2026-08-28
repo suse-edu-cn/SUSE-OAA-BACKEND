@@ -73,6 +73,8 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		application.POST("create", total.Term.CreateApplication)
 		application.GET("department", total.Term.GetApplicationDepartmentList)
 		application.GET("role", total.Term.GetApplicationRoleList)
+		application.POST("update", total.Term.UpdateApplication)
+		application.GET("me", total.Term.GetMyApplications)
 	}
 	return r
 }

@@ -143,7 +143,52 @@ func (t *TermHandler) CreateApplication(c *gin.Context) {
 	response.Success(c, "创建成功")
 	return
 }
+func (t *TermHandler) UpdateApplication(c *gin.Context) {
+	var req request.UpdateApplicationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := t.TermService.UpdateApplication(model.Application{
+		UserID:          id,
+		Gender:          req.Gender,
+		College:         req.College,
+		MajorClass:      req.MajorClass,
+		PoliticalStatus: req.PoliticalStatus,
+		BirthDate:       req.BirthDate,
+		QQ:              req.QQ,
+		Phone:           req.Phone,
+		FirstChoice: model.OrganizationRole{
+			DepartmentID: req.FirstChoice.DepartmentID,
+			RoleID:       req.FirstChoice.RoleID,
+		},
+		SecondChoice: model.OrganizationRole{
+			DepartmentID: req.SecondChoice.DepartmentID,
+			RoleID:       req.SecondChoice.RoleID,
+		},
+		AllowAdjust: req.AllowAdjust,
+		Resume:      req.Resume,
+		Reason:      req.Reason,
+	})
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "更新成功")
+	return
+}
 
+func (t *TermHandler) GetMyApplications(c *gin.Context) {
+	id := c.GetUint64("user_id")
+	application, err := t.TermService.GetMyApplications(id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, application)
+	return
+}
 func (t *TermHandler) GetApplicationDepartmentList(c *gin.Context) {
 	var req request.GetApplicationDepartmentReq
 	if err := c.ShouldBindQuery(&req); err != nil {

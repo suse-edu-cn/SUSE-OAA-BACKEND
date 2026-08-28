@@ -88,3 +88,18 @@ type GetApplicationDepartmentReq struct {
 type GetApplicationRoleReq struct {
 	DepartmentID uint64 `form:"department_id"`
 }
+
+type UpdateApplicationReq struct {
+	College         string           `json:"college" binding:"required"`
+	MajorClass      string           `json:"major_class" binding:"required"`
+	Gender          string           `json:"gender" binding:"required"`
+	Phone           string           `json:"phone" binding:"required"`
+	QQ              string           `json:"qq" binding:"required"`
+	PoliticalStatus string           `json:"political_status" binding:"required"`
+	BirthDate       string           `json:"birth_date" binding:"required"`
+	FirstChoice     OrganizationRole `json:"first_choice" binding:"required"`
+	SecondChoice    OrganizationRole `json:"second_choice" binding:"required"`
+	AllowAdjust     *bool            `json:"allow_adjust" binding:"required"`
+	Resume          string           `json:"resume" binding:"required"`
+	Reason          string           `json:"reason" binding:"required"`
+}

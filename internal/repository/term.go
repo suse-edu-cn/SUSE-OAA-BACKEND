@@ -23,8 +23,28 @@ func NewTermRepository(db *gorm.DB) TermRepository {
 func (t *TermRepository) CreateApplication(application model.Application) error {
 	return t.DB.Create(&application).Error
 }
+func (t *TermRepository) UpdateApplication(application model.Application) error {
+	return t.DB.Where("user_id = ?", application.UserID).Updates(&application).Error
+}
+func (t *TermRepository) GetLatestApplicationByUserID(userID uint64) (*model.Application, error) {
+	var application model.Application
+	err := t.DB.
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		First(&application).Error
+	return &application, err
+}
+func (t *TermRepository) GetApplicationsByUserID(userID uint64) ([]*model.Application, error) {
+	var application []*model.Application
+	err := t.DB.
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&application).Error
+	return application, err
+}
 
 // 业务周期
+
 func (t *TermRepository) CreateTerm(term model.Term) error {
 	if err := t.DB.Create(&term).Error; err != nil {
 		var mysqlErr *mysql.MySQLError

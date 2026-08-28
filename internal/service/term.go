@@ -86,6 +86,36 @@ func (t *TermService) CreateApplication(application model.Application) error {
 	application.Type = term.Type
 	return t.TermRepo.CreateApplication(application)
 }
+func (t *TermService) UpdateApplication(application model.Application) error {
+	oldApplication, err := t.TermRepo.GetLatestApplicationByUserID(application.UserID)
+	if err != nil {
+		return err
+	}
+	term, err := t.TermRepo.GetTermByID(oldApplication.TermID)
+	if err != nil {
+		return err
+	}
+	ok := term.IsInEditPeriod(time.Now())
+	if !ok {
+		return errors.New("不在时间范围内")
+	}
+	err = t.CheckApplicationDepartmentPosition(application)
+	if err != nil {
+		return err
+	}
+	application.TermID = oldApplication.TermID
+	application.Type = term.Type
+	application.UserID = oldApplication.UserID
+	return t.TermRepo.UpdateApplication(application)
+}
+
+func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, error) {
+	applications, err := t.TermRepo.GetApplicationsByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	return applications, nil
+}
 
 func (t *TermService) CheckApplicationDepartmentPosition(application model.Application) error {
 	err := t.UserService.VerifyDepartmentPosition(application.FirstChoice.DepartmentID, application.FirstChoice.RoleID)
