@@ -115,3 +115,7 @@ type Interviewer struct {
 	UserID uint64 `json:"user_id" binding:"required"`
 	Remark string `json:"remark" binding:"required"`
 }
+
+type GetInterviewerListReq struct {
+	TermID uint64 `form:"term_id"`
+}

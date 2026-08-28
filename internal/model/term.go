@@ -66,6 +66,14 @@ type Interviewer struct {
 	UpdatedAt    time.Time             `json:"updated_at"`
 	DeletedAt    soft_delete.DeletedAt `gorm:"uniqueIndex:idx_term_user" json:"-"`
 }
+type InterviewerInfo struct {
+	Year           uint64 `json:"year"`
+	TermType       string `json:"term_type"`
+	Name           string `json:"name"`
+	Role           string `json:"role"`
+	DepartmentName string `json:"department_name"`
+	Remark         string `json:"remark"`
+}
 
 func (Interviewer) TableName() string { return "interviewers" }
 

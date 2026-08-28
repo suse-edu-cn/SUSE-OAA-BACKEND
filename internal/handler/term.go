@@ -236,3 +236,18 @@ func (t *TermHandler) CreateInterviewers(c *gin.Context) {
 	response.Success(c, "ok")
 	return
 }
+
+func (t *TermHandler) GetInterviewerList(c *gin.Context) {
+	var req request.GetInterviewerListReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	interviewerList, err := t.TermService.GetInterviewerListByTermID(req.TermID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, interviewerList)
+	return
+}

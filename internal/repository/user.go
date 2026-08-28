@@ -307,6 +307,31 @@ func (u *UserRepository) GetUsersInfo(ids []uint64) (map[uint64]model.BatchUserI
 	return res, nil
 }
 
+func (u *UserRepository) GetUserMapByUserIDs(ids []uint64) (map[uint64]model.UserInfo, error) {
+	var userList []model.User
+	err := u.DB.Model(&model.User{}).
+		Preload("Department").
+		Preload("Role").
+		Where("id in (?)", ids).
+		Find(&userList).Error
+	if err != nil {
+		return nil, err
+	}
+	var res = make(map[uint64]model.UserInfo, len(ids))
+	for _, user := range userList {
+		temp := model.UserInfo{
+			ID:         user.ID,
+			StudentID:  user.StudentID,
+			Username:   user.Username,
+			Name:       user.Name,
+			Department: user.Department.Name,
+			Role:       user.Role.Name,
+		}
+		res[user.ID] = temp
+	}
+	return res, nil
+}
+
 func (u *UserRepository) GetDepartmentByUserIDs(userIDs []uint64) (map[uint64]uint64, error) {
 	result := make(map[uint64]uint64)
 	var users []*model.User

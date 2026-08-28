@@ -79,6 +79,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	interviewer := r.Group("api/v2/interviewer")
 	{
 		interviewer.POST("create", total.Term.CreateInterviewers)
+		interviewer.GET("list", total.Term.GetInterviewerList)
 	}
 	return r
 }

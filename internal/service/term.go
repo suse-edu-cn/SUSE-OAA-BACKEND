@@ -220,3 +220,34 @@ func (t *TermService) CreateInterviewers(id uint64, interviewer request.CreateIn
 	}
 	return t.TermRepo.CreateInterviewers(interviewers)
 }
+
+func (t *TermService) GetInterviewerListByTermID(termID uint64) ([]model.InterviewerInfo, error) {
+	interviews, err := t.TermRepo.GetInterviewerListByTermID(termID)
+	if err != nil {
+		return nil, err
+	}
+	if len(interviews) == 0 {
+		return nil, errors.New("该周期暂无面试官")
+	}
+	var result []model.InterviewerInfo
+	termMap, err := t.TermRepo.GetTermMap()
+	if err != nil {
+		return nil, err
+	}
+	var ids []uint64
+	for _, value := range interviews {
+		ids = append(ids, value.UserID)
+	}
+	usersMap, err := t.UserService.Repo.GetUserMapByUserIDs(ids)
+	for _, interview := range interviews {
+		result = append(result, model.InterviewerInfo{
+			DepartmentName: usersMap[interview.UserID].Department,
+			TermType:       termMap[interview.TermID].Type,
+			Year:           termMap[interview.TermID].Year,
+			Remark:         interview.Remark,
+			Name:           usersMap[interview.UserID].Name,
+			Role:           usersMap[interview.UserID].Role,
+		})
+	}
+	return result, nil
+}

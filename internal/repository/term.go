@@ -98,6 +98,19 @@ func (t *TermRepository) GetTermList(year uint64, termType string) ([]*model.Ter
 	return termList, nil
 }
 
+func (t *TermRepository) GetTermMap() (map[uint64]model.Term, error) {
+	termMap := make(map[uint64]model.Term)
+	var termList []model.Term
+	err := t.DB.Model(&model.Term{}).Find(&termList).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, term := range termList {
+		termMap[term.ID] = term
+	}
+	return termMap, nil
+}
+
 //面试官
 
 func (t *TermRepository) CreateInterviewers(interviewer []model.Interviewer) error {
