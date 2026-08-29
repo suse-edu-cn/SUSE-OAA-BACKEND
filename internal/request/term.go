@@ -126,3 +126,8 @@ type Interviewer struct {
 type GetInterviewerListReq struct {
 	TermID uint64 `form:"term_id"`
 }
+
+type GetApplicationListReq struct {
+	TermID       uint64 `form:"term_id" binding:"required"`
+	DepartmentID uint64 `form:"department_id"`
+}

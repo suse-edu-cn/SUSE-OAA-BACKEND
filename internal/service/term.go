@@ -174,6 +174,38 @@ func (t *TermService) GetDepartmentByRoleID(roleID uint64) ([]*model.Department,
 	}
 	return departments, nil
 }
+func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, termID uint64) ([]*model.Application, error) {
+	term, err := t.TermRepo.GetTermByID(termID)
+	if err != nil {
+		return nil, err
+	}
+	ok := term.IsInQueryPeriod(time.Now())
+	if !ok {
+		return nil, errors.New("不在查询时间范围内")
+	}
+	interviewers, err := t.TermRepo.GetInterviewerListByTermID(termID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = t.CheckLevel(userID)
+	if err != nil {
+		if err.Error() == "权力不够" {
+			for _, interviewer := range interviewers {
+				if interviewer.UserID == userID && departmentID == 0 && interviewer.DepartmentID != 6 {
+					departmentID = interviewer.DepartmentID
+				}
+			}
+		} else {
+			return nil, err
+		}
+	}
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, departmentID)
+	if err != nil {
+		return nil, err
+	}
+	return applications, nil
+}
 
 //--------------------------------------
 //面试官

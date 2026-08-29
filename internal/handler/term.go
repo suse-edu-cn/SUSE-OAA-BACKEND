@@ -218,6 +218,23 @@ func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
 	return
 }
 
+func (t *TermHandler) GetApplicationList(c *gin.Context) {
+	var req request.GetApplicationListReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+
+	}
+	id := c.GetUint64("user_id")
+	applications, err := t.TermService.GetApplicationList(id, req.DepartmentID, req.TermID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, applications)
+	return
+}
+
 //----------------------
 //面试官
 

@@ -42,6 +42,18 @@ func (t *TermRepository) GetApplicationsByUserID(userID uint64) ([]*model.Applic
 		Find(&application).Error
 	return application, err
 }
+func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(termID uint64, departmentID uint64) ([]*model.Application, error) {
+	var application []*model.Application
+	tx := t.DB
+	if departmentID != 0 {
+		tx = tx.Where("first_department_id = ? OR second_department_id = ?", departmentID, departmentID)
+	}
+	if termID != 0 {
+		tx = tx.Where("term_id = ?", termID)
+	}
+	err := tx.Order("created_at DESC").Find(&application).Error
+	return application, err
+}
 
 // 业务周期
 

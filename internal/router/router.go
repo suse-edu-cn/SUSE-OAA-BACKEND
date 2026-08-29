@@ -75,6 +75,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		application.GET("role", total.Term.GetApplicationRoleList)
 		application.POST("update", total.Term.UpdateApplication)
 		application.GET("me", total.Term.GetMyApplications)
+		application.GET("list", total.Term.GetApplicationList)
 	}
 	interviewer := r.Group("api/v2/interviewer")
 	{
