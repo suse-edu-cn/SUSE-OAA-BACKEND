@@ -338,15 +338,21 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	return res, nil
 }
 func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint64) error {
-	departmentType, err := u.DepartmentRepo.GetTypeByDepartmentID(departmentID)
+	department, err := u.DepartmentRepo.GetDepartmentByID(departmentID)
 	if err != nil {
 		return err
 	}
-	roleType, err := u.RoleRepo.GetTypeByRoleID(roleID)
+	role, err := u.RoleRepo.GetRoleByID(roleID)
 	if err != nil {
 		return err
 	}
-	if departmentType != roleType {
+	if !department.IsActive {
+		return errors.New("部门已停用")
+	}
+	if !role.IsActive {
+		return errors.New("职位已停用")
+	}
+	if department.Type != role.Type {
 		return errors.New("部门和职位不匹配")
 	}
 	return nil

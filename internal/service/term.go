@@ -100,17 +100,15 @@ func (t *TermService) UpdateApplication(application model.Application) error {
 	if err != nil {
 		return err
 	}
-	ok := term.IsInEditPeriod(time.Now())
-	if !ok {
+	if !term.IsInEditPeriod(time.Now()) {
 		return errors.New("不在时间范围内")
 	}
-	err = t.CheckApplicationDepartmentPosition(application)
-	if err != nil {
+	if err := t.checkApplicationChoices(application); err != nil {
 		return err
 	}
 	application.TermID = oldApplication.TermID
-	application.Type = term.Type
 	application.UserID = oldApplication.UserID
+	application.Type = oldApplication.Type
 	return t.TermRepo.UpdateApplication(application)
 }
 
@@ -120,6 +118,28 @@ func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, er
 		return nil, err
 	}
 	return applications, nil
+}
+func (t *TermService) checkApplicationChoices(application model.Application) error {
+	if application.FirstChoice.DepartmentID == application.SecondChoice.DepartmentID &&
+		application.FirstChoice.RoleID == application.SecondChoice.RoleID {
+		return errors.New("第一志愿和第二志愿不能完全相同")
+	}
+
+	if err := t.UserService.VerifyDepartmentPosition(application.FirstChoice.DepartmentID, application.FirstChoice.RoleID); err != nil {
+		return err
+	}
+	if err := t.UserService.VerifyDepartmentPosition(application.SecondChoice.DepartmentID, application.SecondChoice.RoleID); err != nil {
+		return err
+	}
+
+	level, err := t.UserService.RoleRepo.GetLevelByID(application.FirstChoice.RoleID)
+	if err != nil {
+		return err
+	}
+	if level > 90 {
+		return errors.New("不能申请成为该职位")
+	}
+	return nil
 }
 
 func (t *TermService) CheckApplicationDepartmentPosition(application model.Application) error {

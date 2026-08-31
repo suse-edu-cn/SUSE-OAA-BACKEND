@@ -41,7 +41,7 @@ func (a *AnnouncementService) check(userID uint64, departmentID uint64) error {
 	if err != nil {
 		return err
 	}
-	if level < 50 || department != userDepartment {
+	if level < 50 || department.Name != userDepartment {
 		return errors.New("权限不够")
 	}
 	return nil

@@ -30,7 +30,7 @@ func (t *TermRepository) GetLatestApplicationByUserID(userID uint64) (*model.App
 	var application model.Application
 	err := t.DB.
 		Where("user_id = ?", userID).
-		Order("created_at DESC").
+		Order("created_at DESC, id DESC").
 		First(&application).Error
 	return &application, err
 }

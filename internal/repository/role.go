@@ -92,7 +92,7 @@ func (r *RoleRepository) GetTypeByRoleID(roleID uint64) (string, error) {
 }
 func (r *RoleRepository) GetRoleByType(roleType string) ([]*model.Role, error) {
 	var roles []*model.Role
-	tx := r.DB.Model(&model.Role{})
+	tx := r.DB.Model(&model.Role{}).Where("is_active = ?", true)
 	if roleType != "" {
 		tx = tx.Where("type = ?", roleType)
 	}
@@ -101,4 +101,12 @@ func (r *RoleRepository) GetRoleByType(roleType string) ([]*model.Role, error) {
 		return nil, err
 	}
 	return roles, nil
+}
+func (r *RoleRepository) GetRoleByID(roleID uint64) (*model.Role, error) {
+	var role model.Role
+	err := r.DB.Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
 }

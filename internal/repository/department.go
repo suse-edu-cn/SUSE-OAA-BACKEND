@@ -46,13 +46,13 @@ func (d *DepartmentRepository) GetDepartmentMap() (map[uint64]*model.Department,
 	}
 	return result, nil
 }
-func (d *DepartmentRepository) GetDepartmentByID(id uint64) (string, error) {
+func (d *DepartmentRepository) GetDepartmentByID(id uint64) (model.Department, error) {
 	var department model.Department
 	err := d.DB.Where("id = ?", id).First(&department).Error
 	if err != nil {
-		return "", err
+		return model.Department{}, err
 	}
-	return department.Name, nil
+	return department, nil
 }
 func (d *DepartmentRepository) GetDepartmentByName(name string) (*model.Department, error) {
 	var department model.Department
@@ -80,7 +80,7 @@ func (d *DepartmentRepository) GetTypeByDepartmentID(departmentID uint64) (strin
 }
 func (d *DepartmentRepository) GetDepartmentByType(departmentType string) ([]*model.Department, error) {
 	var departments []*model.Department
-	tx := d.DB.Model(&model.Department{})
+	tx := d.DB.Model(&model.Department{}).Where("is_active = ?", true)
 	if departmentType != "" {
 		tx = tx.Where("type = ?", departmentType)
 	}
@@ -90,3 +90,5 @@ func (d *DepartmentRepository) GetDepartmentByType(departmentType string) ([]*mo
 	}
 	return departments, nil
 }
+
+//func (d *DepartmentRepository) GetDepartmentByID(id uint64) error {}
