@@ -11,7 +11,7 @@ type User struct {
 	StudentID    string                `gorm:"type:varchar(32);not null;column:student_id;uniqueIndex:idx_user_student_id" json:"student_id"`
 	Username     string                `gorm:"type:varchar(64);not null;column:username;uniqueIndex:idx_user_username" json:"username"`
 	Name         string                `gorm:"type:varchar(64);not null;column:name" json:"name"`
-	Email        string                `gorm:"type:varchar(128);not null;column:email;uniqueIndex:idx_user_email" json:"email"`
+	Email        string                `gorm:"type:varchar(128);column:email;uniqueIndex:idx_user_email;default:null" json:"email"`
 	Password     string                `gorm:"type:varchar(255);not null;column:password" json:"-"`
 	DepartmentID uint64                `gorm:"index;column:department_id;not null" json:"department_id,omitempty"`
 	Department   *Department           `gorm:"foreignKey:DepartmentID;references:ID" json:"department,omitempty"`
