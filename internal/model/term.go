@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"gorm.io/gorm"
 	"gorm.io/plugin/soft_delete"
 )
 
@@ -23,12 +22,13 @@ type Term struct {
 	QueryEndAt   time.Time `gorm:"not null" json:"query_end_at"`   // 结果公示/允许查询的结束时间
 
 	// 最终批量执行状态 (Execute: 执行/生效)
-	IsExecuted bool      `gorm:"default:false" json:"is_executed"` // 查询期结束后，是否已执行批量更新 users 表的事务
-	ExecutedAt time.Time `gorm:"not null" json:"executed_at"`      // 事务具体执行生效的时间戳
+	IsExecuted     bool       `gorm:"not null;default:false;index:idx_term_execution" json:"is_executed"` // 查询期结束后，是否已执行批量更新 users 表的事务
+	ExecuteAfterAt time.Time  `gorm:"not null;index:idx_term_execution" json:"execute_after_at"`
+	ExecutedAt     *time.Time `json:"executed_at"` // 事务具体执行生效的时间戳
 
-	CreatedAt time.Time      `json:"created_at"`     // 记录创建时间
-	UpdatedAt time.Time      `json:"updated_at"`     // 记录更新时间
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"` // GORM 软删除标记
+	CreatedAt time.Time             `json:"created_at"`                                          // 记录创建时间
+	UpdatedAt time.Time             `json:"updated_at"`                                          // 记录更新时间
+	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli;uniqueIndex:idx_year_type" json:"-"` // GORM 软删除标记
 }
 
 func (Term) TableName() string { return "terms" }
@@ -64,7 +64,7 @@ type Interviewer struct {
 	Remark       string                `gorm:"size:255" json:"remark"`
 	CreatedAt    time.Time             `json:"created_at"`
 	UpdatedAt    time.Time             `json:"updated_at"`
-	DeletedAt    soft_delete.DeletedAt `gorm:"uniqueIndex:idx_term_user" json:"-"`
+	DeletedAt    soft_delete.DeletedAt `gorm:"softDelete:milli;uniqueIndex:idx_term_user" json:"-"`
 }
 type InterviewerInfo struct {
 	ID             uint64 `json:"id"`
@@ -81,6 +81,7 @@ func (Interviewer) TableName() string { return "interviewers" }
 type DecisionStatus string
 
 const (
+	DecisionPending          DecisionStatus = "待定"
 	DecisionAdmittedFirst    DecisionStatus = "录取第一志愿"
 	DecisionAdmittedSecond   DecisionStatus = "录取第二志愿"
 	DecisionAdmittedAdjusted DecisionStatus = "已调剂"
@@ -88,58 +89,58 @@ const (
 )
 
 type OrganizationRole struct {
-	DepartmentID uint64 `gorm:"default:0" json:"department_id"` // 部门ID
-	RoleID       uint64 `gorm:"default:0" json:"role_id"`       // 职位/角色ID
+	DepartmentID uint64 `gorm:"default:0;not null" json:"department_id"` // 部门ID
+	RoleID       uint64 `gorm:"default:0;not null" json:"role_id"`       // 职位/角色ID
 }
 
 type Application struct {
-	ID              uint64           `gorm:"primaryKey;autoIncrement" json:"id"`                   // 申请单自增ID
-	TermID          uint64           `gorm:"index;not null" json:"term_id"`                        // 关联的周期ID (对应 terms.id)
-	Type            string           `gorm:"size:16;not null;index" json:"type"`                   // 业务类型: 招新 或 换届
-	UserID          uint64           `gorm:"index;not null;unique" json:"user_id"`                 // 申请人系统账号ID (对应 users.id)
-	Name            string           `gorm:"size:32;not null" json:"name"`                         // 申请人姓名
-	Gender          string           `gorm:"size:8;not null" json:"gender"`                        // 性别 (男 / 女)
-	Avatar          string           `gorm:"size:255" json:"avatar"`                               // 照片/证件照链接
-	StudentID       string           `gorm:"size:32;index;not null" json:"student_id"`             // 学号
-	College         string           `gorm:"size:64;not null" json:"college"`                      // 所在学院 (如: 计算机科学与工程学院)
-	MajorClass      string           `gorm:"size:64;not null" json:"major_class"`                  // 专业班级 (如: 计科241)
-	PoliticalStatus string           `gorm:"size:32;not null" json:"political_status"`             // 政治面貌 (如: 共青团员 / 中共党员)
-	BirthDate       string           `gorm:"size:32;not null" json:"birth_date"`                   // 出生年月 (如: "2005-09")
-	QQ              string           `gorm:"size:20;not null" json:"qq"`                           // QQ 号码
-	Phone           string           `gorm:"size:20;not null" json:"phone"`                        // 联系电话 (手机号)
-	FirstChoice     OrganizationRole `gorm:"embedded;embeddedPrefix:first_" json:"first_choice"`   // 第一志愿 (映射为 first_department_id, first_role_id)
-	SecondChoice    OrganizationRole `gorm:"embedded;embeddedPrefix:second_" json:"second_choice"` // 第二志愿 (映射为 second_department_id, second_role_id)
-	AllowAdjust     *bool            `gorm:"default:true" json:"allow_adjust"`                     // 是否服从调剂
+	ID              uint64           `gorm:"primaryKey;autoIncrement" json:"id"`                      // 申请单自增ID
+	TermID          uint64           `gorm:"not null;uniqueIndex:idx_user_term" json:"term_id"`       // 关联的周期ID (对应 terms.id)
+	Type            string           `gorm:"size:16;not null;index" json:"type"`                      // 业务类型: 招新 或 换届
+	UserID          uint64           `gorm:"index;not null;uniqueIndex:idx_user_term" json:"user_id"` // 申请人系统账号ID (对应 users.id)
+	Name            string           `gorm:"size:32;not null" json:"name"`                            // 申请人姓名
+	Gender          string           `gorm:"size:8;not null" json:"gender"`                           // 性别 (男 / 女)
+	Avatar          string           `gorm:"size:255" json:"avatar"`                                  // 照片/证件照链接
+	StudentID       string           `gorm:"size:32;index;not null" json:"student_id"`                // 学号
+	College         string           `gorm:"size:64;not null" json:"college"`                         // 所在学院 (如: 计算机科学与工程学院)
+	MajorClass      string           `gorm:"size:64;not null" json:"major_class"`                     // 专业班级 (如: 计科241)
+	PoliticalStatus string           `gorm:"size:32;not null" json:"political_status"`                // 政治面貌 (如: 共青团员 / 中共党员)
+	BirthDate       string           `gorm:"size:32;not null" json:"birth_date"`                      // 出生年月 (如: "2005-09")
+	QQ              string           `gorm:"size:20;not null" json:"qq"`                              // QQ 号码
+	Phone           string           `gorm:"size:20;not null" json:"phone"`                           // 联系电话 (手机号)
+	FirstChoice     OrganizationRole `gorm:"embedded;embeddedPrefix:first_" json:"first_choice"`      // 第一志愿 (映射为 first_department_id, first_role_id)
+	SecondChoice    OrganizationRole `gorm:"embedded;embeddedPrefix:second_" json:"second_choice"`    // 第二志愿 (映射为 second_department_id, second_role_id)
+	AllowAdjust     *bool            `gorm:"default:true" json:"allow_adjust"`                        // 是否服从调剂
 
 	Resume string `gorm:"type:text" json:"resume"` // 个人简历 / 在会工作经历
 	Reason string `gorm:"type:text" json:"reason"` // 竞选理由 / 申请阐述
 
-	Decision       DecisionStatus   `gorm:"size:32;default:'待定';index" json:"decision"`    // 录取决策状态 (默认: '待定')
-	Result         OrganizationRole `gorm:"embedded;embeddedPrefix:result_" json:"result"` // 最终录取结果 (映射为 result_department_id, result_role_id)
-	OperatorID     uint64           `gorm:"default:0" json:"operator_id"`                  // 做出决定的操作人UserID
-	DecisionRemark string           `gorm:"size:255" json:"decision_remark"`               // 决策说明/调剂备注
+	Decision       DecisionStatus   `gorm:"size:32;default:'待定';not null;index" json:"decision"` // 录取决策状态 (默认: '待定')
+	Result         OrganizationRole `gorm:"embedded;embeddedPrefix:result_" json:"result"`       // 最终录取结果 (映射为 result_department_id, result_role_id)
+	OperatorID     uint64           `gorm:"default:0" json:"operator_id"`                        // 做出决定的操作人UserID
+	DecisionRemark string           `gorm:"size:255" json:"decision_remark"`                     // 决策说明/调剂备注
 
-	CreatedAt time.Time      `json:"created_at"`     // 提交时间
-	UpdatedAt time.Time      `json:"updated_at"`     // 修改时间
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"` // 软删除标记
+	CreatedAt time.Time             `json:"created_at"`                                          // 提交时间
+	UpdatedAt time.Time             `json:"updated_at"`                                          // 修改时间
+	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli;uniqueIndex:idx_user_term" json:"-"` // 软删除标记
 }
 
 func (Application) TableName() string { return "applications" }
 
 type TermHistory struct {
-	ID     uint64 `gorm:"primaryKey;autoIncrement" json:"id"` // 履历记录自增ID
-	TermID uint64 `gorm:"index;not null" json:"term_id"`      // 关联的周期ID (对应 terms.id)
-	Type   string `gorm:"size:16;not null;index" json:"type"` // 业务类型: 招新 或 换届
-	UserID uint64 `gorm:"index;not null" json:"user_id"`      // 被调整职务的用户ID
+	ID            uint64 `gorm:"primaryKey;autoIncrement" json:"id"`                       // 履历记录自增ID
+	TermID        uint64 `gorm:"uniqueIndex:idx_term_application;not null" json:"term_id"` // 关联的周期ID (对应 terms.id)
+	ApplicationID uint64 `gorm:"uniqueIndex:idx_term_application;not null" json:"application_id"`
+	Type          string `gorm:"size:16;not null;index" json:"type"` // 业务类型: 招新 或 换届
+	UserID        uint64 `gorm:"index;not null" json:"user_id"`      // 被调整职务的用户ID
 
 	Old OrganizationRole `gorm:"embedded;embeddedPrefix:old_" json:"old"` // 变更前职务 (映射为 old_department_id, old_role_id)
 	New OrganizationRole `gorm:"embedded;embeddedPrefix:new_" json:"new"` // 变更后职务 (映射为 new_department_id, new_role_id)
 
-	OperatorID uint64         `json:"operator_id"`            // 审核/执行人UserID
-	Remark     string         `gorm:"size:255" json:"remark"` // 履历备注说明
-	CreatedAt  time.Time      `json:"created_at"`             // 生效创建时间
-	UpdatedAt  time.Time      `json:"updated_at"`             // 更新时间
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`         // 软删除标记
+	OperatorID uint64    `json:"operator_id"`            // 审核/执行人UserID
+	Remark     string    `gorm:"size:255" json:"remark"` // 履历备注说明
+	CreatedAt  time.Time `json:"created_at"`             // 生效创建时间
+	UpdatedAt  time.Time `json:"updated_at"`             // 更新时间
 }
 
 func (TermHistory) TableName() string { return "term_histories" }

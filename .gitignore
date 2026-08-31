@@ -6,3 +6,4 @@ tmp/
 .cache
 .DS_Store
 .tmp
+docs

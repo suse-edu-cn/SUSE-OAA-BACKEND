@@ -7,6 +7,7 @@ type Role struct {
 	Name      string    `gorm:"type:varchar(50);not null;unique;column:name" json:"name"`
 	Level     uint64    `gorm:"not null;column:level" json:"level"`
 	Type      string    `gorm:"type:varchar(50);not null;column:type" json:"type"`
+	IsActive  bool      `gorm:"not null;default:true;index;column:is_active" json:"is_active"`
 	CreatedAt time.Time `gorm:"not null;column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"not null;column:updated_at" json:"updated_at"`
 }

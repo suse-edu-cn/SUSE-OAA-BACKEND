@@ -260,15 +260,14 @@ func (t *TermHandler) GetInterviewerList(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	interviewerList, err := t.TermService.GetInterviewerListByTermID(req.TermID)
+	id := c.GetUint64("user_id")
+	interviewerList, err := t.TermService.GetInterviewerList(id, req.TermID)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
 	}
 	response.Success(c, interviewerList)
-	return
 }
-
 func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 	var req request.UpdateInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {

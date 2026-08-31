@@ -24,7 +24,7 @@ func (t *TermRepository) CreateApplication(application model.Application) error 
 	return t.DB.Create(&application).Error
 }
 func (t *TermRepository) UpdateApplication(application model.Application) error {
-	return t.DB.Where("user_id = ?", application.UserID).Updates(&application).Error
+	return t.DB.Where("user_id = ? AND term_id = ?", application.UserID, application.TermID).Updates(&application).Error
 }
 func (t *TermRepository) GetLatestApplicationByUserID(userID uint64) (*model.Application, error) {
 	var application model.Application
@@ -69,11 +69,12 @@ func (t *TermRepository) CreateTerm(term model.Term) error {
 }
 func (t *TermRepository) UpdateTerm(term model.Term) error {
 	tx := t.DB.Model(&model.Term{}).Where("id = ?", term.ID).Updates(map[string]any{
-		"title":          term.Title,
-		"edit_start_at":  term.EditStartAt,
-		"edit_end_at":    term.EditEndAt,
-		"query_start_at": term.QueryStartAt,
-		"query_end_at":   term.QueryEndAt,
+		"title":            term.Title,
+		"edit_start_at":    term.EditStartAt,
+		"edit_end_at":      term.EditEndAt,
+		"query_start_at":   term.QueryStartAt,
+		"query_end_at":     term.QueryEndAt,
+		"execute_after_at": term.ExecuteAfterAt,
 	})
 
 	if tx.Error != nil {
@@ -137,6 +138,43 @@ func (t *TermRepository) GetInterviewerListByTermID(termID uint64) ([]model.Inte
 	tx := t.DB.Model(&model.Interviewer{})
 	if termID != 0 {
 		tx = tx.Where("term_id = ?", termID)
+	}
+	err := tx.Find(&interviewerList).Error
+	if err != nil {
+		return nil, err
+	}
+	return interviewerList, nil
+}
+func (t *TermRepository) GetInterviewerByID(id uint64) (model.Interviewer, error) {
+	var interviewer model.Interviewer
+	err := t.DB.Where("id = ?", id).First(&interviewer).Error
+	if err != nil {
+		return model.Interviewer{}, err
+	}
+	return interviewer, nil
+}
+
+func (t *TermRepository) CheckTermIsHave(termID uint64) error {
+	var count int64
+	err := t.DB.Model(&model.Term{}).Where("id = ?", termID).Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("term 不存在")
+	}
+	return nil
+
+}
+
+func (t *TermRepository) GetInterviewerListByScope(termID uint64, departmentID uint64) ([]model.Interviewer, error) {
+	var interviewerList []model.Interviewer
+	tx := t.DB.Model(&model.Interviewer{})
+	if termID != 0 {
+		tx = tx.Where("term_id = ?", termID)
+	}
+	if departmentID != 0 {
+		tx = tx.Where("department_id = ?", departmentID)
 	}
 	err := tx.Find(&interviewerList).Error
 	if err != nil {

@@ -344,3 +344,15 @@ func (u *UserRepository) GetDepartmentByUserIDs(userIDs []uint64) (map[uint64]ui
 	}
 	return result, nil
 }
+
+func (u *UserRepository) CheckUserIsHave(id uint64) error {
+	var count int64
+	err := u.DB.Model(&model.User{}).Where("id = ? ", id).Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("用户不存在")
+	}
+	return nil
+}

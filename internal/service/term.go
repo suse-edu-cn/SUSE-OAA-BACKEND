@@ -28,17 +28,47 @@ func (t *TermService) CheckLevel(userID uint64) error {
 	if err != nil {
 		return err
 	}
+	if level < 15 {
+		return errors.New("用户职位太低")
+	}
 	if level < 80 {
 		return errors.New("权力不够")
 	}
 	return nil
+}
+func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
+	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if level >= 80 {
+		return requestedDepartmentID, nil
+	}
+
+	interviewers, err := t.TermRepo.GetInterviewerListByTermID(termID)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, interviewer := range interviewers {
+		if interviewer.UserID != userID {
+			continue
+		}
+		if interviewer.DepartmentID == 6 {
+			return 0, nil
+		}
+		return interviewer.DepartmentID, nil
+	}
+
+	return 0, errors.New("无权限查看该周期申请")
 }
 func (t *TermService) CreateTerm(term model.Term) error {
 	err := term.CheckPeriod()
 	if err != nil {
 		return err
 	}
-	term.ExecutedAt = term.QueryEndAt.Add(1 * time.Minute)
+	term.ExecuteAfterAt = term.QueryEndAt.Add(1 * time.Minute)
 	err = t.TermRepo.CreateTerm(term)
 	if err != nil {
 		return err
@@ -50,7 +80,7 @@ func (t *TermService) UpdateTerm(term model.Term) error {
 	if err != nil {
 		return err
 	}
-	term.ExecutedAt = term.QueryEndAt.Add(1 * time.Minute)
+	term.ExecuteAfterAt = term.QueryEndAt.Add(1 * time.Minute)
 	err = t.TermRepo.UpdateTerm(term)
 	if err != nil {
 		return err
@@ -179,32 +209,16 @@ func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, ter
 	if err != nil {
 		return nil, err
 	}
-	ok := term.IsInQueryPeriod(time.Now())
-	if !ok {
+	if !term.IsInQueryPeriod(time.Now()) {
 		return nil, errors.New("不在查询时间范围内")
 	}
-	interviewers, err := t.TermRepo.GetInterviewerListByTermID(termID)
+
+	finalDepartmentID, err := t.resolveApplicationListScope(userID, termID, departmentID)
 	if err != nil {
 		return nil, err
 	}
 
-	err = t.CheckLevel(userID)
-	if err != nil {
-		if err.Error() == "权力不够" {
-			for _, interviewer := range interviewers {
-				if interviewer.UserID == userID && departmentID == 0 && interviewer.DepartmentID != 6 {
-					departmentID = interviewer.DepartmentID
-				}
-			}
-		} else {
-			return nil, err
-		}
-	}
-	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, departmentID)
-	if err != nil {
-		return nil, err
-	}
-	return applications, nil
+	return t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, finalDepartmentID)
 }
 
 //--------------------------------------
@@ -253,36 +267,68 @@ func (t *TermService) CreateInterviewers(id uint64, interviewer request.CreateIn
 	return t.TermRepo.CreateInterviewers(interviewers)
 }
 
-func (t *TermService) GetInterviewerListByTermID(termID uint64) ([]model.InterviewerInfo, error) {
-	interviews, err := t.TermRepo.GetInterviewerListByTermID(termID)
+func (t *TermService) GetInterviewerList(userID uint64, termID uint64) ([]model.InterviewerInfo, error) {
+	departmentID, _, err := t.UserService.Repo.GetDepartmentIDAndRoleIDByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	isAdmin := t.CheckLevel(userID) == nil
+	if !isAdmin {
+		all, err := t.TermRepo.GetInterviewerListByTermID(termID)
+		if err != nil {
+			return nil, err
+		}
+		hasPermission := false
+		for _, item := range all {
+			if item.UserID == userID {
+				hasPermission = true
+				break
+			}
+		}
+		if !hasPermission {
+			return nil, errors.New("无权限查看面试官列表")
+		}
+	}
+
+	scopeDepartmentID := uint64(0)
+	if !isAdmin {
+		scopeDepartmentID = departmentID
+	}
+
+	interviews, err := t.TermRepo.GetInterviewerListByScope(termID, scopeDepartmentID)
 	if err != nil {
 		return nil, err
 	}
 	if len(interviews) == 0 {
-		return nil, errors.New("该周期暂无面试官")
+		return nil, errors.New("无匹配面试官")
 	}
 	return t.InterviewerToInterviewerInfo(interviews)
 }
 
 func (t *TermService) UpdateInterviewer(id uint64, interviewer request.UpdateInterviewer) error {
 	err := t.CheckLevel(id)
-	var temp model.Interviewer
 	if err != nil {
 		return err
 	}
-	hasInterviewer, err := t.TermRepo.GetInterviewerListByTermID(interviewer.TermID)
+	_, err = t.TermRepo.GetInterviewerByID(interviewer.ID)
 	if err != nil {
 		return err
 	}
-	if hasInterviewer[interviewer.ID] != temp {
-		return t.TermRepo.UpdateInterviewers(model.Interviewer{
-			UserID: interviewer.UserID,
-			TermID: interviewer.TermID,
-			Remark: interviewer.Remark,
-			ID:     interviewer.ID,
-		})
+	err = t.UserService.Repo.CheckUserIsHave(interviewer.UserID)
+	if err != nil {
+		return err
 	}
-	return errors.New("请先创建该数据")
+	err = t.TermRepo.CheckTermIsHave(interviewer.TermID)
+	if err != nil {
+		return err
+	}
+	return t.TermRepo.UpdateInterviewers(model.Interviewer{
+		UserID: interviewer.UserID,
+		TermID: interviewer.TermID,
+		Remark: interviewer.Remark,
+		ID:     interviewer.ID,
+	})
 }
 func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
 	var result []model.InterviewerInfo
