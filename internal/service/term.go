@@ -36,33 +36,7 @@ func (t *TermService) CheckLevel(userID uint64) error {
 	}
 	return nil
 }
-func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
-	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
-	if err != nil {
-		return 0, err
-	}
 
-	if level >= 80 {
-		return requestedDepartmentID, nil
-	}
-
-	interviewers, err := t.TermRepo.GetInterviewerListByTermID(termID)
-	if err != nil {
-		return 0, err
-	}
-
-	for _, interviewer := range interviewers {
-		if interviewer.UserID != userID {
-			continue
-		}
-		if interviewer.DepartmentID == 6 {
-			return 0, nil
-		}
-		return interviewer.DepartmentID, nil
-	}
-
-	return 0, errors.New("无权限查看该周期申请")
-}
 func (t *TermService) CreateTerm(term model.Term) error {
 	err := term.CheckPeriod()
 	if err != nil {
@@ -204,6 +178,35 @@ func (t *TermService) GetDepartmentByRoleID(roleID uint64) ([]*model.Department,
 	}
 	return departments, nil
 }
+
+func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
+	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if level >= 80 {
+		return requestedDepartmentID, nil
+	}
+
+	interviewers, err := t.TermRepo.GetInterviewerListByTermID(termID)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, interviewer := range interviewers {
+		if interviewer.UserID != userID {
+			continue
+		}
+		if interviewer.DepartmentID == 6 {
+			return 0, nil
+		}
+		return interviewer.DepartmentID, nil
+	}
+
+	return 0, errors.New("无权限查看该周期申请")
+}
+
 func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, termID uint64) ([]*model.Application, error) {
 	term, err := t.TermRepo.GetTermByID(termID)
 	if err != nil {
@@ -331,25 +334,39 @@ func (t *TermService) UpdateInterviewer(id uint64, interviewer request.UpdateInt
 	})
 }
 func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
-	var result []model.InterviewerInfo
 	termMap, err := t.TermRepo.GetTermMap()
 	if err != nil {
 		return nil, err
 	}
-	var ids []uint64
-	for _, value := range interviews {
-		ids = append(ids, value.UserID)
+
+	ids := make([]uint64, 0, len(interviews))
+	for _, item := range interviews {
+		ids = append(ids, item.UserID)
 	}
+
 	usersMap, err := t.UserService.Repo.GetUserMapByUserIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]model.InterviewerInfo, 0, len(interviews))
 	for _, interview := range interviews {
+		userInfo, ok := usersMap[interview.UserID]
+		if !ok {
+			continue
+		}
+		term, ok := termMap[interview.TermID]
+		if !ok {
+			continue
+		}
 		result = append(result, model.InterviewerInfo{
 			ID:             interview.ID,
-			DepartmentName: usersMap[interview.UserID].Department,
-			TermType:       termMap[interview.TermID].Type,
-			Year:           termMap[interview.TermID].Year,
+			DepartmentName: userInfo.Department,
+			TermType:       term.Type,
+			Year:           term.Year,
 			Remark:         interview.Remark,
-			Name:           usersMap[interview.UserID].Name,
-			Role:           usersMap[interview.UserID].Role,
+			Name:           userInfo.Name,
+			Role:           userInfo.Role,
 		})
 	}
 	return result, nil

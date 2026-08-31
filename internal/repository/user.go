@@ -317,17 +317,25 @@ func (u *UserRepository) GetUserMapByUserIDs(ids []uint64) (map[uint64]model.Use
 	if err != nil {
 		return nil, err
 	}
-	var res = make(map[uint64]model.UserInfo, len(ids))
+
+	res := make(map[uint64]model.UserInfo, len(userList))
 	for _, user := range userList {
-		temp := model.UserInfo{
+		departmentName := ""
+		roleName := ""
+		if user.Department != nil {
+			departmentName = user.Department.Name
+		}
+		if user.Role != nil {
+			roleName = user.Role.Name
+		}
+		res[user.ID] = model.UserInfo{
 			ID:         user.ID,
 			StudentID:  user.StudentID,
 			Username:   user.Username,
 			Name:       user.Name,
-			Department: user.Department.Name,
-			Role:       user.Role.Name,
+			Department: departmentName,
+			Role:       roleName,
 		}
-		res[user.ID] = temp
 	}
 	return res, nil
 }
