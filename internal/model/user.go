@@ -34,13 +34,10 @@ type UserInfo struct {
 }
 
 type BatchUserInfo struct {
+	ID           uint64 `json:"id"`
 	StudentID    string `json:"student_id"`
 	Username     string `json:"username"`
 	Name         string `json:"name"`
-	Department   string `json:"department"`
-	Role         string `json:"role"`
-	ToDepartment string `json:"to_department"`
-	ToRole       string `json:"to_role"`
 	ErrorMessage string `json:"error_message"`
 }
 type UpdateUserItems struct {

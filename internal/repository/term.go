@@ -129,10 +129,16 @@ func (t *TermRepository) GetTermMap() (map[uint64]model.Term, error) {
 func (t *TermRepository) CreateInterviewers(interviewer []model.Interviewer) error {
 	return t.DB.Create(&interviewer).Error
 }
-func (t *TermRepository) UpdateInterviewers(interviewers model.Interviewer) error {
-	return t.DB.Where("id = ?", interviewers.ID).Updates(&interviewers).Error
+func (t *TermRepository) UpdateInterviewers(interviewer model.Interviewer) error {
+	tx := t.DB.Where("id = ?", interviewer.ID).Updates(&interviewer)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return errors.New("面试官记录不存在")
+	}
+	return nil
 }
-
 func (t *TermRepository) GetInterviewerListByTermID(termID uint64) ([]model.Interviewer, error) {
 	var interviewerList []model.Interviewer
 	tx := t.DB.Model(&model.Interviewer{})

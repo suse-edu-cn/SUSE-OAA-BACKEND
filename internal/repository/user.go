@@ -296,12 +296,6 @@ func (u *UserRepository) GetUsersInfo(ids []uint64) (map[uint64]model.BatchUserI
 			Username:  user.Username,
 			Name:      user.Name,
 		}
-		if user.Department != nil {
-			temp.Department = user.Department.Name
-		}
-		if user.Role != nil {
-			temp.Role = user.Role.Name
-		}
 		res[user.ID] = temp
 	}
 	return res, nil

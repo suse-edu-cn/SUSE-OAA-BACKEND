@@ -7,6 +7,7 @@ import (
 	"suseoaa/pkg/utils"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
@@ -230,7 +231,6 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	if err != nil {
 		return res, err
 	}
-	errorItems := make(map[uint64]model.UpdateUserItems)
 	errorMessage := make(map[uint64]string)
 	departmentMap, err := u.DepartmentRepo.GetDepartmentMap()
 	if err != nil {
@@ -240,8 +240,11 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	if err != nil {
 		return res, errors.New("获取职位map失败")
 	}
-	if roleMap[roleID] == nil {
-		return res, errors.New("操作者没有权限")
+	operatorRole := roleMap[roleID]
+	operatorDepartment := departmentMap[departmentID]
+	if operatorRole == nil || !operatorRole.IsActive ||
+		operatorDepartment == nil || !operatorDepartment.IsActive {
+		return res, errors.New("操作者的部门或职位已停用")
 	}
 	var userIdList []uint64
 	//区分出是否能改
@@ -251,8 +254,10 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 		}
 		status[req[i].UserID] = true
 		if _, err := u.Repo.FindUserById(req[i].UserID); err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return res, errors.New("查询目标用户失败")
+			}
 			userIdList = append(userIdList, req[i].UserID)
-			errorItems[req[i].UserID] = model.UpdateUserItems{UserID: req[i].UserID, DepartmentID: &req[i].DepartmentID, RoleID: &req[i].RoleID}
 			errorMessage[req[i].UserID] = "用户不存在"
 			continue
 		}
@@ -275,15 +280,10 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 				}
 
 			}
-			errorItems[req[i].UserID] = tempItem
 		} else if err := u.VerifyDepartmentPosition(req[i].DepartmentID, req[i].RoleID); err != nil { //职位和部门不合理
 			userIdList = append(userIdList, req[i].UserID)
 			errorMessage[req[i].UserID] = err.Error()
-			errorItems[req[i].UserID] = model.UpdateUserItems{
-				UserID:       req[i].UserID,
-				DepartmentID: &req[i].DepartmentID,
-				RoleID:       &req[i].RoleID,
-			}
+
 		} else if (roleMap[roleID].Level >= level || //副会长以及以上
 			(roleMap[roleID].Level > roleMap[req[i].RoleID].Level && //职位比要设置的职位大
 				departmentMap[departmentID] != nil &&
@@ -296,11 +296,6 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 			})
 		} else {
 			userIdList = append(userIdList, req[i].UserID)
-			errorItems[req[i].UserID] = model.UpdateUserItems{
-				UserID:       req[i].UserID,
-				DepartmentID: &req[i].DepartmentID,
-				RoleID:       &req[i].RoleID,
-			}
 			if level <= roleMap[req[i].RoleID].Level {
 				errorMessage[req[i].UserID] = "不能修改成该职位"
 			} else {
@@ -320,18 +315,11 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	}
 	for _, id := range userIdList {
 		temp := model.BatchUserInfo{
+			ID:           id,
 			StudentID:    usersInfo[id].StudentID,
 			Name:         usersInfo[id].Name,
-			Department:   usersInfo[id].Department,
-			Role:         usersInfo[id].Role,
 			Username:     usersInfo[id].Username,
 			ErrorMessage: errorMessage[id],
-		}
-		if errorItems[id].RoleID != nil {
-			temp.ToRole = roleMap[*errorItems[id].RoleID].Name
-		}
-		if errorItems[id].DepartmentID != nil {
-			temp.ToDepartment = departmentMap[*errorItems[id].DepartmentID].Name
 		}
 		res = append(res, temp)
 	}

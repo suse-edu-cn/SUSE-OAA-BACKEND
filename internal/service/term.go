@@ -50,16 +50,22 @@ func (t *TermService) CreateTerm(term model.Term) error {
 	return nil
 }
 func (t *TermService) UpdateTerm(term model.Term) error {
-	err := term.CheckPeriod()
+	oldTerm, err := t.TermRepo.GetTermByID(term.ID)
 	if err != nil {
+		return err
+	}
+	if oldTerm.IsExecuted {
+		return errors.New("该周期已经执行，不能再修改")
+	}
+	if !time.Now().Before(oldTerm.EditStartAt) {
+		return errors.New("该周期已经开始，不能再修改")
+	}
+
+	if err := term.CheckPeriod(); err != nil {
 		return err
 	}
 	term.ExecuteAfterAt = term.QueryEndAt.Add(1 * time.Minute)
-	err = t.TermRepo.UpdateTerm(term)
-	if err != nil {
-		return err
-	}
-	return nil
+	return t.TermRepo.UpdateTerm(term)
 }
 func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, error) {
 	termList, err := t.TermRepo.GetTermList(year, termType)
@@ -118,10 +124,6 @@ func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, er
 	return applications, nil
 }
 func (t *TermService) checkApplicationChoices(application model.Application) error {
-	if application.FirstChoice.DepartmentID == application.SecondChoice.DepartmentID &&
-		application.FirstChoice.RoleID == application.SecondChoice.RoleID {
-		return errors.New("第一志愿和第二志愿不能完全相同")
-	}
 
 	if err := t.UserService.VerifyDepartmentPosition(application.FirstChoice.DepartmentID, application.FirstChoice.RoleID); err != nil {
 		return err
@@ -227,43 +229,54 @@ func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, ter
 //--------------------------------------
 //面试官
 
-func (t *TermService) CreateInterviewers(id uint64, interviewer request.CreateInterviewer) error {
-	err := t.CheckLevel(id)
+func (t *TermService) CreateInterviewers(id uint64, req request.CreateInterviewer) error {
+	if err := t.CheckLevel(id); err != nil {
+		return err
+	}
+	if err := t.ensureInterviewerTermEditable(req.TermID); err != nil {
+		return err
+	}
+
+	existing, err := t.TermRepo.GetInterviewerListByTermID(req.TermID)
 	if err != nil {
 		return err
 	}
-	var interviewers []model.Interviewer
-	var userIDs []uint64
 	status := make(map[uint64]bool)
-	hasInterviewer, err := t.TermRepo.GetInterviewerListByTermID(interviewer.TermID)
+	for _, item := range existing {
+		status[item.UserID] = true
+	}
+
+	userIDs := make([]uint64, 0, len(req.Interviewers))
+	for _, item := range req.Interviewers {
+		if status[item.UserID] {
+			continue
+		}
+		userIDs = append(userIDs, item.UserID)
+	}
+
+	departmentIDMap, err := t.UserService.Repo.GetDepartmentByUserIDs(userIDs)
 	if err != nil {
 		return err
 	}
-	for _, interviewer := range hasInterviewer { //去除已在数据库内的面试官
-		status[interviewer.UserID] = true
-	}
-	for _, user := range interviewer.Interviewers {
-		if status[user.UserID] {
+
+	interviewers := make([]model.Interviewer, 0, len(req.Interviewers))
+	for _, item := range req.Interviewers {
+		if status[item.UserID] {
 			continue
 		}
-		userIDs = append(userIDs, user.UserID)
-	}
-	DepartmentIDMap, err := t.UserService.Repo.GetDepartmentByUserIDs(userIDs)
-	if err != nil {
-		return err
-	}
-	for _, value := range interviewer.Interviewers {
-		if status[value.UserID] { //去重
-			continue
+		departmentID, ok := departmentIDMap[item.UserID]
+		if !ok || departmentID == 0 {
+			return errors.New("存在用户缺少有效部门，不能创建面试官")
 		}
-		status[value.UserID] = true
+		status[item.UserID] = true
 		interviewers = append(interviewers, model.Interviewer{
-			UserID:       value.UserID,
-			TermID:       interviewer.TermID,
-			Remark:       value.Remark,
-			DepartmentID: DepartmentIDMap[value.UserID],
+			UserID:       item.UserID,
+			TermID:       req.TermID,
+			Remark:       item.Remark,
+			DepartmentID: departmentID,
 		})
 	}
+
 	if len(interviewers) == 0 {
 		return errors.New("全部都已经是面试官")
 	}
@@ -309,28 +322,36 @@ func (t *TermService) GetInterviewerList(userID uint64, termID uint64) ([]model.
 	return t.InterviewerToInterviewerInfo(interviews)
 }
 
-func (t *TermService) UpdateInterviewer(id uint64, interviewer request.UpdateInterviewer) error {
-	err := t.CheckLevel(id)
+func (t *TermService) UpdateInterviewer(id uint64, req request.UpdateInterviewer) error {
+	if err := t.CheckLevel(id); err != nil {
+		return err
+	}
+
+	old, err := t.TermRepo.GetInterviewerByID(req.ID)
 	if err != nil {
 		return err
 	}
-	_, err = t.TermRepo.GetInterviewerByID(interviewer.ID)
+	if old.TermID != req.TermID {
+		return errors.New("不允许跨周期修改面试官记录")
+	}
+	if err := t.ensureInterviewerTermEditable(old.TermID); err != nil {
+		return err
+	}
+	if err := t.UserService.Repo.CheckUserIsHave(req.UserID); err != nil {
+		return err
+	}
+
+	departmentID, _, err := t.UserService.Repo.GetDepartmentIDAndRoleIDByID(req.UserID)
 	if err != nil {
 		return err
 	}
-	err = t.UserService.Repo.CheckUserIsHave(interviewer.UserID)
-	if err != nil {
-		return err
-	}
-	err = t.TermRepo.CheckTermIsHave(interviewer.TermID)
-	if err != nil {
-		return err
-	}
+
 	return t.TermRepo.UpdateInterviewers(model.Interviewer{
-		UserID: interviewer.UserID,
-		TermID: interviewer.TermID,
-		Remark: interviewer.Remark,
-		ID:     interviewer.ID,
+		ID:           req.ID,
+		UserID:       req.UserID,
+		TermID:       old.TermID,
+		Remark:       req.Remark,
+		DepartmentID: departmentID,
 	})
 }
 func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
@@ -370,4 +391,14 @@ func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewe
 		})
 	}
 	return result, nil
+}
+func (t *TermService) ensureInterviewerTermEditable(termID uint64) error {
+	term, err := t.TermRepo.GetTermByID(termID)
+	if err != nil {
+		return err
+	}
+	if term.IsExecuted {
+		return errors.New("该周期已经执行，不能再修改面试官")
+	}
+	return nil
 }
