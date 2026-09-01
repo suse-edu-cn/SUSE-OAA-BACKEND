@@ -32,21 +32,7 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 		DepartmentID: req.DepartmentID,
 	}
 
-	id, err := a.AnnouncementService.CreateAnnouncement(userID, announcement)
-	if err != nil {
-		response.Fail(c, 400, err.Error())
-		return
-	}
-	if req.IsPushed != nil && *req.IsPushed {
-		ctx := c.Request.Context()
-		err = a.AnnouncementService.PushAnnouncement(ctx, id, userID)
-		if err != nil {
-			response.Fail(c, 400, err.Error())
-			return
-		}
-		response.Success(c, "公告创建并推送成功")
-		return
-	}
+	_, err = a.AnnouncementService.CreateAnnouncement(userID, announcement)
 	response.Success(c, "公告创建成功")
 	return
 }
@@ -67,16 +53,6 @@ func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
 	err = a.AnnouncementService.UpdateAnnouncement(userID, announcement)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
-		return
-	}
-	if req.IsPushed != nil && *req.IsPushed {
-		ctx := c.Request.Context()
-		err = a.AnnouncementService.PushAnnouncement(ctx, req.AnnouncementID, userID)
-		if err != nil {
-			response.Fail(c, 400, err.Error())
-			return
-		}
-		response.Success(c, "公告更新并推送成功")
 		return
 	}
 	response.Success(c, "公告更新成功")
