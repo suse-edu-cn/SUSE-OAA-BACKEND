@@ -80,12 +80,10 @@ func (t *TermService) CreateApplication(application model.Application) error {
 	if err != nil {
 		return err
 	}
-	ok := term.IsInEditPeriod(time.Now())
-	if !ok {
+	if !term.IsInEditPeriod(time.Now()) {
 		return errors.New("不在时间范围内")
 	}
-	err = t.CheckApplicationDepartmentPosition(application)
-	if err != nil {
+	if err := t.checkApplicationChoices(application); err != nil {
 		return err
 	}
 	application.Type = term.Type
@@ -142,24 +140,6 @@ func (t *TermService) checkApplicationChoices(application model.Application) err
 	return nil
 }
 
-func (t *TermService) CheckApplicationDepartmentPosition(application model.Application) error {
-	err := t.UserService.VerifyDepartmentPosition(application.FirstChoice.DepartmentID, application.FirstChoice.RoleID)
-	if err != nil {
-		return err
-	}
-	err = t.UserService.VerifyDepartmentPosition(application.SecondChoice.DepartmentID, application.SecondChoice.RoleID)
-	if err != nil {
-		return err
-	}
-	level, err := t.UserService.RoleRepo.GetLevelByID(application.FirstChoice.RoleID)
-	if err != nil {
-		return err
-	}
-	if level > 90 {
-		return errors.New("不能申请成为该职位")
-	}
-	return nil
-}
 func (t *TermService) GetRolesByDepartmentsID(departmentID uint64) ([]*model.Role, error) {
 	var departmentType string
 	var err error
