@@ -30,10 +30,12 @@ type UpdatePasswordReq struct {
 }
 
 type SendVerificationCodeReq struct {
-	Type string `json:"type"`
+	Account string `json:"account" binding:"required"`
+	Scene   string `json:"scene" binding:"required"`
 }
 
 type ResetPasswordReq struct {
-	Code string `json:"code"`
-	Type string `json:"type"`
+	Account string `json:"account" binding:"required"`
+	Code    string `json:"code" binding:"required"`
+	Scene   string `json:"scene" binding:"required"`
 }

@@ -171,53 +171,54 @@ func (u *UserService) UpdateUserInfo(id uint64, username string) error {
 	return nil
 }
 
-func (u *UserService) SendVerificationCode(id uint64, types string) error {
-	user, err := u.Repo.FindUserById(id)
+func (u *UserService) SendVerificationCode(account string, types string) error {
+	user, err := u.Repo.FindUserByAccount(account)
 	if err != nil {
 		return err
 	}
 	if user.Email == "" {
 		return errors.New("请先绑定邮箱")
 	}
-	if cooldown, err := u.Repo.CheckCooldown(id, context.Background()); err != nil {
+	if cooldown, err := u.Repo.CheckCooldown(user.ID, context.Background()); err != nil {
 		return err
 	} else if cooldown {
 		return errors.New("间隔太短")
 	}
 	code := u.Email.NewVerificationCode(6)
 	expire := u.Email.GetExpireTime()
-	err = u.Repo.SaveVerificationCode(id, code, types, expire, context.Background())
-	if err != nil {
+	if err := u.Repo.SaveVerificationCode(user.ID, code, types, expire, context.Background()); err != nil {
 		return err
 	}
-	err = u.Email.SendVerificationCode(user.Email, code)
-	if err != nil {
+	if err := u.Email.SendVerificationCode(user.Email, code); err != nil {
 		return err
 	}
-	err = u.Repo.SetCooldown(id, u.Email.Cooldown, context.Background())
-	if err != nil {
+	if err := u.Repo.SetCooldown(user.ID, u.Email.Cooldown, context.Background()); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (u *UserService) ResetPassword(id uint64, code string, types string) error {
-	verificationCode, err := u.Repo.GetVerificationCode(id, types, context.Background())
+func (u *UserService) ResetPassword(account string, code string, types string) error {
+	user, err := u.Repo.FindUserByAccount(account)
+	if err != nil {
+		return err
+	}
+
+	verificationCode, err := u.Repo.GetVerificationCode(user.ID, types, context.Background())
 	if err != nil {
 		return err
 	}
 	if verificationCode != code {
 		return errors.New("验证码错误或者失效")
 	}
-	if err := u.Repo.DeleteVerificationCode(id, types, context.Background()); err != nil {
+	if err := u.Repo.DeleteVerificationCode(user.ID, types, context.Background()); err != nil {
 		return err
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	err = u.Repo.ResetPassword(id, string(password))
-	if err != nil {
+	if err := u.Repo.ResetPassword(user.ID, string(password)); err != nil {
 		return err
 	}
 	return nil
