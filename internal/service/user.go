@@ -142,10 +142,7 @@ func (u *UserService) FindUserByID(id uint64) (model.User, error) {
 	return u.Repo.FindUserById(id)
 }
 
-func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword1 string, newPassword2 string) error {
-	if newPassword1 != newPassword2 {
-		return errors.New("新密码两次不一致")
-	}
+func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword string) error {
 	user, err := u.Repo.FindUserById(id)
 	if err != nil {
 		return err
@@ -153,7 +150,7 @@ func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword1
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
 		return errors.New("旧密码错误")
 	}
-	password, err := bcrypt.GenerateFromPassword([]byte(newPassword1), bcrypt.DefaultCost)
+	password, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.New("密码加密失败")
 	}

@@ -24,9 +24,8 @@ type LogoutReq struct {
 	Device string `json:"device"`
 }
 type UpdatePasswordReq struct {
-	OldPassword  string `json:"old_password"`
-	NewPassword1 string `json:"new_password1"`
-	NewPassword2 string `json:"new_password2"`
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
 }
 
 type SendVerificationCodeReq struct {

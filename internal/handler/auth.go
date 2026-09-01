@@ -42,8 +42,8 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 	res := map[string]string{
-		"token":        token,
-		"refreshToken": refreshToken,
+		"token":         token,
+		"refresh_token": refreshToken,
 	}
 	response.Success(c, res)
 }
@@ -115,7 +115,7 @@ func (a *AuthHandler) UpdatePassword(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := a.UserService.UpdatePassword(id, req.OldPassword, req.NewPassword1, req.NewPassword2)
+	err := a.UserService.UpdatePassword(id, req.OldPassword, req.NewPassword)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

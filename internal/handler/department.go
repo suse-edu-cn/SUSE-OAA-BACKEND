@@ -53,7 +53,7 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 func (d *DepartmentHandler) Update(c *gin.Context) {
 	var req request.UpdateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, err.Error())
 		return
 	}
 	id := c.GetUint64("user_id")
