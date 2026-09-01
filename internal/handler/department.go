@@ -66,7 +66,7 @@ func (d *DepartmentHandler) Update(c *gin.Context) {
 		ID:   req.DepartmentID,
 		Name: req.Name,
 		Type: req.Type,
-	})
+	}, req.IsActive)
 	if err != nil {
 		response.Fail(c, 500, err.Error())
 		return

@@ -67,8 +67,26 @@ func (r *RoleRepository) GetLevelByID(id uint64) (uint64, error) {
 func (r *RoleRepository) CreateRole(role *model.Role) error {
 	return r.DB.Create(role).Error
 }
-func (r *RoleRepository) UpdateRole(role *model.Role) error {
-	return r.DB.Model(&model.Role{}).Where("id = ?", role.ID).Updates(role).Error
+func (r *RoleRepository) UpdateRole(role *model.Role, isActive *bool) error {
+	updates := map[string]any{
+		"name":  role.Name,
+		"type":  role.Type,
+		"level": role.Level,
+	}
+	if isActive != nil {
+		updates["is_active"] = *isActive
+	}
+
+	tx := r.DB.Model(&model.Role{}).
+		Where("id = ?", role.ID).
+		Updates(updates)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return errors.New("职位不存在")
+	}
+	return nil
 }
 
 func (r *RoleRepository) GetRoleByUserID(id uint64) (uint64, uint64, error) {

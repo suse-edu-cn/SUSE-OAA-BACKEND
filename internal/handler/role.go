@@ -67,7 +67,7 @@ func (r RoleHandler) Update(c *gin.Context) {
 		Name:  req.Name,
 		Level: req.Level,
 		Type:  req.Type,
-	})
+	}, req.IsActive)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

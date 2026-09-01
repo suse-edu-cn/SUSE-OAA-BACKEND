@@ -8,10 +8,11 @@ type CreateRoleReq struct {
 	Type  string `json:"type" binding:"required"`
 }
 type UpdateRoleReq struct {
-	RoleID uint64 `json:"role_id" binding:"required"`
-	Name   string `json:"name" binding:"required"`
-	Level  uint64 `json:"level" binding:"required"`
-	Type   string `json:"type" binding:"required"`
+	RoleID   uint64 `json:"role_id" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Level    uint64 `json:"level" binding:"required"`
+	Type     string `json:"type" binding:"required"`
+	IsActive *bool  `json:"is_active" binding:"required"`
 }
 
 func (c *CreateRoleReq) CheckType() error {

@@ -66,8 +66,25 @@ func (d *DepartmentRepository) GetDepartmentByName(name string) (*model.Departme
 func (d *DepartmentRepository) CreateDepartment(department *model.Department) error {
 	return d.DB.Create(department).Error
 }
-func (d *DepartmentRepository) UpdateDepartment(department *model.Department) error {
-	return d.DB.Model(&model.Department{}).Where("id = ?", department.ID).Updates(department).Error
+func (d *DepartmentRepository) UpdateDepartment(department *model.Department, isActive *bool) error {
+	updates := map[string]any{
+		"name": department.Name,
+		"type": department.Type,
+	}
+	if isActive != nil {
+		updates["is_active"] = *isActive
+	}
+
+	tx := d.DB.Model(&model.Department{}).
+		Where("id = ?", department.ID).
+		Updates(updates)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return errors.New("部门不存在")
+	}
+	return nil
 }
 
 func (d *DepartmentRepository) GetTypeByDepartmentID(departmentID uint64) (string, error) {

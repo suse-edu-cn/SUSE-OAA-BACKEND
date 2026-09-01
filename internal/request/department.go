@@ -10,6 +10,7 @@ type UpdateDepartmentReq struct {
 	DepartmentID uint64 `json:"department_id" binding:"required"`
 	Name         string `json:"name" binding:"required"`
 	Type         string `json:"type" binding:"required"`
+	IsActive     *bool  `json:"is_active" binding:"required"`
 }
 
 func (c CreateDepartmentReq) CheckType() error {

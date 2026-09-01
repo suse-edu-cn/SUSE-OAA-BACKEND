@@ -37,7 +37,7 @@ func (d *DepartmentService) CreateDepartment(id uint64, department *model.Depart
 	}
 	return d.DepartmentRepo.CreateDepartment(department)
 }
-func (d *DepartmentService) UpdateDepartment(id uint64, department *model.Department) error {
+func (d *DepartmentService) UpdateDepartment(id uint64, department *model.Department, isActive *bool) error {
 	_, level, err := d.RoleRepo.GetRoleByUserID(id)
 	if err != nil {
 		return err
@@ -45,5 +45,8 @@ func (d *DepartmentService) UpdateDepartment(id uint64, department *model.Depart
 	if level < 80 {
 		return errors.New("权限不够")
 	}
-	return d.DepartmentRepo.UpdateDepartment(department)
+	if _, err := d.DepartmentRepo.GetDepartmentByID(department.ID); err != nil {
+		return err
+	}
+	return d.DepartmentRepo.UpdateDepartment(department, isActive)
 }
