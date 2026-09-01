@@ -80,25 +80,8 @@ func (a *AnnouncementService) PushAnnouncement(ctx context.Context, announcement
 	return err
 }
 
-func (a *AnnouncementService) GetAnnouncementActiveList() (*[]model.AnnouncementInfo, error) {
-	return a.AnnouncementRepo.GetAnnouncementInfoList(true)
-}
-func (a *AnnouncementService) GetAnnouncementHistoryList() (*[]model.AnnouncementInfo, error) {
-	return a.AnnouncementRepo.GetAnnouncementInfoList(false)
-}
-func (a *AnnouncementService) GetAnnouncementInfoList(id uint64) (*[]model.AnnouncementInfo, error) {
-	level, userDepartment, err := a.UserRepo.GetRoleLevelAndDepartment(id)
-	if err != nil {
-		return nil, err
-	}
-	var deptID uint64
-	if userDepartment != "" {
-		dept, err := a.DepartmentRepo.FindByName(userDepartment)
-		if err == nil && dept != nil {
-			deptID = dept.ID
-		}
-	}
-	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(level, deptID)
+func (a *AnnouncementService) GetAnnouncementInfoList(id uint64, status string) (*[]model.AnnouncementInfo, error) {
+	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(id, status)
 }
 
 func (a *AnnouncementService) DeleteAnnouncement(id uint64, userID uint64) error {

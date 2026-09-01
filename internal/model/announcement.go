@@ -11,6 +11,7 @@ type Announcement struct {
 	Title        string         `gorm:"type:varchar(255);not null;column:title" json:"title"`
 	Content      string         `gorm:"type:mediumtext;not null;column:content" json:"content"`
 	IsActive     bool           `gorm:"not null;default:false;column:is_active" json:"is_active"`
+	CreatedId    uint64         `gorm:"not null;column:created_id" json:"created_id"`
 	DepartmentID uint64         `gorm:"index;not null;column:department_id" json:"department_id"`
 	Department   *Department    `gorm:"foreignKey:DepartmentID;references:ID" json:"department,omitempty"`
 	PublisherID  *uint64        `gorm:"index;column:publisher_id" json:"publisher_id"`

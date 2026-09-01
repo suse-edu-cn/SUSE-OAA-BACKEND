@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
@@ -28,6 +29,7 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 	userID := c.GetUint64("user_id")
 	announcement := model.Announcement{
 		Title:        req.Title,
+		CreatedId:    userID,
 		Content:      req.Content,
 		DepartmentID: req.DepartmentID,
 	}
@@ -77,27 +79,16 @@ func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
 	return
 }
 
-func (a *AnnouncementHandler) GetAnnouncementActiveList(c *gin.Context) {
-	announcements, err := a.AnnouncementService.GetAnnouncementActiveList()
-	if err != nil {
-		response.Fail(c, 400, err.Error())
-		return
-	}
-	response.Success(c, announcements)
-	return
-}
-func (a *AnnouncementHandler) GetAnnouncementHistoryList(c *gin.Context) {
-	announcements, err := a.AnnouncementService.GetAnnouncementHistoryList()
-	if err != nil {
-		response.Fail(c, 400, err.Error())
-		return
-	}
-	response.Success(c, announcements)
-	return
-}
 func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
+	var req request.GetAnnouncementListReq
+	err := c.ShouldBindQuery(&req)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	fmt.Println(req)
 	id := c.GetUint64("user_id")
-	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(id)
+	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(id, req.Status)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

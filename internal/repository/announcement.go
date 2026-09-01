@@ -63,17 +63,21 @@ func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64) (model.Announcem
 	}
 	return announcement.ToInfo(), nil
 }
-func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(level uint64, departmentID uint64) (*[]model.AnnouncementInfo, error) {
+func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(id uint64, status string) (*[]model.AnnouncementInfo, error) {
 	var announcementsInfo []model.AnnouncementInfo
 	var announcements []model.Announcement
 	tx := a.DB.Model(&model.Announcement{}).
 		Preload("Department").
 		Preload("Publisher").
 		Preload("Publisher.Role")
-	if level < 30 {
-		tx = tx.Where("publisher_id IS NOT NULL")
-	} else if level < 80 {
-		tx = tx.Where("department_id = ? OR publisher_id IS NOT NULL", departmentID)
+	if status == "active" {
+		tx = tx.Where("is_active = ? AND publisher_id IS NOT NULL", true)
+	} else if status == "history" {
+		tx = tx.Where("is_active = ? AND publisher_id IS NOT NULL", false)
+	} else if status == "draft" {
+		tx = tx.Where("created_id = ? AND publisher_id IS  NULL", id)
+	} else {
+		tx = tx.Where(" publisher_id IS NOT NULL")
 	}
 	err := tx.Find(&announcements).Error
 	if err != nil {
@@ -85,23 +89,7 @@ func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(level uint64, dep
 	}
 	return &announcementsInfo, nil
 }
-func (a *AnnouncementRepository) GetAnnouncementInfoList(isActive bool) (*[]model.AnnouncementInfo, error) {
-	var announcementsInfo []model.AnnouncementInfo
-	var announcements []model.Announcement
-	err := a.DB.Model(&model.Announcement{}).
-		Preload("Department").
-		Preload("Publisher").
-		Preload("Publisher.Role").
-		Where("is_active = ? AND  publisher_id IS NOT NULL ", isActive).Find(&announcements).Error
-	if err != nil {
-		return nil, err
-	}
-	for _, announcement := range announcements {
 
-		announcementsInfo = append(announcementsInfo, announcement.ToInfo())
-	}
-	return &announcementsInfo, nil
-}
 func (a *AnnouncementRepository) PushAnnouncement(
 	ctx context.Context,
 	id uint64,
