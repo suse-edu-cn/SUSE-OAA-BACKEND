@@ -15,7 +15,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis**，面向协�
 
 ## 接口一览
 
-所有接口前缀为 `/api/v2`。除注册、登录、刷新 Token 外，其余接口需要在请求头携带：
+所有接口前缀为 `/v2`。除注册、登录、刷新 Token、发送验证码、验证码重置密码外，其余接口需要在请求头携带：
 
 ```http
 Authorization: Bearer <token>
@@ -23,66 +23,66 @@ Authorization: Bearer <token>
 
 ### Auth（认证）
 
-- `POST /api/v2/auth/register` 注册（公开）
-- `POST /api/v2/auth/login` 登录（公开）
-- `POST /api/v2/auth/refresh` 刷新 Token（公开）
-- `POST /api/v2/auth/logout` 登出
-- `POST /api/v2/auth/send` 发送邮箱验证码
+- `POST /v2/auth/register` 注册（公开）
+- `POST /v2/auth/login` 登录（公开）
+- `POST /v2/auth/refresh` 刷新 Token（公开）
+- `POST /v2/auth/logout` 登出
+- `POST /v2/auth/send` 发送邮箱验证码（公开）
 
 ### Password（密码）
 
-- `POST /api/v2/password/update` 修改密码
-- `POST /api/v2/password/reset` 验证码重置密码
+- `POST /v2/auth/password/update` 修改密码
+- `POST /v2/auth/password/reset` 验证码重置密码（公开）
 
 ### User（用户）
 
-- `GET /api/v2/user/me` 当前用户信息
-- `GET /api/v2/user/list` 用户列表（分页和筛选）
-- `POST /api/v2/user/me/update` 修改用户名
-- `POST /api/v2/user/batch` 批量修改用户部门和职位
+- `GET /v2/user/me` 当前用户信息
+- `GET /v2/user/list` 用户列表（分页和筛选）
+- `POST /v2/user/me/update` 修改用户名
+- `POST /v2/user/batch` 批量修改用户部门和职位
 
 ### Department（部门）
 
-- `GET /api/v2/department/list` 部门列表
-- `POST /api/v2/department/create` 新建部门
-- `POST /api/v2/department/update` 更新部门
+- `GET /v2/department/list` 部门列表
+- `POST /v2/department/create` 新建部门
+- `POST /v2/department/update` 更新部门
 
 ### Role（职位）
 
-- `GET /api/v2/role/list` 职位列表
-- `POST /api/v2/role/create` 新建职位
-- `POST /api/v2/role/update` 更新职位
+- `GET /v2/role/list` 职位列表
+- `POST /v2/role/create` 新建职位
+- `POST /v2/role/update` 更新职位
 
 ### Announcement（公告）
 
-- `POST /api/v2/announcement/create` 创建公告
-- `POST /api/v2/announcement/update` 更新公告
-- `POST /api/v2/announcement/push` 推送公告
-- `GET /api/v2/announcement/active` 当前生效公告
-- `GET /api/v2/announcement/history` 历史公告
-- `GET /api/v2/announcement/list` 按权限获取公告列表
-- `POST /api/v2/announcement/delete` 删除公告
+- `POST /v2/announcement/create` 创建公告
+- `POST /v2/announcement/update` 更新公告
+- `POST /v2/announcement/push` 推送公告
+- `GET /v2/announcement/active` 当前生效公告
+- `GET /v2/announcement/history` 历史公告
+- `GET /v2/announcement/list` 按权限获取公告列表
+- `POST /v2/announcement/delete` 删除公告
 
 ### Term（招新 / 换届周期）
 
-- `POST /api/v2/term/create` 创建周期
-- `POST /api/v2/term/update` 更新周期
-- `GET /api/v2/term/list` 周期列表
+- `POST /v2/term/create` 创建周期
+- `POST /v2/term/update` 更新周期
+- `GET /v2/term/list` 周期列表
 
 ### Application（申请表）
 
-- `POST /api/v2/application/create` 创建申请
-- `POST /api/v2/application/update` 更新当前用户最新申请
-- `GET /api/v2/application/me` 获取当前用户申请
-- `GET /api/v2/application/department` 按职位获取可选部门
-- `GET /api/v2/application/role` 按部门获取可选职位
-- `GET /api/v2/application/list` 查询周期申请列表
+- `POST /v2/application/create` 创建申请
+- `POST /v2/application/update` 更新当前用户最新申请
+- `GET /v2/application/me` 获取当前用户申请
+- `GET /v2/application/department` 按职位获取可选部门
+- `GET /v2/application/role` 按部门获取可选职位
+- `GET /v2/application/list` 查询周期申请列表
 
 ### Interviewer（面试官）
 
-- `POST /api/v2/interviewer/create` 添加面试官
-- `POST /api/v2/interviewer/update` 更新面试官
-- `GET /api/v2/interviewer/list` 面试官列表
+- `POST /v2/interviewer/create` 添加面试官
+- `POST /v2/interviewer/update` 更新面试官
+- `GET /v2/interviewer/list` 面试官列表
 
 ## 统一响应格式
 
@@ -137,7 +137,7 @@ Authorization: Bearer <token>
 
 ### 批量修改规则
 
-`/api/v2/user/batch` 的规则是：
+`/v2/user/batch` 的规则是：
 
 - 同一个 `user_id` 只处理第一次出现的记录。
 - 非法部门、职位或部门 / 职位类型不匹配时，会回填到失败项。

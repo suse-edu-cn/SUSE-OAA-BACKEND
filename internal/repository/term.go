@@ -81,10 +81,6 @@ func (t *TermRepository) UpdateTerm(term model.Term) error {
 		return tx.Error
 	}
 
-	if tx.RowsAffected == 0 {
-		return errors.New("数据不存在")
-	}
-
 	return nil
 }
 func (t *TermRepository) GetTermByID(termID uint64) (model.Term, error) {
