@@ -57,9 +57,6 @@ func (t *TermService) UpdateTerm(term model.Term) error {
 	if oldTerm.IsExecuted {
 		return errors.New("该周期已经执行，不能再修改")
 	}
-	if !time.Now().Before(oldTerm.EditStartAt) {
-		return errors.New("该周期已经开始，不能再修改")
-	}
 
 	if err := term.CheckPeriod(); err != nil {
 		return err

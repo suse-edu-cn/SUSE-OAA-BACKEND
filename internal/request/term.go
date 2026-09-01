@@ -17,7 +17,7 @@ type CreateTermReq struct {
 	QueryPeriod TimePeriod `json:"query_period" binding:"required"`
 }
 type UpdateTermReq struct {
-	ID          uint64     `json:"id" binding:"required"`
+	TermID      uint64     `json:"term_id" binding:"required"`
 	Title       string     `json:"title" binding:"required"`
 	EditPeriod  TimePeriod `json:"edit_period" binding:"required"`
 	QueryPeriod TimePeriod `json:"query_period" binding:"required"`

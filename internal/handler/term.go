@@ -64,7 +64,7 @@ func (t *TermHandler) UpdateTerm(c *gin.Context) {
 		return
 	}
 	err = t.TermService.UpdateTerm(model.Term{
-		ID:           req.ID,
+		ID:           req.TermID,
 		Title:        req.Title,
 		EditStartAt:  req.EditPeriod.StartAt,
 		EditEndAt:    req.EditPeriod.EndAt,

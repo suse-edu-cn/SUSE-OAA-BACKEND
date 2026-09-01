@@ -91,7 +91,7 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 }
 func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {
 	var user model.User
-	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
+	err := u.DB.Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return 0, "", err
 	}
