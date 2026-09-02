@@ -80,3 +80,19 @@ func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 	response.Success(c, res)
 
 }
+func (u *UserHandler) DeleteUser(c *gin.Context) {
+	id := c.GetUint64("user_id")
+	var req request.DeleteUserReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err := u.UserService.DeleteUser(id, req.ID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+
+	}
+	response.Success(c, nil)
+	return
+}

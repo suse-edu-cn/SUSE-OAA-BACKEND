@@ -377,3 +377,21 @@ func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint6
 	}
 	return nil
 }
+func (u *UserService) DeleteUser(id uint64, userID uint64) error {
+	level, _, err := u.Repo.GetRoleLevelAndDepartment(id)
+	if err != nil {
+		return err
+	}
+	userLevel, _, err := u.Repo.GetRoleLevelAndDepartment(userID)
+	if err != nil {
+		return err
+	}
+	if level < 80 || userLevel >= level {
+		return errors.New("权限不够")
+	}
+	err = u.Repo.DeleteUserByID(userID)
+	if err != nil {
+		return err
+	}
+	return nil
+}

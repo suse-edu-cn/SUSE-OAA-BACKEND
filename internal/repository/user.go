@@ -362,3 +362,14 @@ func (u *UserRepository) CheckUserIsHave(id uint64) error {
 	}
 	return nil
 }
+func (u *UserRepository) DeleteUserByID(id uint64) error {
+	result := u.DB.Delete(&model.User{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("数据不存在")
+	}
+	return nil
+
+}
