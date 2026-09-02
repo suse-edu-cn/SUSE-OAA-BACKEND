@@ -10,6 +10,7 @@ type Config struct {
 	Jwt    Jwt
 	Redis  Redis
 	Email  Email
+	MiniO  MiniO
 }
 
 type Mysql struct {
@@ -43,6 +44,16 @@ type Email struct {
 	Pass     string `mapstructure:"pass"`
 	Expire   int    `mapstructure:"expire"`
 	CoolDown int    `mapstructure:"cool_down"`
+}
+
+type MiniO struct {
+	MinioEndpoint  string `mapstructure:"minio_endpoint"`
+	MinioAccessKey string `mapstructure:"minio_access_key"`
+	MinioSecretKey string `mapstructure:"minio_secret_key"`
+	MinioUseSsl    bool   `mapstructure:"minio_use_ssl"`
+	MinioBucket    string `mapstructure:"minio_bucket"`
+	MaxFileSize    int64  `mapstructure:"max_file_size"`
+	MaxImageSize   int64  `mapstructure:"max_image_size"`
 }
 
 func ConfigInit() Config {
