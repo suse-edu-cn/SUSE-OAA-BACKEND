@@ -17,7 +17,6 @@ func RedisInit(cfg config.Redis) *redis.Client {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	fmt.Println(rdb.Ping(ctx).Err())
 	if _, err := rdb.Ping(ctx).Result(); err != nil {
 		panic("redis连接失败")
 	}

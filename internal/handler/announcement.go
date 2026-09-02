@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
@@ -35,6 +34,10 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 	}
 
 	_, err = a.AnnouncementService.CreateAnnouncement(userID, announcement)
+	if err != nil {
+		response.Fail(c, 500, err.Error())
+		return
+	}
 	response.Success(c, "公告创建成功")
 	return
 }
@@ -86,7 +89,6 @@ func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	fmt.Println(req)
 	id := c.GetUint64("user_id")
 	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(id, req.Status)
 	if err != nil {

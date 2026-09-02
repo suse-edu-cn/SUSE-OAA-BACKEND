@@ -75,14 +75,19 @@ func (d *DepartmentRepository) UpdateDepartment(department *model.Department, is
 		updates["is_active"] = *isActive
 	}
 
+	var existing model.Department
+	if err := d.DB.Select("id").First(&existing, department.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("部门不存在")
+		}
+		return err
+	}
+
 	tx := d.DB.Model(&model.Department{}).
 		Where("id = ?", department.ID).
 		Updates(updates)
 	if tx.Error != nil {
 		return tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return errors.New("部门不存在")
 	}
 	return nil
 }

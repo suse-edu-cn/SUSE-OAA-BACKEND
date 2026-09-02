@@ -1,36 +1,36 @@
 package request
 
 type RegisterReq struct {
-	StudentID string `json:"student_id"`
-	Username  string `json:"username"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Password  string `json:"password"`
+	StudentID string `json:"student_id" binding:"required"`
+	Username  string `json:"username" binding:"required"`
+	Name      string `json:"name" binding:"required"`
+	Email     string `json:"email" binding:"required"`
+	Password  string `json:"password" binding:"required"`
 }
 
 type LoginReq struct {
-	Account  string `json:"account"`
-	Password string `json:"password"`
-	Device   string `json:"device"`
+	Account  string `json:"account" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Device   string `json:"device" binding:"required"`
 }
 
 type RefreshReq struct {
-	RefreshToken string `json:"refresh_token"`
-	UserId       uint64 `json:"user_id"`
-	Device       string `json:"device"`
+	RefreshToken string `json:"refresh_token" binding:"required"`
+	UserId       uint64 `json:"user_id" binding:"required"`
+	Device       string `json:"device" binding:"required"`
 }
 
 type LogoutReq struct {
-	Device string `json:"device"`
+	Device string `json:"device" binding:"required"`
 }
 type UpdatePasswordReq struct {
-	OldPassword string `json:"old_password"`
-	NewPassword string `json:"new_password"`
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
 }
 
 type SendVerificationCodeReq struct {
-	Account string `json:"account" binding:"required"`
-	Scene   string `json:"scene" binding:"required"`
+	Account string `json:"account" binding:"required" binding:"required"`
+	Scene   string `json:"scene" binding:"required" binding:"required"`
 }
 
 type ResetPasswordReq struct {

@@ -52,7 +52,8 @@ func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := u.UserService.UpdateUserInfo(id, req.Username, req.Email, req.Avatar)
+	ctx := c.Request.Context()
+	err := u.UserService.UpdateUserInfo(ctx, id, req.Username, req.Email, req.Avatar)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

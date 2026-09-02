@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"suseoaa/internal/storage"
 	"suseoaa/pkg/utils"
 
 	"golang.org/x/crypto/bcrypt"
@@ -172,10 +173,31 @@ func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword 
 	}
 	return nil
 }
-func (u *UserService) UpdateUserInfo(id uint64, username string, email string, avatar string) error {
-	err := u.Repo.UpdateUser(id, username, email, avatar)
+func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username string, email string, avatar string) error {
+	size, err := u.File.Storage.GetFileInfo(ctx, avatar)
+	if err != nil {
+		return errors.New("头像不存在" + err.Error())
+	}
+	if size > storage.MaxImageSize {
+		return errors.New("头像体积过大")
+	}
+	user, err := u.Repo.FindUserById(id)
 	if err != nil {
 		return err
+	}
+	var oldAvatar string
+	if user.Avatar != avatar {
+		oldAvatar = user.Avatar
+	}
+	err = u.Repo.UpdateUser(id, username, email, avatar)
+	if err != nil {
+		return err
+	}
+	if oldAvatar != "" {
+		err = u.File.Storage.DeleteFile(ctx, oldAvatar)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

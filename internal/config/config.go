@@ -26,9 +26,9 @@ type Server struct {
 }
 
 type Jwt struct {
-	Secret      string `mapstructure:"secret"`
-	ExpireHour  int    `mapstructure:"expire_hour"`
-	RefreshTime uint   `mapstructure:"refresh_time"`
+	Secret       string `mapstructure:"secret"`
+	ExpireMinute int    `mapstructure:"expire_minute"`
+	RefreshTime  uint   `mapstructure:"refresh_time"`
 }
 type Redis struct {
 	Host     string `mapstructure:"host"`

@@ -77,14 +77,19 @@ func (r *RoleRepository) UpdateRole(role *model.Role, isActive *bool) error {
 		updates["is_active"] = *isActive
 	}
 
+	var existing model.Role
+	if err := r.DB.Select("id").First(&existing, role.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("职位不存在")
+		}
+		return err
+	}
+
 	tx := r.DB.Model(&model.Role{}).
 		Where("id = ?", role.ID).
 		Updates(updates)
 	if tx.Error != nil {
 		return tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return errors.New("职位不存在")
 	}
 	return nil
 }

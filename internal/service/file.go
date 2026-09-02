@@ -45,6 +45,7 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 	if err != nil {
 		return nil, err
 	}
+	defer fileValue.Close()
 	objectName := fmt.Sprintf("%s/%s%s", scene, uuid, ext)
 	err = f.Storage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
 	if err != nil {

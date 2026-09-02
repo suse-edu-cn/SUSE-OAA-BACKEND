@@ -73,8 +73,8 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 	res := map[string]string{
-		"token":        token,
-		"refreshToken": refreshToken,
+		"token":         token,
+		"refresh_token": refreshToken,
 	}
 	response.Success(c, res)
 }

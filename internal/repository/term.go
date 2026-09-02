@@ -126,12 +126,17 @@ func (t *TermRepository) CreateInterviewers(interviewer []model.Interviewer) err
 	return t.DB.Create(&interviewer).Error
 }
 func (t *TermRepository) UpdateInterviewers(interviewer model.Interviewer) error {
-	tx := t.DB.Where("id = ?", interviewer.ID).Updates(&interviewer)
+	var existing model.Interviewer
+	if err := t.DB.Select("id").First(&existing, interviewer.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("面试官记录不存在")
+		}
+		return err
+	}
+
+	tx := t.DB.Model(&model.Interviewer{}).Where("id = ?", interviewer.ID).Updates(&interviewer)
 	if tx.Error != nil {
 		return tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return errors.New("面试官记录不存在")
 	}
 	return nil
 }

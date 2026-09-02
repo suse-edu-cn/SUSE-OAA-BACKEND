@@ -1,9 +1,9 @@
 package request
 
 type UpdateUserInfoReq struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Avatar   string `json:"avatar" binding:"required"`
 }
 
 type UserListReq struct {
@@ -15,7 +15,7 @@ type UserListReq struct {
 }
 
 type BatchUserInfoReq struct {
-	UserID       uint64 `json:"user_id"`
-	DepartmentID uint64 `json:"department_id"`
-	RoleID       uint64 `json:"role_id"`
+	UserID       uint64 `json:"user_id" binding:"required"`
+	DepartmentID uint64 `json:"department_id" binding:"required"`
+	RoleID       uint64 `json:"role_id" binding:"required"`
 }

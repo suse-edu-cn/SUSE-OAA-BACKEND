@@ -37,18 +37,17 @@ func main() {
 		Config.Email.Expire,
 		Config.Email.CoolDown)
 	fileService := service.NewFileService(minio)
-	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService,fileService)
+	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService, fileService)
 	departmentService := service.NewDepartmentService(departmentRepo, roleRepo)
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo)
 	termService := service.NewTermService(termRepo, userService)
 
-
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(
 		userService,
 		Config.Jwt.Secret,
-		Config.Jwt.ExpireHour,
+		Config.Jwt.ExpireMinute,
 		Config.Jwt.RefreshTime)
 	departmentHandler := handler.NewDepartmentHandler(departmentService)
 	roleHandler := handler.NewRoleHandler(roleService)

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
@@ -90,7 +89,6 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 		response.Fail(c, 400, err.Error())
 		return
 	}
-	fmt.Println(req)
 	termList, err := t.TermService.GetTermList(req.Year, req.Type)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
