@@ -60,8 +60,12 @@ func (u *UserRepository) ResetPassword(id uint64, password string) error {
 	return nil
 }
 
-func (u *UserRepository) UpdateUsername(id uint64, username string) error {
-	err := u.DB.Model(&model.User{}).Where("id = ?", id).Update("username", username).Error
+func (u *UserRepository) UpdateUser(id uint64, username string, email string, avatar string) error {
+	err := u.DB.Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{
+		"username": username,
+		"email":    email,
+		"avatar":   avatar,
+	}).Error
 	if err != nil {
 		return errors.New("更新失败")
 	}
@@ -86,7 +90,7 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	info.Username = user.Username
 	info.Name = user.Name
 	info.StudentID = user.StudentID
-
+	info.Avatar = user.Avatar
 	return info, nil
 }
 func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {

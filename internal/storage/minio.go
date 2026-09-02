@@ -13,7 +13,6 @@ import (
 var MaxFileSize int64
 var MaxImageSize int64
 var BucketName string
-var MinioPublicURL string
 var expire time.Duration
 
 type MinIO struct {
@@ -30,7 +29,6 @@ func NewMinIO(
 	maxFileSize int64,
 	maxImageSize int64,
 	expireTime int64,
-	minioPublicURL string,
 ) *MinIO {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
@@ -41,7 +39,6 @@ func NewMinIO(
 	}
 	MaxFileSize = maxFileSize * 1024 * 1024
 	MaxImageSize = maxImageSize * 1024 * 1024
-	MinioPublicURL = minioPublicURL
 	BucketName = bucket
 	expire = time.Duration(expireTime) * time.Minute
 	return &MinIO{
@@ -77,4 +74,29 @@ func (m *MinIO) GeneratePresignedURL(
 		return "", err
 	}
 	return url.String(), nil
+}
+func (m *MinIO) GetFileInfo(ctx context.Context, objectName string) (int64, error) {
+	info, err := m.Client.StatObject(
+		ctx,
+		m.Bucket,
+		objectName,
+		minio.StatObjectOptions{},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("get file info: %w", err)
+	}
+
+	return info.Size, nil
+}
+func (m *MinIO) DeleteFile(ctx context.Context, objectName string) error {
+	err := m.Client.RemoveObject(
+		ctx,
+		m.Bucket,
+		objectName,
+		minio.RemoveObjectOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("delete file: %w", err)
+	}
+	return nil
 }

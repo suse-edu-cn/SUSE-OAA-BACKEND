@@ -18,7 +18,8 @@ func NewUserHandler(userService service.UserService) UserHandler {
 
 func (u *UserHandler) GetInfo(c *gin.Context) {
 	id := c.GetUint64("user_id")
-	result, err := u.UserService.GetUserInfo(id)
+	ctx := c.Request.Context()
+	result, err := u.UserService.GetUserInfo(ctx, id)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
@@ -51,7 +52,7 @@ func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := u.UserService.UpdateUserInfo(id, req.Username)
+	err := u.UserService.UpdateUserInfo(id, req.Username, req.Email, req.Avatar)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return

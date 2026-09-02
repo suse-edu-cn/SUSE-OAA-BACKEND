@@ -17,7 +17,7 @@ type User struct {
 	Department   *Department           `gorm:"foreignKey:DepartmentID;references:ID" json:"department,omitempty"`
 	RoleID       uint64                `gorm:"index;column:role_id;not null" json:"role_id,omitempty"`
 	Role         *Role                 `gorm:"foreignKey:RoleID;references:ID" json:"role,omitempty"`
-	Avatar       string                `gorm:"type:varchar(255);default:'images/default.jpg';column:avatar" json:"avatar"`
+	Avatar       string                `gorm:"type:varchar(255);default:'avatar/default.jpg';column:avatar" json:"avatar"`
 	CreatedAt    time.Time             `gorm:"not null;column:created_at" json:"created_at"`
 	UpdatedAt    time.Time             `gorm:"not null;column:updated_at" json:"updated_at"`
 	DeletedAt    soft_delete.DeletedAt `gorm:"softDelete:milli;uniqueIndex:idx_user_student_id;uniqueIndex:idx_user_username;uniqueIndex:idx_user_email" json:"-"`
@@ -28,6 +28,7 @@ type UserInfo struct {
 	StudentID  string `json:"student_id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
+	Avatar     string `json:"avatar"`
 	Email      string `json:"email"`
 	Department string `json:"department"`
 	Role       string `json:"role"`

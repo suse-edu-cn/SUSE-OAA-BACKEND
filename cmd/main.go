@@ -28,8 +28,7 @@ func main() {
 		Config.MiniO.MinioBucket,
 		Config.MiniO.MaxFileSize,
 		Config.MiniO.MaxImageSize,
-		Config.MiniO.ExpireTime,
-		Config.MiniO.MinioPublicURL)
+		Config.MiniO.ExpireTime)
 
 	emailService := service.NewEmailService(Config.Email.Host,
 		Config.Email.Port,
@@ -37,12 +36,13 @@ func main() {
 		Config.Email.Pass,
 		Config.Email.Expire,
 		Config.Email.CoolDown)
-	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService)
+	fileService := service.NewFileService(minio)
+	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService,fileService)
 	departmentService := service.NewDepartmentService(departmentRepo, roleRepo)
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo)
 	termService := service.NewTermService(termRepo, userService)
-	fileService := service.NewFileService(minio)
+
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(

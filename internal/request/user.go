@@ -2,6 +2,8 @@ package request
 
 type UpdateUserInfoReq struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
+	Avatar   string `json:"avatar"`
 }
 
 type UserListReq struct {

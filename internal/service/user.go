@@ -19,14 +19,21 @@ type UserService struct {
 	RoleRepo       repository.RoleRepository
 	DepartmentRepo repository.DepartmentRepository
 	Email          EmailService
+	File           FileService
 }
 
-func NewUserService(repo repository.UserRepository, roleRepo repository.RoleRepository, departmentRepo repository.DepartmentRepository, email EmailService) UserService {
+func NewUserService(
+	repo repository.UserRepository,
+	roleRepo repository.RoleRepository,
+	departmentRepo repository.DepartmentRepository,
+	email EmailService,
+	file FileService) UserService {
 	return UserService{
 		Repo:           repo,
 		RoleRepo:       roleRepo,
 		DepartmentRepo: departmentRepo,
 		Email:          email,
+		File:           file,
 	}
 }
 
@@ -89,11 +96,16 @@ func (u *UserService) Login(req request.LoginReq, refreshTime uint) (model.User,
 	return user, refreshToken, nil
 }
 
-func (u *UserService) GetUserInfo(id uint64) (model.UserInfo, error) {
+func (u *UserService) GetUserInfo(ctx context.Context, id uint64) (model.UserInfo, error) {
 	info, err := u.Repo.GetUserInfoById(id)
 	if err != nil {
 		return model.UserInfo{}, errors.New("查询失败" + err.Error())
 	}
+	avatar, err := u.File.Storage.GeneratePresignedURL(ctx, info.Avatar)
+	if err != nil {
+		return model.UserInfo{}, errors.New("生成头像链接失败" + err.Error())
+	}
+	info.Avatar = avatar
 	return info, nil
 }
 func (u *UserService) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
@@ -160,8 +172,8 @@ func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword 
 	}
 	return nil
 }
-func (u *UserService) UpdateUserInfo(id uint64, username string) error {
-	err := u.Repo.UpdateUsername(id, username)
+func (u *UserService) UpdateUserInfo(id uint64, username string, email string, avatar string) error {
+	err := u.Repo.UpdateUser(id, username, email, avatar)
 	if err != nil {
 		return err
 	}
