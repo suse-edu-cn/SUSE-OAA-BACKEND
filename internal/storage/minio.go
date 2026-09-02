@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -11,6 +12,9 @@ import (
 
 var MaxFileSize int64
 var MaxImageSize int64
+var BucketName string
+var MinioPublicURL string
+var expire time.Duration
 
 type MinIO struct {
 	Client *minio.Client
@@ -25,6 +29,8 @@ func NewMinIO(
 	bucket string,
 	maxFileSize int64,
 	maxImageSize int64,
+	expireTime int64,
+	minioPublicURL string,
 ) *MinIO {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
@@ -33,8 +39,11 @@ func NewMinIO(
 	if err != nil {
 		panic(err)
 	}
-	MaxFileSize = maxFileSize
-	MaxImageSize = maxImageSize
+	MaxFileSize = maxFileSize * 1024 * 1024
+	MaxImageSize = maxImageSize * 1024 * 1024
+	MinioPublicURL = minioPublicURL
+	BucketName = bucket
+	expire = time.Duration(expireTime) * time.Minute
 	return &MinIO{
 		Client: client,
 		Bucket: bucket,
@@ -52,4 +61,20 @@ func (m *MinIO) UploadFile(
 		return fmt.Errorf("upload file: %w", err)
 	}
 	return nil
+}
+func (m *MinIO) GeneratePresignedURL(
+	ctx context.Context,
+	objectName string,
+) (string, error) {
+	url, err := m.Client.PresignedGetObject(
+		ctx,
+		m.Bucket,
+		objectName,
+		expire,
+		nil,
+	)
+	if err != nil {
+		return "", err
+	}
+	return url.String(), nil
 }

@@ -52,8 +52,10 @@ type MiniO struct {
 	MinioSecretKey string `mapstructure:"minio_secret_key"`
 	MinioUseSsl    bool   `mapstructure:"minio_use_ssl"`
 	MinioBucket    string `mapstructure:"minio_bucket"`
+	MinioPublicURL string `mapstructure:"minio_public_url"`
 	MaxFileSize    int64  `mapstructure:"max_file_size"`
 	MaxImageSize   int64  `mapstructure:"max_image_size"`
+	ExpireTime     int64  `mapstructure:"expire_time"`
 }
 
 func ConfigInit() Config {

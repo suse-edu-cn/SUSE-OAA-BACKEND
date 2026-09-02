@@ -81,5 +81,9 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		interviewer.POST("update", total.Term.UpdateInterviewer)
 		interviewer.GET("list", total.Term.GetInterviewerList)
 	}
+	upload := r.Group("v2/upload")
+	{
+		upload.POST("image", total.File.UploadImage)
+	}
 	return r
 }

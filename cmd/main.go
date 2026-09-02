@@ -27,8 +27,9 @@ func main() {
 		Config.MiniO.MinioUseSsl,
 		Config.MiniO.MinioBucket,
 		Config.MiniO.MaxFileSize,
-		Config.MiniO.MaxImageSize)
-
+		Config.MiniO.MaxImageSize,
+		Config.MiniO.ExpireTime,
+		Config.MiniO.MinioPublicURL)
 
 	emailService := service.NewEmailService(Config.Email.Host,
 		Config.Email.Port,
@@ -43,7 +44,6 @@ func main() {
 	termService := service.NewTermService(termRepo, userService)
 	fileService := service.NewFileService(minio)
 
-
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(
 		userService,
@@ -56,7 +56,6 @@ func main() {
 	termHandler := handler.NewTermHandler(termService)
 	fileHandler := handler.NewFileHandler(fileService)
 
-
 	totalHandler := handler.NewTotalHandler(
 		authHandler,
 		userHandler,
@@ -65,7 +64,6 @@ func main() {
 		announcementHandler,
 		termHandler,
 		fileHandler)
-
 
 	r := router.RouterInit(totalHandler)
 	r.Run(":" + Config.Server.Port)
