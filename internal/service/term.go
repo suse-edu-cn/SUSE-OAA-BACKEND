@@ -543,3 +543,12 @@ func (t *TermService) CheckInterviewResult(
 
 	return nil
 }
+
+func (t *TermService) GetInterviewResultDecision() []string {
+	return []string{
+		model.DecisionAdmittedFirst,
+		model.DecisionAdmittedSecond,
+		model.DecisionRejected,
+		model.DecisionAdmittedAdjusted,
+	}
+}

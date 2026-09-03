@@ -331,3 +331,8 @@ func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
 
 	response.Success(c, "更新面试结果成功")
 }
+
+func (t *TermHandler) GetInterviewResultDecision(c *gin.Context) {
+	result := t.TermService.GetInterviewResultDecision()
+	response.Success(c, result)
+}
