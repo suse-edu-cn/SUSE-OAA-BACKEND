@@ -469,6 +469,7 @@ func (t *TermService) CreateInterviewResult(operatorID uint64, req request.Creat
 	interviewResult := model.InterviewResult{
 		ApplicationID:      application.ID,
 		TermID:             application.TermID,
+		Type:               application.Type,
 		UserID:             application.UserID,
 		OperatorID:         operatorID,
 		Decision:           req.Decision,
@@ -533,6 +534,10 @@ func (t *TermService) CheckInterviewResult(
 	}
 	if interviewResult.UserID != application.UserID {
 		return errors.New("面试结果和用户不匹配")
+	}
+
+	if term.IsExecuted {
+		return errors.New("该周期已经执行，不能再修改面试结果")
 	}
 
 	if !term.IsInQueryPeriod(time.Now()) {

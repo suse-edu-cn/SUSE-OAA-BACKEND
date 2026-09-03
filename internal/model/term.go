@@ -125,35 +125,22 @@ type Application struct {
 
 func (Application) TableName() string { return "applications" }
 
-type TermHistory struct {
-	ID            uint64 `gorm:"primaryKey;autoIncrement" json:"id"`                       // 履历记录自增ID
-	TermID        uint64 `gorm:"uniqueIndex:idx_term_application;not null" json:"term_id"` // 关联的周期ID (对应 terms.id)
-	ApplicationID uint64 `gorm:"uniqueIndex:idx_term_application;not null" json:"application_id"`
-	Type          string `gorm:"size:16;not null;index" json:"type"` // 业务类型: 招新 或 换届
-	UserID        uint64 `gorm:"index;not null" json:"user_id"`      // 被调整职务的用户ID
-
-	Old OrganizationRole `gorm:"embedded;embeddedPrefix:old_" json:"old"` // 变更前职务 (映射为 old_department_id, old_role_id)
-	New OrganizationRole `gorm:"embedded;embeddedPrefix:new_" json:"new"` // 变更后职务 (映射为 new_department_id, new_role_id)
-
-	OperatorID uint64    `json:"operator_id"`            // 审核/执行人UserID
-	Remark     string    `gorm:"size:255" json:"remark"` // 履历备注说明
-	CreatedAt  time.Time `json:"created_at"`             // 生效创建时间
-	UpdatedAt  time.Time `json:"updated_at"`             // 更新时间
-}
-
-func (TermHistory) TableName() string { return "term_histories" }
-
 type InterviewResult struct {
 	ID uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
 
 	TermID        uint64 `gorm:"not null;index" json:"term_id"`
 	ApplicationID uint64 `gorm:"not null;uniqueIndex:idx_app_del" json:"application_id"`
+	Type          string `gorm:"size:16;not null;index" json:"type"`
 	UserID        uint64 `gorm:"not null;index" json:"user_id"`
 
 	Decision string `gorm:"size:32;not null;index" json:"decision"`
 
 	ResultDepartmentID uint64 `gorm:"not null" json:"result_department_id"`
 	ResultRoleID       uint64 `gorm:"not null" json:"result_role_id"`
+
+	// 执行前保存用户原始组织信息；未执行时为 0。
+	Old        OrganizationRole `gorm:"embedded;embeddedPrefix:old_" json:"old"`
+	ExecutedAt *time.Time       `json:"executed_at"`
 
 	OperatorID uint64 `gorm:"not null" json:"operator_id"`
 	Remark     string `gorm:"size:255" json:"remark"`
