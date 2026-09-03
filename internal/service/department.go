@@ -28,7 +28,7 @@ func (d *DepartmentService) GetAll() (*[]model.Department, error) {
 }
 
 func (d *DepartmentService) CreateDepartment(id uint64, department *model.Department) error {
-	_, level, err := d.RoleRepo.GetRoleByUserID(id)
+	_, level, err := d.RoleRepo.GetActiveRoleByUserID(id)
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func (d *DepartmentService) CreateDepartment(id uint64, department *model.Depart
 	return d.DepartmentRepo.CreateDepartment(department)
 }
 func (d *DepartmentService) UpdateDepartment(id uint64, department *model.Department, isActive *bool) error {
-	_, level, err := d.RoleRepo.GetRoleByUserID(id)
+	_, level, err := d.RoleRepo.GetActiveRoleByUserID(id)
 	if err != nil {
 		return err
 	}

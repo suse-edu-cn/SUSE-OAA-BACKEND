@@ -105,6 +105,27 @@ func (r *RoleRepository) GetRoleByUserID(id uint64) (uint64, uint64, error) {
 	}
 	return 0, 0, errors.New("用户role缺失")
 }
+
+func (r *RoleRepository) GetActiveRoleByUserID(id uint64) (uint64, uint64, error) {
+	var user model.User
+	err := r.DB.Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
+	if err != nil {
+		return 0, 0, err
+	}
+	if user.Role == nil {
+		return 0, 0, errors.New("用户role缺失")
+	}
+	if !user.Role.IsActive {
+		return 0, 0, errors.New("职位已停用")
+	}
+	if user.Department == nil {
+		return 0, 0, errors.New("部门不存在")
+	}
+	if !user.Department.IsActive {
+		return 0, 0, errors.New("部门已停用")
+	}
+	return user.Role.ID, user.Role.Level, nil
+}
 func (r *RoleRepository) GetTypeByRoleID(roleID uint64) (string, error) {
 	var role model.Role
 	err := r.DB.Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error

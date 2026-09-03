@@ -108,6 +108,27 @@ func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, e
 	}
 	return user.Role.Level, deptName, nil
 }
+
+func (u *UserRepository) GetActiveRoleLevelAndDepartment(id uint64) (uint64, string, error) {
+	var user model.User
+	err := u.DB.Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
+	if err != nil {
+		return 0, "", err
+	}
+	if user.Role == nil {
+		return 0, "", errors.New("角色不存在")
+	}
+	if !user.Role.IsActive {
+		return 0, "", errors.New("职位已停用")
+	}
+	if user.Department == nil {
+		return 0, "", errors.New("部门不存在")
+	}
+	if !user.Department.IsActive {
+		return 0, "", errors.New("部门已停用")
+	}
+	return user.Role.Level, user.Department.Name, nil
+}
 func (u *UserRepository) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
 	var user model.User
 	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
@@ -117,8 +138,14 @@ func (u *UserRepository) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64
 	if user.Role == nil {
 		return 0, 0, errors.New("职位不存在")
 	}
+	if !user.Role.IsActive {
+		return 0, 0, errors.New("职位已停用")
+	}
 	if user.Department == nil {
 		return 0, 0, errors.New("部门不存在")
+	}
+	if !user.Department.IsActive {
+		return 0, 0, errors.New("部门已停用")
 	}
 	return user.Department.ID, user.Role.ID, nil
 }

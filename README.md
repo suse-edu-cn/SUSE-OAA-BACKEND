@@ -48,6 +48,8 @@ Authorization: Bearer <token>
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
 | POST | `/v2/user/delete` | 删除用户 | JSON：`id` |
 
+> 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 返回时会转换成临时访问链接。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
+
 ### Department（部门）
 
 | 方法 | 路径 | 说明 | 参数 |
@@ -89,7 +91,7 @@ Authorization: Bearer <token>
 | GET | `/v2/term/list` | 周期列表 | Query：`year`、`type` 可选 |
 | POST | `/v2/term/delete` | 删除周期 | JSON：`term_id` |
 
-时间字段格式为日期字符串，后端会按 `Asia/Shanghai` 解析：
+时间字段格式为日期字符串，后端会按 `Asia/Shanghai` 解析；`type` 目前只允许 `招新` 或 `换届`：
 
 ```json
 {

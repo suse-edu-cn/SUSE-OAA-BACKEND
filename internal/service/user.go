@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"strings"
 	"suseoaa/internal/storage"
 	"suseoaa/pkg/utils"
@@ -102,7 +103,8 @@ func (u *UserService) GetUserInfo(ctx context.Context, id uint64) (model.UserInf
 	if err != nil {
 		return model.UserInfo{}, errors.New("查询失败" + err.Error())
 	}
-	avatar, err := u.File.Storage.GeneratePresignedURL(ctx, info.Avatar)
+
+	avatar, err := u.getAvatarURL(ctx, info.Avatar)
 	if err != nil {
 		return model.UserInfo{}, errors.New("生成头像链接失败" + err.Error())
 	}
@@ -111,6 +113,20 @@ func (u *UserService) GetUserInfo(ctx context.Context, id uint64) (model.UserInf
 }
 func (u *UserService) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
 	return u.Repo.GetDepartmentIDAndRoleIDByID(id)
+}
+
+func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, error) {
+	const defaultAvatar = "avatar/default.png"
+
+	if avatar != "" {
+		if _, err := u.File.Storage.GetFileInfo(ctx, avatar); err == nil {
+			if url, err := u.File.Storage.GeneratePresignedURL(ctx, avatar); err == nil {
+				return url, nil
+			}
+		}
+	}
+
+	return u.File.Storage.GeneratePresignedURL(ctx, defaultAvatar)
 }
 func (u *UserService) SaveRefreshToken(id uint64, device string, time uint) (string, error) {
 	token, err := utils.GetUUID()
@@ -138,11 +154,18 @@ func (u *UserService) GetRefreshToken(id uint64, device string) (string, error) 
 	return token, nil
 }
 func (u *UserService) GetUserList(keyword string, department string, role string, page int, pageSize int) ([]model.UserInfo, int64, error) {
-	if pageSize == 0 {
-		pageSize = 20
-	}
-	if page == 0 {
+	const (
+		defaultPageSize = 20
+		maxPageSize     = 100
+	)
+	if page < 1 {
 		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = defaultPageSize
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
 	}
 	userList, total, err := u.Repo.GetUserList(keyword, department, role, page, pageSize)
 	if err != nil {
@@ -185,19 +208,23 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	if err != nil {
 		return err
 	}
-	var oldAvatar string
-	if user.Avatar != avatar {
-		oldAvatar = user.Avatar
-	}
+
+	const defaultAvatar = "avatar/default.png"
+	oldAvatar := user.Avatar
+
 	err = u.Repo.UpdateUser(id, username, email, avatar)
 	if err != nil {
 		return err
 	}
-	if oldAvatar != "" {
-		err = u.File.Storage.DeleteFile(ctx, oldAvatar)
-		if err != nil {
-			return err
-		}
+
+	if oldAvatar == "" || oldAvatar == avatar || oldAvatar == defaultAvatar {
+		return nil
+	}
+
+	if err = u.File.Storage.DeleteFile(ctx, oldAvatar); err != nil {
+		// 头像更新已经成功，旧头像清理失败不应影响主流程。
+		// 这里保留日志级别的错误信息，方便后续排查 MinIO/对象路径问题。
+		log.Printf("删除旧头像失败, user_id=%d, avatar=%s, err=%v", id, oldAvatar, err)
 	}
 	return nil
 }
@@ -378,7 +405,7 @@ func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint6
 	return nil
 }
 func (u *UserService) DeleteUser(id uint64, userID uint64) error {
-	level, _, err := u.Repo.GetRoleLevelAndDepartment(id)
+	level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(id)
 	if err != nil {
 		return err
 	}

@@ -79,6 +79,11 @@ type InterviewerInfo struct {
 func (Interviewer) TableName() string { return "interviewers" }
 
 const (
+	TermTypeRecruit  string = "招新"
+	TermTypeElection string = "换届"
+)
+
+const (
 	DecisionPending          string = "待定"
 	DecisionAdmittedFirst    string = "录取第一志愿"
 	DecisionAdmittedSecond   string = "录取第二志愿"

@@ -27,8 +27,12 @@ func (r *RoleService) GetRoleByUserID(id uint64) (uint64, uint64, error) {
 	return r.RoleRepo.GetRoleByUserID(id)
 }
 
+func (r *RoleService) GetActiveRoleByUserID(id uint64) (uint64, uint64, error) {
+	return r.RoleRepo.GetActiveRoleByUserID(id)
+}
+
 func (r *RoleService) Create(id uint64, role *model.Role) error {
-	_, roleLevel, err := r.GetRoleByUserID(id)
+	_, roleLevel, err := r.GetActiveRoleByUserID(id)
 	if err != nil {
 		return err
 	}
@@ -42,7 +46,7 @@ func (r *RoleService) Create(id uint64, role *model.Role) error {
 	return errors.New("权限不够")
 }
 func (r *RoleService) Update(id uint64, role *model.Role, isActive *bool) error {
-	_, operatorLevel, err := r.GetRoleByUserID(id)
+	_, operatorLevel, err := r.GetActiveRoleByUserID(id)
 	if err != nil {
 		return err
 	}

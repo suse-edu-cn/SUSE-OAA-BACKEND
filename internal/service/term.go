@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 	"suseoaa/internal/request"
@@ -24,7 +25,7 @@ func NewTermService(termRepo repository.TermRepository, service UserService) Ter
 //业务周期
 
 func (t *TermService) CheckLevel(userID uint64) error {
-	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(userID)
 	if err != nil {
 		return err
 	}
@@ -38,6 +39,10 @@ func (t *TermService) CheckLevel(userID uint64) error {
 }
 
 func (t *TermService) CreateTerm(term model.Term) error {
+	term.Type = strings.TrimSpace(term.Type)
+	if err := checkTermType(term.Type); err != nil {
+		return err
+	}
 	err := term.CheckPeriod()
 	if err != nil {
 		return err
@@ -64,6 +69,16 @@ func (t *TermService) UpdateTerm(term model.Term) error {
 	term.ExecuteAfterAt = term.QueryEndAt.Add(1 * time.Minute)
 	return t.TermRepo.UpdateTerm(term)
 }
+
+func checkTermType(termType string) error {
+	switch termType {
+	case model.TermTypeRecruit, model.TermTypeElection:
+		return nil
+	default:
+		return errors.New("周期类型错误")
+	}
+}
+
 func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, error) {
 	termList, err := t.TermRepo.GetTermList(year, termType)
 	if err != nil {
@@ -137,15 +152,24 @@ func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, er
 	return applications, nil
 }
 func (t *TermService) checkApplicationChoices(application model.Application) error {
-
-	if err := t.UserService.VerifyDepartmentPosition(application.FirstChoice.DepartmentID, application.FirstChoice.RoleID); err != nil {
+	if err := t.checkApplicationChoice(application.FirstChoice); err != nil {
 		return err
 	}
-	if err := t.UserService.VerifyDepartmentPosition(application.SecondChoice.DepartmentID, application.SecondChoice.RoleID); err != nil {
+	if err := t.checkApplicationChoice(application.SecondChoice); err != nil {
 		return err
 	}
+	return nil
+}
 
-	level, err := t.UserService.RoleRepo.GetLevelByID(application.FirstChoice.RoleID)
+func (t *TermService) checkApplicationChoice(choice model.OrganizationRole) error {
+	if err := t.UserService.VerifyDepartmentPosition(choice.DepartmentID, choice.RoleID); err != nil {
+		return err
+	}
+	return t.checkApplicationRole(choice.RoleID)
+}
+
+func (t *TermService) checkApplicationRole(roleID uint64) error {
+	level, err := t.UserService.RoleRepo.GetLevelByID(roleID)
 	if err != nil {
 		return err
 	}
@@ -195,7 +219,7 @@ func (t *TermService) GetDepartmentByRoleID(roleID uint64) ([]*model.Department,
 }
 
 func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
-	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(userID)
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(userID)
 	if err != nil {
 		return 0, err
 	}
@@ -252,7 +276,7 @@ func (t *TermService) DeleteApplication(applicationID uint64, id uint64) error {
 	if !ok {
 		return errors.New("不在时间范围内")
 	}
-	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(id)
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(id)
 	if err != nil {
 		return err
 	}
@@ -569,6 +593,9 @@ func (t *TermService) CheckInterviewResult(
 			interviewResult.ResultDepartmentID,
 			interviewResult.ResultRoleID,
 		); err != nil {
+			return err
+		}
+		if err := t.checkApplicationRole(interviewResult.ResultRoleID); err != nil {
 			return err
 		}
 

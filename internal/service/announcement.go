@@ -30,16 +30,16 @@ func NewAnnouncementService(
 
 func (a *AnnouncementService) check(userID uint64, departmentID uint64) error {
 
-	level, userDepartment, err := a.UserRepo.GetRoleLevelAndDepartment(userID)
+	level, userDepartment, err := a.UserRepo.GetActiveRoleLevelAndDepartment(userID)
+	if err != nil {
+		return err
+	}
+	department, err := a.DepartmentRepo.GetDepartmentByID(departmentID)
 	if err != nil {
 		return err
 	}
 	if level >= 80 {
 		return nil
-	}
-	department, err := a.DepartmentRepo.GetDepartmentByID(departmentID)
-	if err != nil {
-		return err
 	}
 	if level < 50 || department.Name != userDepartment {
 		return errors.New("权限不够")
