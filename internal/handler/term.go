@@ -232,6 +232,22 @@ func (t *TermHandler) GetApplicationList(c *gin.Context) {
 	response.Success(c, applications)
 	return
 }
+func (t *TermHandler) DeleteApplication(c *gin.Context) {
+	id := c.GetUint64("user_id")
+	var req request.DeleteApplicationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	err := t.TermService.DeleteApplication(req.ApplicationID, id)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "删除申请表成功")
+	return
+
+}
 
 //----------------------
 //面试官

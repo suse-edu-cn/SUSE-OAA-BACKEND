@@ -223,6 +223,38 @@ func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, ter
 	return t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, finalDepartmentID)
 }
 
+func (t *TermService) DeleteApplication(applicationID uint64, id uint64) error {
+	application, err := t.TermRepo.GetApplicationByID(applicationID)
+	if err != nil {
+		return err
+	}
+	term, err := t.TermRepo.GetTermByID(application.TermID)
+	if err != nil {
+		return err
+	}
+	ok := term.IsInEditPeriod(time.Now())
+	if !ok {
+		return errors.New("不在时间范围内")
+	}
+	level, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(id)
+	if err != nil {
+		return err
+	}
+	applicationLevel, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(application.UserID)
+	if err != nil {
+		return err
+	}
+	if (level > applicationLevel && level >= 80) || application.UserID == id {
+		err = t.TermRepo.DeleteApplication(applicationID)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	return errors.New("权限不够")
+
+}
+
 //--------------------------------------
 //面试官
 

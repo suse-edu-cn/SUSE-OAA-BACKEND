@@ -104,6 +104,10 @@ type UpdateApplicationReq struct {
 	Reason          string           `json:"reason" binding:"required"`
 }
 
+type DeleteApplicationReq struct {
+	ApplicationID uint64 `json:"application_id" binding:"required"`
+}
+
 //------------------------------
 //面试官
 

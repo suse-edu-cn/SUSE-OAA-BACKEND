@@ -54,6 +54,23 @@ func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(termID uint64, d
 	err := tx.Order("created_at DESC").Find(&application).Error
 	return application, err
 }
+func (t *TermRepository) GetApplicationByID(applicationID uint64) (*model.Application, error) {
+	var application model.Application
+	err := t.DB.Model(&model.Application{}).Where("id = ?", applicationID).First(&application).Error
+	return &application, err
+
+}
+
+func (t *TermRepository) DeleteApplication(applicationID uint64) error {
+	result := t.DB.Delete(&model.Application{}, applicationID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("数据不存在")
+	}
+	return nil
+}
 
 // 业务周期
 
