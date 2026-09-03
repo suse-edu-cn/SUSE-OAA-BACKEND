@@ -139,7 +139,14 @@ type GetApplicationListReq struct {
 type CreateInterviewResultReq struct {
 	ApplicationID      uint64 `json:"application_id" binding:"required"`
 	Decision           string `json:"decision" binding:"required"`
-	ResultDepartmentID uint64 `json:"result_department_id" binding:"required"`
-	ResultRoleID       uint64 `json:"result_role_id" binding:"required"`
+	ResultDepartmentID uint64 `json:"result_department_id"`
+	ResultRoleID       uint64 `json:"result_role_id"`
+	Remark             string `json:"remark"`
+}
+type UpdateInterviewResultReq struct {
+	InterviewResultID  uint64 `json:"interview_result_id" binding:"required"`
+	Decision           string `json:"decision" binding:"required"`
+	ResultDepartmentID uint64 `json:"result_department_id"`
+	ResultRoleID       uint64 `json:"result_role_id"`
 	Remark             string `json:"remark"`
 }

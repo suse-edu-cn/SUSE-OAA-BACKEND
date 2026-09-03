@@ -214,3 +214,27 @@ func (t *TermRepository) GetInterviewerListByScope(termID uint64, departmentID u
 func (t *TermRepository) CreateInterviewResult(interviewResult model.InterviewResult) error {
 	return t.DB.Create(&interviewResult).Error
 }
+
+func (t *TermRepository) UpdateInterviewResult(interviewResult model.InterviewResult) error {
+	var existing model.InterviewResult
+	if err := t.DB.Select("id").First(&existing, interviewResult.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("面试结果不存在")
+		}
+		return err
+	}
+
+	return t.DB.
+		Model(&model.InterviewResult{}).
+		Where("id = ?", interviewResult.ID).
+		Select("decision", "result_department_id", "result_role_id", "operator_id", "remark").
+		Updates(&interviewResult).Error
+}
+func (t *TermRepository) GetInterviewResultByID(id uint64) (model.InterviewResult, error) {
+	var interviewResult model.InterviewResult
+	err := t.DB.Where("id = ?", id).First(&interviewResult).Error
+	if err != nil {
+		return model.InterviewResult{}, err
+	}
+	return interviewResult, nil
+}

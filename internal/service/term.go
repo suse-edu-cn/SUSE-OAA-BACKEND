@@ -420,59 +420,126 @@ func (t *TermService) ensureInterviewerTermEditable(termID uint64) error {
 
 //面试结果
 
-func (t *TermService) CreateInterviewResult(id uint64, req request.CreateInterviewResultReq) error {
+func (t *TermService) CreateInterviewResult(operatorID uint64, req request.CreateInterviewResultReq) error {
 	application, err := t.TermRepo.GetApplicationByID(req.ApplicationID)
 	if err != nil {
 		return err
 	}
+
 	term, err := t.TermRepo.GetTermByID(application.TermID)
 	if err != nil {
 		return err
 	}
-	ok := term.IsInQueryPeriod(time.Now())
-	if !ok {
-		return errors.New("不在时间范围内")
-	}
-	err = t.CheckLevel(id)
-	if err != nil {
-		return err
-	}
-	switch req.Decision {
-	case model.DecisionAdmittedFirst:
-		if req.ResultDepartmentID != application.FirstChoice.DepartmentID || req.ResultRoleID != application.FirstChoice.RoleID {
-			return errors.New("传入的志愿和实际志愿不符")
-		}
-	case model.DecisionAdmittedSecond:
-		if req.ResultDepartmentID != application.SecondChoice.DepartmentID || req.ResultRoleID != application.SecondChoice.RoleID {
-			return errors.New("传入的志愿和实际志愿不符")
-		}
-	case model.DecisionAdmittedAdjusted:
-		if application.AllowAdjust != nil && *application.AllowAdjust == false {
-			return errors.New("该用户不支持调剂")
-		}
-		err = t.UserService.VerifyDepartmentPosition(req.ResultDepartmentID, req.ResultRoleID)
-		if err != nil {
-			return err
-		}
-	case model.DecisionRejected:
-		if req.ResultDepartmentID != 0 || req.ResultRoleID != 0 {
-			return errors.New("传入的志愿不符")
-		}
-	default:
-		return errors.New("传入的决定不符规范")
-	}
-	err = t.TermRepo.CreateInterviewResult(model.InterviewResult{
-		ApplicationID:      req.ApplicationID,
-		TermID:             term.ID,
-		OperatorID:         id,
+
+	interviewResult := model.InterviewResult{
+		ApplicationID:      application.ID,
+		TermID:             application.TermID,
 		UserID:             application.UserID,
+		OperatorID:         operatorID,
 		Decision:           req.Decision,
 		ResultDepartmentID: req.ResultDepartmentID,
 		ResultRoleID:       req.ResultRoleID,
 		Remark:             req.Remark,
-	})
+	}
+
+	if err := t.CheckInterviewResult(operatorID, term, application, interviewResult); err != nil {
+		return err
+	}
+
+	return t.TermRepo.CreateInterviewResult(interviewResult)
+}
+
+func (t *TermService) UpdateInterviewResult(operatorID uint64, req request.UpdateInterviewResultReq) error {
+	oldResult, err := t.TermRepo.GetInterviewResultByID(req.InterviewResultID)
 	if err != nil {
 		return err
 	}
+
+	application, err := t.TermRepo.GetApplicationByID(oldResult.ApplicationID)
+	if err != nil {
+		return err
+	}
+
+	term, err := t.TermRepo.GetTermByID(application.TermID)
+	if err != nil {
+		return err
+	}
+
+	// 保留结果记录的业务关联字段，只更新允许修改的结果内容。
+	interviewResult := oldResult
+	interviewResult.OperatorID = operatorID
+	interviewResult.Decision = req.Decision
+	interviewResult.ResultDepartmentID = req.ResultDepartmentID
+	interviewResult.ResultRoleID = req.ResultRoleID
+	interviewResult.Remark = req.Remark
+
+	if err := t.CheckInterviewResult(operatorID, term, application, interviewResult); err != nil {
+		return err
+	}
+
+	return t.TermRepo.UpdateInterviewResult(interviewResult)
+}
+
+func (t *TermService) CheckInterviewResult(
+	operatorID uint64,
+	term model.Term,
+	application *model.Application,
+	interviewResult model.InterviewResult,
+) error {
+	if application == nil {
+		return errors.New("申请表不存在")
+	}
+
+	if interviewResult.ApplicationID != application.ID {
+		return errors.New("面试结果和申请表不匹配")
+	}
+	if interviewResult.TermID != term.ID || application.TermID != term.ID {
+		return errors.New("面试结果和周期不匹配")
+	}
+	if interviewResult.UserID != application.UserID {
+		return errors.New("面试结果和用户不匹配")
+	}
+
+	if !term.IsInQueryPeriod(time.Now()) {
+		return errors.New("不在时间范围内")
+	}
+
+	if err := t.CheckLevel(operatorID); err != nil {
+		return err
+	}
+
+	switch interviewResult.Decision {
+	case model.DecisionAdmittedFirst:
+		if interviewResult.ResultDepartmentID != application.FirstChoice.DepartmentID ||
+			interviewResult.ResultRoleID != application.FirstChoice.RoleID {
+			return errors.New("传入的志愿和实际第一志愿不符")
+		}
+
+	case model.DecisionAdmittedSecond:
+		if interviewResult.ResultDepartmentID != application.SecondChoice.DepartmentID ||
+			interviewResult.ResultRoleID != application.SecondChoice.RoleID {
+			return errors.New("传入的志愿和实际第二志愿不符")
+		}
+
+	case model.DecisionAdmittedAdjusted:
+		if application.AllowAdjust != nil && !*application.AllowAdjust {
+			return errors.New("该用户不支持调剂")
+		}
+		if err := t.UserService.VerifyDepartmentPosition(
+			interviewResult.ResultDepartmentID,
+			interviewResult.ResultRoleID,
+		); err != nil {
+			return err
+		}
+
+	case model.DecisionRejected:
+		if interviewResult.ResultDepartmentID != 0 || interviewResult.ResultRoleID != 0 {
+			return errors.New("未通过时最终部门和职位必须为0")
+		}
+
+	default:
+		return errors.New("传入的决定不符规范")
+	}
+
 	return nil
 }

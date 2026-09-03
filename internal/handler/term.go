@@ -315,3 +315,19 @@ func (t *TermHandler) CreateInterviewResult(c *gin.Context) {
 	response.Success(c, "创建面试结果成功")
 	return
 }
+
+func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
+	var req request.UpdateInterviewResultReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	operatorID := c.GetUint64("user_id")
+	if err := t.TermService.UpdateInterviewResult(operatorID, req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	response.Success(c, "更新面试结果成功")
+}
