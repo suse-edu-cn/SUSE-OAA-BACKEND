@@ -66,6 +66,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		term.POST("create", total.Term.CreateTerm)
 		term.POST("update", total.Term.UpdateTerm)
 		term.GET("list", total.Term.GetTermList)
+		term.POST("delete", total.Term.DeleteTerm)
 	}
 	application := r.Group("v2/application")
 	{
@@ -82,6 +83,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		interviewer.POST("create", total.Term.CreateInterviewers)
 		interviewer.POST("update", total.Term.UpdateInterviewer)
 		interviewer.GET("list", total.Term.GetInterviewerList)
+		interviewer.POST("delete", total.Term.DeleteInterviewer)
 
 		result := interviewer.Group("result")
 		{

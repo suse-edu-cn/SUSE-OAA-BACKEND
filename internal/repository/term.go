@@ -104,6 +104,9 @@ func (t *TermRepository) GetTermByID(termID uint64) (model.Term, error) {
 	var term model.Term
 	err := t.DB.Model(&model.Term{}).Where("id = ?", termID).First(&term).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.Term{}, errors.New("term 不存在")
+		}
 		return model.Term{}, err
 	}
 	return term, nil
@@ -135,6 +138,29 @@ func (t *TermRepository) GetTermMap() (map[uint64]model.Term, error) {
 		termMap[term.ID] = term
 	}
 	return termMap, nil
+}
+func (t *TermRepository) DeleteTerm(termID uint64) error {
+	return t.DB.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&model.Term{}).Where("id = ?", termID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return errors.New("term 不存在")
+		}
+
+		if err := tx.Delete(&model.InterviewResult{}, "term_id = ?", termID).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&model.Application{}, "term_id = ?", termID).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&model.Interviewer{}, "term_id = ?", termID).Error; err != nil {
+			return err
+		}
+
+		return tx.Delete(&model.Term{}, termID).Error
+	})
 }
 
 //面试官
@@ -173,9 +199,23 @@ func (t *TermRepository) GetInterviewerByID(id uint64) (model.Interviewer, error
 	var interviewer model.Interviewer
 	err := t.DB.Where("id = ?", id).First(&interviewer).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.Interviewer{}, errors.New("面试官记录不存在")
+		}
 		return model.Interviewer{}, err
 	}
 	return interviewer, nil
+}
+
+func (t *TermRepository) DeleteInterviewer(id uint64) error {
+	result := t.DB.Delete(&model.Interviewer{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("面试官记录不存在")
+	}
+	return nil
 }
 
 func (t *TermRepository) CheckTermIsHave(termID uint64) error {

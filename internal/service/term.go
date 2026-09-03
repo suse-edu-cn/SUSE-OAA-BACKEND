@@ -75,6 +75,22 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, 
 	return termList, nil
 }
 
+func (t *TermService) DeleteTerm(userID uint64, termID uint64) error {
+	if err := t.CheckLevel(userID); err != nil {
+		return err
+	}
+
+	term, err := t.TermRepo.GetTermByID(termID)
+	if err != nil {
+		return err
+	}
+	if term.IsExecuted {
+		return errors.New("该周期已经执行，不能删除")
+	}
+
+	return t.TermRepo.DeleteTerm(termID)
+}
+
 //----------------------------
 //申请表
 
@@ -262,6 +278,9 @@ func (t *TermService) CreateInterviewers(id uint64, req request.CreateInterviewe
 	if err := t.CheckLevel(id); err != nil {
 		return err
 	}
+	if len(req.Interviewers) == 0 {
+		return errors.New("面试官列表不能为空")
+	}
 	if err := t.ensureInterviewerTermEditable(req.TermID); err != nil {
 		return err
 	}
@@ -368,6 +387,22 @@ func (t *TermService) UpdateInterviewer(id uint64, req request.UpdateInterviewer
 		ID:     req.InterviewerID,
 		Remark: req.Remark,
 	})
+}
+
+func (t *TermService) DeleteInterviewer(userID uint64, interviewerID uint64) error {
+	if err := t.CheckLevel(userID); err != nil {
+		return err
+	}
+
+	interviewer, err := t.TermRepo.GetInterviewerByID(interviewerID)
+	if err != nil {
+		return err
+	}
+	if err = t.ensureInterviewerTermEditable(interviewer.TermID); err != nil {
+		return err
+	}
+
+	return t.TermRepo.DeleteInterviewer(interviewerID)
 }
 func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
 	termMap, err := t.TermRepo.GetTermMap()

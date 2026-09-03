@@ -23,6 +23,11 @@ type UpdateTermReq struct {
 	QueryPeriod TimePeriod `json:"query_period" binding:"required"`
 }
 
+// DeleteTermReq 删除业务周期。
+type DeleteTermReq struct {
+	TermID uint64 `json:"term_id" binding:"required"`
+}
+
 type TimePeriod struct {
 	StartAt time.Time `json:"start_at" binding:"required"`
 	EndAt   time.Time `json:"end_at" binding:"required"`
@@ -119,6 +124,11 @@ type CreateInterviewer struct {
 type UpdateInterviewer struct {
 	InterviewerID uint64 `json:"interviewer_id" binding:"required"`
 	Remark        string `json:"remark"  binding:"required"`
+}
+
+// DeleteInterviewer 删除面试官。
+type DeleteInterviewer struct {
+	InterviewerID uint64 `json:"interviewer_id" binding:"required"`
 }
 type Interviewer struct {
 	UserID uint64 `json:"user_id" binding:"required"`

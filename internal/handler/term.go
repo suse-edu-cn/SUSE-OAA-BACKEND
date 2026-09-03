@@ -98,6 +98,22 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 	return
 }
 
+func (t *TermHandler) DeleteTerm(c *gin.Context) {
+	var req request.DeleteTermReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	id := c.GetUint64("user_id")
+	if err := t.TermService.DeleteTerm(id, req.TermID); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	response.Success(c, "term 删除成功")
+}
+
 //-------------------------------
 //申请表
 
@@ -296,6 +312,22 @@ func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 	}
 	response.Success(c, "更新成功")
 	return
+}
+
+func (t *TermHandler) DeleteInterviewer(c *gin.Context) {
+	var req request.DeleteInterviewer
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	id := c.GetUint64("user_id")
+	if err := t.TermService.DeleteInterviewer(id, req.InterviewerID); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	response.Success(c, "删除面试官成功")
 }
 
 //面试结果
