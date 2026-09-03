@@ -1,7 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"log"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
@@ -18,6 +21,55 @@ func NewTermService(termRepo repository.TermRepository, service UserService) Ter
 	return TermService{
 		TermRepo:    termRepo,
 		UserService: service,
+	}
+}
+
+func (t *TermService) StartInterviewResultExecutor(ctx context.Context) {
+	t.executeDueInterviewResultsAndLog(ctx)
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			t.executeDueInterviewResultsAndLog(ctx)
+		}
+	}
+}
+
+func (t *TermService) ExecuteDueInterviewResults(ctx context.Context) (int, error) {
+	now := time.Now()
+	terms, err := t.TermRepo.GetExecutableTerms(ctx, now)
+	if err != nil {
+		return 0, err
+	}
+
+	executed := 0
+	var errs []error
+	for _, term := range terms {
+		termExecuted, err := t.TermRepo.ExecuteTermInterviewResults(ctx, term.ID, now)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("term_id=%d 执行失败: %w", term.ID, err))
+			continue
+		}
+		if termExecuted {
+			executed++
+		}
+	}
+
+	return executed, errors.Join(errs...)
+}
+
+func (t *TermService) executeDueInterviewResultsAndLog(ctx context.Context) {
+	executed, err := t.ExecuteDueInterviewResults(ctx)
+	if executed > 0 {
+		log.Printf("已执行到期面试结果周期数量: %d", executed)
+	}
+	if err != nil {
+		log.Printf("执行到期面试结果失败: %v", err)
 	}
 }
 

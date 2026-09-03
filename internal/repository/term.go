@@ -1,11 +1,14 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"suseoaa/internal/model"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TermRepository struct {
@@ -277,4 +280,134 @@ func (t *TermRepository) GetInterviewResultByID(id uint64) (model.InterviewResul
 		return model.InterviewResult{}, err
 	}
 	return interviewResult, nil
+}
+
+//----------------------------
+//面试结果执行
+
+func (t *TermRepository) GetExecutableTerms(ctx context.Context, now time.Time) ([]model.Term, error) {
+	var terms []model.Term
+	err := t.DB.WithContext(ctx).
+		Where("is_executed = ? AND execute_after_at <= ?", false, now).
+		Order("execute_after_at ASC, id ASC").
+		Find(&terms).Error
+	if err != nil {
+		return nil, err
+	}
+	return terms, nil
+}
+
+func (t *TermRepository) ExecuteTermInterviewResults(ctx context.Context, termID uint64, now time.Time) (bool, error) {
+	executed := false
+	err := t.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var term model.Term
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", termID).
+			First(&term).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("term 不存在")
+			}
+			return err
+		}
+
+		if term.IsExecuted || term.ExecuteAfterAt.After(now) {
+			return nil
+		}
+
+		var interviewResults []model.InterviewResult
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("term_id = ? AND executed_at IS NULL", term.ID).
+			Find(&interviewResults).Error; err != nil {
+			return err
+		}
+
+		for _, result := range interviewResults {
+			if err := executeInterviewResult(tx, result, now); err != nil {
+				return err
+			}
+		}
+
+		termTx := tx.Model(&model.Term{}).
+			Where("id = ? AND is_executed = ?", term.ID, false).
+			Updates(map[string]any{
+				"is_executed": true,
+				"executed_at": now,
+			})
+		if termTx.Error != nil {
+			return termTx.Error
+		}
+		if termTx.RowsAffected == 0 {
+			return errors.New("term 已被其他任务执行")
+		}
+
+		executed = true
+		return nil
+	})
+	return executed, err
+}
+
+func executeInterviewResult(tx *gorm.DB, result model.InterviewResult, now time.Time) error {
+	var user model.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "department_id", "role_id").
+		Where("id = ?", result.UserID).
+		First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("面试结果对应用户不存在")
+		}
+		return err
+	}
+
+	var application model.Application
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ? AND term_id = ? AND user_id = ?", result.ApplicationID, result.TermID, result.UserID).
+		First(&application).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("面试结果对应申请表不存在")
+		}
+		return err
+	}
+
+	appUpdate := map[string]any{
+		"decision":             result.Decision,
+		"result_department_id": result.ResultDepartmentID,
+		"result_role_id":       result.ResultRoleID,
+		"operator_id":          result.OperatorID,
+		"decision_remark":      result.Remark,
+	}
+	if err := tx.Model(&model.Application{}).
+		Where("id = ?", application.ID).
+		Updates(appUpdate).Error; err != nil {
+		return err
+	}
+
+	if isAdmittedDecision(result.Decision) {
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", result.UserID).
+			Updates(map[string]any{
+				"department_id": result.ResultDepartmentID,
+				"role_id":       result.ResultRoleID,
+			}).Error; err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Model(&model.InterviewResult{}).
+		Where("id = ? AND executed_at IS NULL", result.ID).
+		Updates(map[string]any{
+			"old_department_id": user.DepartmentID,
+			"old_role_id":       user.RoleID,
+			"executed_at":       now,
+		}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func isAdmittedDecision(decision string) bool {
+	return decision == model.DecisionAdmittedFirst ||
+		decision == model.DecisionAdmittedSecond ||
+		decision == model.DecisionAdmittedAdjusted
 }

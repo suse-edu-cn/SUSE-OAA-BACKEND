@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"suseoaa/internal/config"
 	"suseoaa/internal/database"
 	"suseoaa/internal/handler"
@@ -42,6 +43,7 @@ func main() {
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo)
 	termService := service.NewTermService(termRepo, userService)
+	go termService.StartInterviewResultExecutor(context.Background())
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(
