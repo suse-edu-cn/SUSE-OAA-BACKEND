@@ -95,6 +95,7 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 	upload := r.Group("v2/upload")
 	{
 		upload.POST("image", total.File.UploadImage)
+		upload.POST("file", total.File.UploadFile)
 	}
 	return r
 }

@@ -31,3 +31,19 @@ func (f *FileHandler) UploadImage(c *gin.Context) {
 	response.Success(c, res)
 	return
 }
+
+func (f *FileHandler) UploadFile(c *gin.Context) {
+	var req request.UploadFileReq
+	if err := c.ShouldBind(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	ctx := c.Request.Context()
+	res, err := f.FileService.UploadFile(ctx, req.File, req.Scene)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, res)
+	return
+}

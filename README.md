@@ -218,6 +218,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 说明 | 参数 |
 |---|---|---|---|
 | POST | `/v2/upload/image` | 上传图片 | `multipart/form-data`：`scene`、`file` |
+| POST | `/v2/upload/file` | 上传通用文件 | `multipart/form-data`：`scene`、`file` |
 
 上传成功返回：
 
@@ -228,7 +229,7 @@ Authorization: Bearer <token>
 }
 ```
 
-支持的图片后缀：`.jpg`、`.jpeg`、`.png`、`.webp`、`.gif`、`.avif`。
+图片接口支持的后缀：`.jpg`、`.jpeg`、`.png`、`.webp`、`.gif`、`.avif`。通用文件接口不限制后缀，只校验文件大小。
 
 ## 统一响应格式
 
