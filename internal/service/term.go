@@ -363,17 +363,10 @@ func (t *TermService) UpdateInterviewer(id uint64, req request.UpdateInterviewer
 	if err = t.ensureInterviewerTermEditable(interviewer.TermID); err != nil {
 		return err
 	}
-	err = t.CheckLevel(id)
-	if err != nil {
-		return err
-	}
 
 	return t.TermRepo.UpdateInterviewers(model.Interviewer{
-		ID:           req.InterviewerID,
-		UserID:       interviewer.UserID,
-		TermID:       interviewer.TermID,
-		Remark:       req.Remark,
-		DepartmentID: interviewer.DepartmentID,
+		ID:     req.InterviewerID,
+		Remark: req.Remark,
 	})
 }
 func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
@@ -440,18 +433,39 @@ func (t *TermService) CreateInterviewResult(id uint64, req request.CreateIntervi
 	if !ok {
 		return errors.New("不在时间范围内")
 	}
-	err = t.UserService.VerifyDepartmentPosition(req.ResultDepartmentID, req.ResultRoleID)
-	if err != nil {
-		return err
-	}
 	err = t.CheckLevel(id)
 	if err != nil {
 		return err
+	}
+	switch req.Decision {
+	case model.DecisionAdmittedFirst:
+		if req.ResultDepartmentID != application.FirstChoice.DepartmentID || req.ResultRoleID != application.FirstChoice.RoleID {
+			return errors.New("传入的志愿和实际志愿不符")
+		}
+	case model.DecisionAdmittedSecond:
+		if req.ResultDepartmentID != application.SecondChoice.DepartmentID || req.ResultRoleID != application.SecondChoice.RoleID {
+			return errors.New("传入的志愿和实际志愿不符")
+		}
+	case model.DecisionAdmittedAdjusted:
+		if application.AllowAdjust != nil && *application.AllowAdjust == false {
+			return errors.New("该用户不支持调剂")
+		}
+		err = t.UserService.VerifyDepartmentPosition(req.ResultDepartmentID, req.ResultRoleID)
+		if err != nil {
+			return err
+		}
+	case model.DecisionRejected:
+		if req.ResultDepartmentID != 0 || req.ResultRoleID != 0 {
+			return errors.New("传入的志愿不符")
+		}
+	default:
+		return errors.New("传入的决定不符规范")
 	}
 	err = t.TermRepo.CreateInterviewResult(model.InterviewResult{
 		ApplicationID:      req.ApplicationID,
 		TermID:             term.ID,
 		OperatorID:         id,
+		UserID:             application.UserID,
 		Decision:           req.Decision,
 		ResultDepartmentID: req.ResultDepartmentID,
 		ResultRoleID:       req.ResultRoleID,

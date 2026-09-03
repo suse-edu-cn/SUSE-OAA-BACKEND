@@ -78,14 +78,12 @@ type InterviewerInfo struct {
 
 func (Interviewer) TableName() string { return "interviewers" }
 
-type DecisionStatus string
-
 const (
-	DecisionPending          DecisionStatus = "待定"
-	DecisionAdmittedFirst    DecisionStatus = "录取第一志愿"
-	DecisionAdmittedSecond   DecisionStatus = "录取第二志愿"
-	DecisionAdmittedAdjusted DecisionStatus = "已调剂"
-	DecisionRejected         DecisionStatus = "未通过"
+	DecisionPending          string = "待定"
+	DecisionAdmittedFirst    string = "录取第一志愿"
+	DecisionAdmittedSecond   string = "录取第二志愿"
+	DecisionAdmittedAdjusted string = "已调剂"
+	DecisionRejected         string = "未通过"
 )
 
 type OrganizationRole struct {
@@ -115,7 +113,7 @@ type Application struct {
 	Resume string `gorm:"type:text" json:"resume"` // 个人简历 / 在会工作经历
 	Reason string `gorm:"type:text" json:"reason"` // 竞选理由 / 申请阐述
 
-	Decision       DecisionStatus   `gorm:"size:32;default:'待定';not null;index" json:"decision"` // 录取决策状态 (默认: '待定')
+	Decision       string           `gorm:"size:32;default:'待定';not null;index" json:"decision"` // 录取决策状态 (默认: '待定')
 	Result         OrganizationRole `gorm:"embedded;embeddedPrefix:result_" json:"result"`       // 最终录取结果 (映射为 result_department_id, result_role_id)
 	OperatorID     uint64           `gorm:"default:0" json:"operator_id"`                        // 做出决定的操作人UserID
 	DecisionRemark string           `gorm:"size:255" json:"decision_remark"`                     // 决策说明/调剂备注
