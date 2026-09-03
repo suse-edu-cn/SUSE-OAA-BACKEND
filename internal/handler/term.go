@@ -297,3 +297,21 @@ func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 	response.Success(c, "更新成功")
 	return
 }
+
+//面试结果
+
+func (t *TermHandler) CreateInterviewResult(c *gin.Context) {
+	var req request.CreateInterviewResultReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	id := c.GetUint64("user_id")
+	err := t.TermService.CreateInterviewResult(id, req)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+	response.Success(c, "创建面试结果成功")
+	return
+}

@@ -82,6 +82,11 @@ func RouterInit(total handler.TotalHandler) *gin.Engine {
 		interviewer.POST("create", total.Term.CreateInterviewers)
 		interviewer.POST("update", total.Term.UpdateInterviewer)
 		interviewer.GET("list", total.Term.GetInterviewerList)
+
+		result := interviewer.Group("result")
+		{
+			result.POST("create", total.Term.CreateInterviewResult)
+		}
 	}
 	upload := r.Group("v2/upload")
 	{

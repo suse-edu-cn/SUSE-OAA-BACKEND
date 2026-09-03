@@ -30,7 +30,8 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 		&model.Application{},
 		&model.Interviewer{},
 		&model.Term{},
-		&model.TermHistory{})
+		&model.TermHistory{},
+		&model.InterviewResult{})
 	if err != nil {
 		panic(err)
 	}

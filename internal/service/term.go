@@ -356,31 +356,24 @@ func (t *TermService) UpdateInterviewer(id uint64, req request.UpdateInterviewer
 		return err
 	}
 
-	old, err := t.TermRepo.GetInterviewerByID(req.ID)
+	interviewer, err := t.TermRepo.GetInterviewerByID(req.InterviewerID)
 	if err != nil {
 		return err
 	}
-	if old.TermID != req.TermID {
-		return errors.New("不允许跨周期修改面试官记录")
-	}
-	if err := t.ensureInterviewerTermEditable(old.TermID); err != nil {
+	if err = t.ensureInterviewerTermEditable(interviewer.TermID); err != nil {
 		return err
 	}
-	if err := t.UserService.Repo.CheckUserIsHave(req.UserID); err != nil {
-		return err
-	}
-
-	departmentID, _, err := t.UserService.Repo.GetDepartmentIDAndRoleIDByID(req.UserID)
+	err = t.CheckLevel(id)
 	if err != nil {
 		return err
 	}
 
 	return t.TermRepo.UpdateInterviewers(model.Interviewer{
-		ID:           req.ID,
-		UserID:       req.UserID,
-		TermID:       old.TermID,
+		ID:           req.InterviewerID,
+		UserID:       interviewer.UserID,
+		TermID:       interviewer.TermID,
 		Remark:       req.Remark,
-		DepartmentID: departmentID,
+		DepartmentID: interviewer.DepartmentID,
 	})
 }
 func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
@@ -428,6 +421,44 @@ func (t *TermService) ensureInterviewerTermEditable(termID uint64) error {
 	}
 	if term.IsExecuted {
 		return errors.New("该周期已经执行，不能再修改面试官")
+	}
+	return nil
+}
+
+//面试结果
+
+func (t *TermService) CreateInterviewResult(id uint64, req request.CreateInterviewResultReq) error {
+	application, err := t.TermRepo.GetApplicationByID(req.ApplicationID)
+	if err != nil {
+		return err
+	}
+	term, err := t.TermRepo.GetTermByID(application.TermID)
+	if err != nil {
+		return err
+	}
+	ok := term.IsInQueryPeriod(time.Now())
+	if !ok {
+		return errors.New("不在时间范围内")
+	}
+	err = t.UserService.VerifyDepartmentPosition(req.ResultDepartmentID, req.ResultRoleID)
+	if err != nil {
+		return err
+	}
+	err = t.CheckLevel(id)
+	if err != nil {
+		return err
+	}
+	err = t.TermRepo.CreateInterviewResult(model.InterviewResult{
+		ApplicationID:      req.ApplicationID,
+		TermID:             term.ID,
+		OperatorID:         id,
+		Decision:           req.Decision,
+		ResultDepartmentID: req.ResultDepartmentID,
+		ResultRoleID:       req.ResultRoleID,
+		Remark:             req.Remark,
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }

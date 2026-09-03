@@ -144,3 +144,28 @@ type TermHistory struct {
 }
 
 func (TermHistory) TableName() string { return "term_histories" }
+
+type InterviewResult struct {
+	ID uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+
+	TermID        uint64 `gorm:"not null;index" json:"term_id"`
+	ApplicationID uint64 `gorm:"not null;uniqueIndex:idx_app_del" json:"application_id"`
+	UserID        uint64 `gorm:"not null;index" json:"user_id"`
+
+	Decision string `gorm:"size:32;not null;index" json:"decision"`
+
+	ResultDepartmentID uint64 `gorm:"not null" json:"result_department_id"`
+	ResultRoleID       uint64 `gorm:"not null" json:"result_role_id"`
+
+	OperatorID uint64 `gorm:"not null" json:"operator_id"`
+	Remark     string `gorm:"size:255" json:"remark"`
+
+	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli;not null;default:0;uniqueIndex:idx_app_del" json:"-"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (InterviewResult) TableName() string {
+	return "interview_results"
+}

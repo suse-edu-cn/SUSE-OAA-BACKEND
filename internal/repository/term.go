@@ -208,3 +208,9 @@ func (t *TermRepository) GetInterviewerListByScope(termID uint64, departmentID u
 }
 
 //招新换届的历史
+
+//面试结果
+
+func (t *TermRepository) CreateInterviewResult(interviewResult model.InterviewResult) error {
+	return t.DB.Create(&interviewResult).Error
+}

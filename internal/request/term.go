@@ -117,10 +117,8 @@ type CreateInterviewer struct {
 }
 
 type UpdateInterviewer struct {
-	TermID uint64 `json:"term_id" binding:"required"`
-	ID     uint64 `json:"id" binding:"required"`
-	UserID uint64 `json:"user_id" binding:"required"`
-	Remark string `json:"remark" `
+	InterviewerID uint64 `json:"interviewer_id" binding:"required"`
+	Remark        string `json:"remark"  binding:"required"`
 }
 type Interviewer struct {
 	UserID uint64 `json:"user_id" binding:"required"`
@@ -134,4 +132,14 @@ type GetInterviewerListReq struct {
 type GetApplicationListReq struct {
 	TermID       uint64 `form:"term_id" binding:"required"`
 	DepartmentID uint64 `form:"department_id"`
+}
+
+//面试结果
+
+type CreateInterviewResultReq struct {
+	ApplicationID      uint64 `json:"application_id" binding:"required"`
+	Decision           string `json:"decision" binding:"required"`
+	ResultDepartmentID uint64 `json:"result_department_id" binding:"required"`
+	ResultRoleID       uint64 `json:"result_role_id" binding:"required"`
+	Remark             string `json:"remark"`
 }
