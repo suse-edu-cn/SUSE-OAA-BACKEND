@@ -160,3 +160,7 @@ type UpdateInterviewResultReq struct {
 	ResultRoleID       uint64 `json:"result_role_id"`
 	Remark             string `json:"remark"`
 }
+
+type GetInterviewResultListReq struct {
+	TermID uint64 `form:"term_id"`
+}

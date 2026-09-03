@@ -592,6 +592,20 @@ func (t *TermService) UpdateInterviewResult(operatorID uint64, req request.Updat
 	return t.TermRepo.UpdateInterviewResult(interviewResult)
 }
 
+func (t *TermService) GetInterviewResultList(operatorID uint64, termID uint64) ([]model.InterviewResult, error) {
+	if err := t.CheckLevel(operatorID); err != nil {
+		return nil, err
+	}
+
+	if termID != 0 {
+		if _, err := t.TermRepo.GetTermByID(termID); err != nil {
+			return nil, err
+		}
+	}
+
+	return t.TermRepo.GetInterviewResultList(termID)
+}
+
 func (t *TermService) CheckInterviewResult(
 	operatorID uint64,
 	term model.Term,

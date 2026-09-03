@@ -282,6 +282,19 @@ func (t *TermRepository) GetInterviewResultByID(id uint64) (model.InterviewResul
 	return interviewResult, nil
 }
 
+func (t *TermRepository) GetInterviewResultList(termID uint64) ([]model.InterviewResult, error) {
+	var interviewResults []model.InterviewResult
+	tx := t.DB.Model(&model.InterviewResult{})
+	if termID != 0 {
+		tx = tx.Where("term_id = ?", termID)
+	}
+	err := tx.Order("created_at DESC, id DESC").Find(&interviewResults).Error
+	if err != nil {
+		return nil, err
+	}
+	return interviewResults, nil
+}
+
 //----------------------------
 //面试结果执行
 

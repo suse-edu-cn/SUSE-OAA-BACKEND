@@ -207,6 +207,7 @@ Authorization: Bearer <token>
 |---|---|---|---|
 | POST | `/v2/interviewer/result/create` | 创建面试结果 | JSON：`application_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
 | POST | `/v2/interviewer/result/update` | 更新面试结果 | JSON：`interview_result_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
+| GET | `/v2/interviewer/result/list` | 查询面试结果列表 | Query：`term_id` 可选；不传返回全部 |
 | GET | `/v2/interviewer/result/decision` | 获取面试结果决策枚举 | 无 |
 
 `decision` 支持：
@@ -218,6 +219,7 @@ Authorization: Bearer <token>
 
 面试结果规则：
 
+- `GET /v2/interviewer/result/list` 可以按 `term_id` 查询某个周期的面试结果；不传 `term_id` 时返回全部面试结果。
 - 创建和更新必须处于周期的查询 / 结果填报时间窗口内。
 - `录取第一志愿` 时，最终部门 / 职位必须等于申请表第一志愿。
 - `录取第二志愿` 时，最终部门 / 职位必须等于申请表第二志愿。

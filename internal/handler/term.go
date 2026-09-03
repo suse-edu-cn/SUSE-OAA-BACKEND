@@ -364,6 +364,23 @@ func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
 	response.Success(c, "更新面试结果成功")
 }
 
+func (t *TermHandler) GetInterviewResultList(c *gin.Context) {
+	var req request.GetInterviewResultListReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	operatorID := c.GetUint64("user_id")
+	results, err := t.TermService.GetInterviewResultList(operatorID, req.TermID)
+	if err != nil {
+		response.Fail(c, 400, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
 func (t *TermHandler) GetInterviewResultDecision(c *gin.Context) {
 	result := t.TermService.GetInterviewResultDecision()
 	response.Success(c, result)
