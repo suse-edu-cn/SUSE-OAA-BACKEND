@@ -60,7 +60,6 @@ type MiniO struct {
 func ConfigInit() Config {
 	var config Config
 	viper.SetConfigName("config")
-	viper.AddConfigPath("../configs")
 	viper.AddConfigPath("./configs")
 	if err := viper.ReadInConfig(); err != nil {
 		panic(err)

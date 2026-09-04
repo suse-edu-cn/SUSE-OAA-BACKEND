@@ -349,6 +349,7 @@ cmd/
   main.go
 configs/
   config.yaml
+  config_example.yaml
 internal/
   config/
   database/
@@ -367,6 +368,106 @@ docs/
   错误.md
   INTERVIEW_AND_SOFT_DELETE_REVIEW.md
 README.md
+```
+
+## 配置文件说明
+
+项目启动时会从 `configs/config.yaml` 读取配置。首次部署可以先复制示例文件：
+
+```bash
+cp configs/config_example.yaml configs/config.yaml
+```
+
+`config_example.yaml` 只保留配置结构和空值，不包含任何真实凭据。各字段说明如下：
+
+### `server`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `host` | string | 服务监听地址，例如 `0.0.0.0`。 |
+| `port` | string | 服务监听端口，例如 `8080`。 |
+| `mode` | string | Gin 运行模式，常见值为 `debug`、`release`、`test`。当前配置结构未读取该字段，实际模式需由代码或环境设置。 |
+
+### `mysql`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `host` | string | MySQL 主机地址或域名。 |
+| `port` | string | MySQL 端口，通常为 `3306`。 |
+| `username` | string | MySQL 用户名。 |
+| `password` | string | MySQL 密码。 |
+| `database` | string | 要连接的数据库名。 |
+| `charset` | string | 字符集，通常为 `utf8mb4`。当前配置结构未读取该字段；数据库连接参数由代码固定拼接。 |
+
+### `jwt`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `secret` | string | JWT 签名密钥，请使用足够长且随机的字符串，并妥善保管。 |
+| `expire_minute` | integer | Access Token 有效期，单位为分钟。 |
+| `refresh_time` | integer | Refresh Token 有效期，具体单位取决于项目当前实现。 |
+
+### `redis`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `host` | string | Redis 主机地址或域名。 |
+| `port` | integer | Redis 端口，通常为 `6379`。 |
+| `password` | string | Redis 密码；无密码时填写空字符串。 |
+| `database` | integer | Redis 逻辑数据库编号，通常为 `0`。 |
+
+### `email`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `host` | string | SMTP 服务器地址。 |
+| `port` | integer | SMTP 服务器端口，例如 SSL 常用 `465`。 |
+| `user` | string | SMTP 登录账号及发件人邮箱。 |
+| `pass` | string | SMTP 登录密码或授权码。 |
+| `cool_down` | integer | 同一账号再次发送验证码前的冷却时间，单位为分钟。 |
+| `expire` | integer | 邮箱验证码有效期，单位为分钟。 |
+
+### `minio`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `minio_endpoint` | string | MinIO 服务地址，例如 `localhost:9000`，通常不带协议头。 |
+| `minio_access_key` | string | MinIO Access Key。 |
+| `minio_secret_key` | string | MinIO Secret Key。 |
+| `minio_use_ssl` | boolean | 是否通过 HTTPS 连接 MinIO。 |
+| `minio_bucket` | string | 用于保存上传文件的 Bucket 名称。 |
+| `max_file_size` | integer | 普通文件允许的最大大小，单位为 MB。 |
+| `max_image_size` | integer | 图片允许的最大大小，单位为 MB。 |
+| `expire_time` | integer | 对象存储临时访问链接有效期，单位为分钟。 |
+
+> `mode` 和 `charset` 当前会出现在 YAML 示例中，但没有对应的配置结构字段，因此修改它们不会改变当前程序行为。
+
+## Makefile 命令说明
+
+Makefile 位于项目根目录，用于快速编译、检查和运行项目。直接执行 `make` 等同于执行 `make linux`。
+
+| 命令 | 说明 |
+|---|---|
+| `make` | 编译 Linux `amd64` 可执行文件，编译完成后重命名为 `bin/OAAbeta`。 |
+| `make linux` | 编译 Linux 可执行文件。默认使用 `GOARCH=amd64`、`CGO_ENABLED=0`，适合生成便于部署的静态二进制文件。 |
+| `make build` | `make linux` 的别名。 |
+| `make clean` | 删除 `bin/` 构建目录及其中的可执行文件。 |
+| `make test` | 执行 `go test ./...`。 |
+| `make vet` | 执行 `go vet ./...`。 |
+| `make run` | 使用 `configs/config.yaml` 启动开发服务。 |
+| `make help` | 显示 Makefile 中的可用目标。 |
+
+可以通过变量覆盖默认构建参数，例如交叉编译 Linux ARM64：
+
+```bash
+make linux GOARCH=arm64
+```
+
+也可以自定义临时编译名称或输出目录；最终文件仍会重命名为 `OAAbeta`：
+
+```bash
+make linux APP_NAME=my-service BUILD_DIR=dist
+# 输出：dist/OAAbeta
 ```
 
 ## 运行方式

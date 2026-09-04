@@ -67,5 +67,5 @@ func main() {
 		fileHandler)
 
 	r := router.RouterInit(totalHandler)
-	r.Run(":" + Config.Server.Port)
+	r.Run(Config.Server.Host + ":" + Config.Server.Port)
 }
