@@ -256,12 +256,12 @@ func (u *UserService) SendVerificationCode(account string, types string) error {
 	return nil
 }
 
-func (u *UserService) ResetPassword(account string, code string, types string) error {
+func (u *UserService) ResetPassword(account string, code string, resetPassword string) error {
 	user, err := u.Repo.FindUserByAccount(account)
 	if err != nil {
 		return err
 	}
-
+	types := "reset_password"
 	verificationCode, err := u.Repo.GetVerificationCode(user.ID, types, context.Background())
 	if err != nil {
 		return err
@@ -272,7 +272,7 @@ func (u *UserService) ResetPassword(account string, code string, types string) e
 	if err := u.Repo.DeleteVerificationCode(user.ID, types, context.Background()); err != nil {
 		return err
 	}
-	password, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+	password, err := bcrypt.GenerateFromPassword([]byte(resetPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}

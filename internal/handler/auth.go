@@ -145,7 +145,7 @@ func (a *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	err := a.UserService.ResetPassword(req.Account, req.Code, req.Scene)
+	err := a.UserService.ResetPassword(req.Account, req.Code, req.Password)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
