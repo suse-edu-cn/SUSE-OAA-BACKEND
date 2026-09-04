@@ -20,5 +20,5 @@ type BatchUserInfoReq struct {
 	RoleID       uint64 `json:"role_id" binding:"required"`
 }
 type DeleteUserReq struct {
-	ID uint64 `json:"id" binding:"required"`
+	UserID uint64 `json:"user_id" binding:"required"`
 }

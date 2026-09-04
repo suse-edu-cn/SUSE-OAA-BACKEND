@@ -24,18 +24,18 @@ type User struct {
 }
 
 type UserInfo struct {
-	ID         uint64 `json:"id"`
+	UserID     uint64 `json:"user_id"`
 	StudentID  string `json:"student_id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
-	Avatar     string `json:"avatar"`
+	Avatar     Avatar `json:"avatar"`
 	Email      string `json:"email"`
 	Department string `json:"department"`
 	Role       string `json:"role"`
 }
 
 type BatchUserInfo struct {
-	ID           uint64 `json:"id"`
+	UserID       uint64 `json:"user_id"`
 	StudentID    string `json:"student_id"`
 	Username     string `json:"username"`
 	Name         string `json:"name"`
@@ -45,6 +45,10 @@ type UpdateUserItems struct {
 	UserID       uint64  `json:"user_id"`
 	DepartmentID *uint64 `json:"department_id"`
 	RoleID       *uint64 `json:"role_id"`
+}
+type Avatar struct {
+	URL string `json:"url"`
+	URI string `json:"uri"`
 }
 
 func (User) TableName() string            { return "users" }

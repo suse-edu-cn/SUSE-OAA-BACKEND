@@ -16,7 +16,7 @@ type LoginReq struct {
 
 type RefreshReq struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
-	UserId       uint64 `json:"user_id" binding:"required"`
+	UserID       uint64 `json:"user_id" binding:"required"`
 	Device       string `json:"device" binding:"required"`
 }
 

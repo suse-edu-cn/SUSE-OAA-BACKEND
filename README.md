@@ -46,7 +46,7 @@ Authorization: Bearer <token>
 | GET | `/v2/user/list` | 用户列表（分页和筛选） | Query：`keyword`、`department`、`role`、`page`、`page_size` |
 | POST | `/v2/user/me/update` | 更新当前用户资料 | JSON：`username`、`email`、`avatar` |
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
-| POST | `/v2/user/delete` | 删除用户 | JSON：`id` |
+| POST | `/v2/user/delete` | 删除用户 | JSON：`user_id` |
 
 > 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 返回时会转换成临时访问链接。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
 

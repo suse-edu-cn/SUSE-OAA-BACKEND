@@ -104,11 +104,11 @@ func (u *UserService) GetUserInfo(ctx context.Context, id uint64) (model.UserInf
 		return model.UserInfo{}, errors.New("查询失败" + err.Error())
 	}
 
-	avatar, err := u.getAvatarURL(ctx, info.Avatar)
+	avatar, err := u.getAvatarURL(ctx, info.Avatar.URI)
 	if err != nil {
 		return model.UserInfo{}, errors.New("生成头像链接失败" + err.Error())
 	}
-	info.Avatar = avatar
+	info.Avatar.URL = avatar
 	return info, nil
 }
 func (u *UserService) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
@@ -374,7 +374,7 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 	}
 	for _, id := range userIdList {
 		temp := model.BatchUserInfo{
-			ID:           id,
+			UserID:       id,
 			StudentID:    usersInfo[id].StudentID,
 			Name:         usersInfo[id].Name,
 			Username:     usersInfo[id].Username,

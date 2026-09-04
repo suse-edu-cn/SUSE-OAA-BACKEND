@@ -85,12 +85,12 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	if user.Department != nil {
 		info.Department = user.Department.Name
 	}
-	info.ID = id
+	info.UserID = id
 	info.Email = user.Email
 	info.Username = user.Username
 	info.Name = user.Name
 	info.StudentID = user.StudentID
-	info.Avatar = user.Avatar
+	info.Avatar.URI = user.Avatar
 	return info, nil
 }
 func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {
@@ -227,7 +227,7 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 
 	for _, user := range users {
 		userInfo := model.UserInfo{
-			ID:        user.ID,
+			UserID:    user.ID,
 			StudentID: user.StudentID,
 			Username:  user.Username,
 			Name:      user.Name,
@@ -354,7 +354,7 @@ func (u *UserRepository) GetUserMapByUserIDs(ids []uint64) (map[uint64]model.Use
 			roleName = user.Role.Name
 		}
 		res[user.ID] = model.UserInfo{
-			ID:         user.ID,
+			UserID:     user.ID,
 			StudentID:  user.StudentID,
 			Username:   user.Username,
 			Name:       user.Name,

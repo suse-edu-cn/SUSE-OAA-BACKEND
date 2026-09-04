@@ -53,7 +53,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 400, "获取json失败")
 		return
 	}
-	refreshToken, err := a.UserService.GetRefreshToken(req.UserId, req.Device)
+	refreshToken, err := a.UserService.GetRefreshToken(req.UserID, req.Device)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
@@ -62,7 +62,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 400, "refresh token 错误")
 		return
 	}
-	user, err := a.UserService.FindUserByID(req.UserId)
+	user, err := a.UserService.FindUserByID(req.UserID)
 	if err != nil {
 		response.Fail(c, 400, err.Error())
 		return
