@@ -119,14 +119,14 @@ func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, 
 	const defaultAvatar = "avatar/default.png"
 
 	if avatar != "" {
-		if _, err := u.File.Storage.GetFileInfo(ctx, avatar); err == nil {
-			if url, err := u.File.Storage.GeneratePresignedURL(ctx, avatar); err == nil {
+		if _, err := u.File.ImgStorage.GetFileInfo(ctx, avatar); err == nil {
+			if url, err := u.File.ImgStorage.GeneratePresignedURL(ctx, avatar); err == nil {
 				return url, nil
 			}
 		}
 	}
 
-	return u.File.Storage.GeneratePresignedURL(ctx, defaultAvatar)
+	return u.File.ImgStorage.GeneratePresignedURL(ctx, defaultAvatar)
 }
 func (u *UserService) SaveRefreshToken(id uint64, device string, time uint) (string, error) {
 	token, err := utils.GetUUID()
@@ -197,7 +197,7 @@ func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword 
 	return nil
 }
 func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username string, email string, avatar string) error {
-	size, err := u.File.Storage.GetFileInfo(ctx, avatar)
+	size, err := u.File.ImgStorage.GetFileInfo(ctx, avatar)
 	if err != nil {
 		return errors.New("头像不存在" + err.Error())
 	}
@@ -221,7 +221,7 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 		return nil
 	}
 
-	if err = u.File.Storage.DeleteFile(ctx, oldAvatar); err != nil {
+	if err = u.File.ImgStorage.DeleteFile(ctx, oldAvatar); err != nil {
 		// 头像更新已经成功，旧头像清理失败不应影响主流程。
 		// 这里保留日志级别的错误信息，方便后续排查 MinIO/对象路径问题。
 		log.Printf("删除旧头像失败, user_id=%d, avatar=%s, err=%v", id, oldAvatar, err)

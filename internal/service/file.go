@@ -11,12 +11,14 @@ import (
 )
 
 type FileService struct {
-	Storage *storage.MinIO
+	ImgStorage  *storage.MinIO
+	FileStorage *storage.MinIO
 }
 
-func NewFileService(storage *storage.MinIO) FileService {
+func NewFileService(imgStorage *storage.MinIO, fileStorage *storage.MinIO) FileService {
 	return FileService{
-		Storage: storage,
+		ImgStorage:  imgStorage,
+		FileStorage: fileStorage,
 	}
 }
 
@@ -47,11 +49,11 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 	}
 	defer fileValue.Close()
 	objectName := fmt.Sprintf("%s/%s%s", scene, uuid, ext)
-	err = f.Storage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
+	err = f.ImgStorage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
 	if err != nil {
 		return nil, err
 	}
-	presignedURL, err := f.Storage.GeneratePresignedURL(ctx, objectName)
+	presignedURL, err := f.ImgStorage.GeneratePresignedURL(ctx, objectName)
 	if err != nil {
 		return nil, err
 	}
@@ -75,11 +77,11 @@ func (f *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 	defer fileValue.Close()
 	ext := filepath.Ext(file.Filename)
 	objectName := fmt.Sprintf("%s/%s%s", scene, uuid, ext)
-	err = f.Storage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
+	err = f.FileStorage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
 	if err != nil {
 		return nil, err
 	}
-	presignedURL, err := f.Storage.GeneratePresignedURL(ctx, objectName)
+	presignedURL, err := f.FileStorage.GeneratePresignedURL(ctx, objectName)
 	if err != nil {
 		return nil, err
 	}

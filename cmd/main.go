@@ -21,12 +21,13 @@ func main() {
 	departmentRepo := repository.NewDepartmentRepository(db)
 	announcementRepo := repository.NewAnnouncementRepository(db)
 	termRepo := repository.NewTermRepository(db)
-	minio := storage.NewMinIO(
+	imgMinio, fileMinio := storage.NewMinIO(
 		Config.MiniO.MinioEndpoint,
 		Config.MiniO.MinioAccessKey,
 		Config.MiniO.MinioSecretKey,
 		Config.MiniO.MinioUseSsl,
-		Config.MiniO.MinioBucket,
+		Config.MiniO.MinioImgBucket,
+		Config.MiniO.MinioFileBucket,
 		Config.MiniO.MaxFileSize,
 		Config.MiniO.MaxImageSize,
 		Config.MiniO.ExpireTime)
@@ -37,7 +38,7 @@ func main() {
 		Config.Email.Pass,
 		Config.Email.Expire,
 		Config.Email.CoolDown)
-	fileService := service.NewFileService(minio)
+	fileService := service.NewFileService(imgMinio, fileMinio)
 	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService, fileService)
 	departmentService := service.NewDepartmentService(departmentRepo, roleRepo)
 	roleService := service.NewRoleService(roleRepo)

@@ -12,7 +12,8 @@ import (
 
 var MaxFileSize int64
 var MaxImageSize int64
-var BucketName string
+var ImgBucketName string
+var FileBucketName string
 var expire time.Duration
 
 type MinIO struct {
@@ -25,26 +26,34 @@ func NewMinIO(
 	accessKey string,
 	secretKey string,
 	useSSL bool,
-	bucket string,
+	imgBucket string,
+	fileBucket string,
 	maxFileSize int64,
 	maxImageSize int64,
 	expireTime int64,
-) *MinIO {
-	client, err := minio.New(endpoint, &minio.Options{
+) (*MinIO, *MinIO) {
+	imgClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
+	})
+	fileClient, err := minio.New(endpoint, &minio.Options{
+		Creds: credentials.NewStaticV4(accessKey, secretKey, ""),
 	})
 	if err != nil {
 		panic(err)
 	}
 	MaxFileSize = maxFileSize * 1024 * 1024
 	MaxImageSize = maxImageSize * 1024 * 1024
-	BucketName = bucket
+	ImgBucketName = imgBucket
+	FileBucketName = fileBucket
 	expire = time.Duration(expireTime) * time.Minute
 	return &MinIO{
-		Client: client,
-		Bucket: bucket,
-	}
+			Client: imgClient,
+			Bucket: imgBucket,
+		}, &MinIO{
+			Client: fileClient,
+			Bucket: fileBucket,
+		}
 }
 
 func (m *MinIO) UploadFile(

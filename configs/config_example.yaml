@@ -38,7 +38,8 @@ minio:
   minio_access_key: ""
   minio_secret_key: ""
   minio_use_ssl: false
-  minio_bucket: ""
+  minio_img_bucket: ""
+  minio_file_bucket: ""
   max_file_size: 0
   max_image_size: 0
   expire_time: 0
