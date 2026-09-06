@@ -192,45 +192,58 @@ func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.C
 	}
 	return token, nil
 }
-func (u *UserRepository) GetUserList(keyword string, department string, role string, page int, pageSize int) ([]model.UserInfo, int64, error) {
+func (u *UserRepository) GetUserList(keyword string, department string, role string, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	var userList []model.UserInfo
 	var users []model.User
 	var total int64
 	query := u.DB.Model(&model.User{}).
 		Joins("LEFT JOIN departments ON departments.id = users.department_id").
 		Joins("LEFT JOIN roles ON roles.id = users.role_id")
-
-	if department != "" {
-		query = query.Where("departments.name LIKE ?", "%"+department+"%")
+	if isAll != nil && *isAll {
+		err := query.Count(&total).Error
+		if err != nil {
+			return nil, 0, errors.New("查询用户数量失败: " + err.Error())
+		}
+		err = query.Select("users.*").
+			Preload("Department").
+			Preload("Role").
+			Find(&users).Error
+		if err != nil {
+			return nil, 0, errors.New("查询数据失败")
+		}
+	} else {
+		if department != "" {
+			query = query.Where("departments.name LIKE ?", "%"+department+"%")
+		}
+		if role != "" {
+			query = query.Where("roles.name LIKE ?", "%"+role+"%")
+		}
+		if keyword != "" {
+			kw := "%" + keyword + "%"
+			query = query.Where("(users.username LIKE ? OR users.name LIKE ? OR users.student_id LIKE ?)", kw, kw, kw)
+		}
+		err := query.Count(&total).Error
+		if err != nil {
+			return nil, 0, errors.New("查询用户数量失败: " + err.Error())
+		}
+		offset := (page - 1) * pageSize
+		err = query.Select("users.*").
+			Preload("Department").
+			Preload("Role").
+			Limit(pageSize).
+			Offset(offset).
+			Find(&users).Error
+		if err != nil {
+			return nil, 0, errors.New("查询数据失败")
+		}
 	}
-	if role != "" {
-		query = query.Where("roles.name LIKE ?", "%"+role+"%")
-	}
-	if keyword != "" {
-		kw := "%" + keyword + "%"
-		query = query.Where("(users.username LIKE ? OR users.name LIKE ? OR users.student_id LIKE ?)", kw, kw, kw)
-	}
-	err := query.Count(&total).Error
-	if err != nil {
-		return nil, 0, errors.New("查询用户数量失败: " + err.Error())
-	}
-	offset := (page - 1) * pageSize
-	err = query.Select("users.*").
-		Preload("Department").
-		Preload("Role").
-		Limit(pageSize).
-		Offset(offset).
-		Find(&users).Error
-	if err != nil {
-		return nil, 0, errors.New("查询数据失败")
-	}
-
 	for _, user := range users {
 		userInfo := model.UserInfo{
 			UserID:    user.ID,
 			StudentID: user.StudentID,
 			Username:  user.Username,
 			Name:      user.Name,
+			Avatar:    model.Avatar{URI: user.Avatar},
 			Email:     user.Email,
 		}
 		if user.Role != nil {

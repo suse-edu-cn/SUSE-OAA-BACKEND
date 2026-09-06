@@ -33,7 +33,8 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 		response.Fail(c, 400, "获取query失败")
 		return
 	}
-	userList, total, err := u.UserService.GetUserList(req.Keyword, req.Department, req.Role, req.Page, req.PageSize)
+	ctx := c.Request.Context()
+	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, req.Department, req.Role, req.Page, req.PageSize, req.IsAll)
 	if err != nil {
 		response.Fail(c, 500, err.Error())
 		return
