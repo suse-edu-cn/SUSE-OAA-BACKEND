@@ -22,7 +22,7 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 	var req request.CreateAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
 	userID := c.GetUint64("user_id")
@@ -35,7 +35,7 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 
 	_, err = a.AnnouncementService.CreateAnnouncement(userID, announcement)
 	if err != nil {
-		response.Fail(c, 500, err.Error())
+		response.Fail(c, 500, err.Error(), nil)
 		return
 	}
 	response.Success(c, "公告创建成功")
@@ -46,7 +46,7 @@ func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
 	var req request.UpdateAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
 	userID := c.GetUint64("user_id")
@@ -57,7 +57,7 @@ func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
 	}
 	err = a.AnnouncementService.UpdateAnnouncement(userID, announcement)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "公告更新成功")
@@ -68,14 +68,14 @@ func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
 	var req request.PushAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
 	userID := c.GetUint64("user_id")
 	ctx := c.Request.Context()
 	err = a.AnnouncementService.PushAnnouncement(ctx, req.AnnouncementID, userID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "推送成功")
@@ -86,13 +86,13 @@ func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
 	var req request.GetAnnouncementListReq
 	err := c.ShouldBindQuery(&req)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(id, req.Status)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, announcementInfos)
@@ -103,12 +103,12 @@ func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
 	var req request.DeleteAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
 	err = a.AnnouncementService.DeleteAnnouncement(req.AnnouncementID, userID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "删除公告成功")

@@ -19,13 +19,13 @@ func NewFileHandler(s service.FileService) FileHandler {
 func (f *FileHandler) UploadImage(c *gin.Context) {
 	var req request.UploadImageReq
 	if err := c.ShouldBind(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	ctx := c.Request.Context()
 	res, err := f.FileService.UploadImage(ctx, req.File, req.Scene)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, res)
@@ -35,13 +35,13 @@ func (f *FileHandler) UploadImage(c *gin.Context) {
 func (f *FileHandler) UploadFile(c *gin.Context) {
 	var req request.UploadFileReq
 	if err := c.ShouldBind(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	ctx := c.Request.Context()
 	res, err := f.FileService.UploadFile(ctx, req.File, req.Scene)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, res)

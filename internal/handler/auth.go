@@ -28,17 +28,17 @@ func NewAuthHandler(userService service.UserService, JwtSecret string, jwtExpire
 func (a *AuthHandler) Login(c *gin.Context) {
 	var req request.LoginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	user, refreshToken, err := a.UserService.Login(req, a.JwtRefreshTime)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	token, err := utils.GenerateToken(user.Name, user.ID, user.StudentID, a.JwtSecret, a.JwtExpire)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	res := map[string]string{
@@ -50,26 +50,26 @@ func (a *AuthHandler) Login(c *gin.Context) {
 func (a *AuthHandler) Refresh(c *gin.Context) {
 	var req request.RefreshReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	refreshToken, err := a.UserService.GetRefreshToken(req.UserID, req.Device)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	if refreshToken != req.RefreshToken {
-		response.Fail(c, 400, "refresh token 错误")
+		response.Fail(c, 400, "refresh token 错误", nil)
 		return
 	}
 	user, err := a.UserService.FindUserByID(req.UserID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	token, err := utils.GenerateToken(user.Name, user.ID, user.StudentID, a.JwtSecret, a.JwtExpire)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	res := map[string]string{
@@ -82,11 +82,11 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 func (a *AuthHandler) Register(c *gin.Context) {
 	var req request.RegisterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	if err := a.UserService.Register(req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, nil)
@@ -95,14 +95,14 @@ func (a *AuthHandler) Register(c *gin.Context) {
 func (a *AuthHandler) Logout(c *gin.Context) {
 	var req request.LogoutReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 
 	err := a.UserService.DeleteRefreshToken(id, req.Device)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, nil)
@@ -111,13 +111,13 @@ func (a *AuthHandler) Logout(c *gin.Context) {
 func (a *AuthHandler) UpdatePassword(c *gin.Context) {
 	var req request.UpdatePasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := a.UserService.UpdatePassword(id, req.OldPassword, req.NewPassword)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, nil)
@@ -125,13 +125,13 @@ func (a *AuthHandler) UpdatePassword(c *gin.Context) {
 func (a *AuthHandler) SendVerificationCode(c *gin.Context) {
 	var req request.SendVerificationCodeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 
 	err := a.UserService.SendVerificationCode(req.Account, req.Scene)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
@@ -141,13 +141,13 @@ func (a *AuthHandler) SendVerificationCode(c *gin.Context) {
 func (a *AuthHandler) ResetPassword(c *gin.Context) {
 	var req request.ResetPasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 
 	err := a.UserService.ResetPassword(req.Account, req.Code, req.Password)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 

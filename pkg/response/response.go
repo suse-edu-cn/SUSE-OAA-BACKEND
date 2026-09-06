@@ -3,20 +3,20 @@ package response
 import "github.com/gin-gonic/gin"
 
 type Response struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
 }
 
-func Fail(c *gin.Context, code int, message string) {
+func Fail(c *gin.Context, code int, message string, data any) {
 	c.JSON(code, Response{
 		Code:    code,
 		Message: message,
-		Data:    nil,
+		Data:    data,
 	})
 }
 
-func Success(c *gin.Context, data interface{}) {
+func Success(c *gin.Context, data any) {
 	c.JSON(200, Response{
 		Code:    200,
 		Message: "success",

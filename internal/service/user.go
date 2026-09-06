@@ -389,7 +389,10 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 		}
 		res = append(res, temp)
 	}
-	return res, nil
+	if len(res) == 0 {
+		return res, nil
+	}
+	return res, errors.New("存在部分错误")
 }
 func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint64) error {
 	department, err := u.DepartmentRepo.GetDepartmentByID(departmentID)

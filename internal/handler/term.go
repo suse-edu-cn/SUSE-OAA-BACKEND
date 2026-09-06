@@ -25,13 +25,13 @@ func NewTermHandler(termService service.TermService) TermHandler {
 func (t *TermHandler) CreateTerm(c *gin.Context) {
 	var req request.CreateTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := t.TermService.CheckLevel(id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	err = t.TermService.CreateTerm(model.Term{
@@ -44,7 +44,7 @@ func (t *TermHandler) CreateTerm(c *gin.Context) {
 		QueryEndAt:   req.QueryPeriod.EndAt,
 	})
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "term创建成功")
@@ -53,13 +53,13 @@ func (t *TermHandler) CreateTerm(c *gin.Context) {
 func (t *TermHandler) UpdateTerm(c *gin.Context) {
 	var req request.UpdateTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := t.TermService.CheckLevel(id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	err = t.TermService.UpdateTerm(model.Term{
@@ -71,7 +71,7 @@ func (t *TermHandler) UpdateTerm(c *gin.Context) {
 		QueryEndAt:   req.QueryPeriod.EndAt,
 	})
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "term 更新成功")
@@ -80,18 +80,18 @@ func (t *TermHandler) UpdateTerm(c *gin.Context) {
 func (t *TermHandler) GetTermList(c *gin.Context) {
 	var req request.GetTermListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败: "+err.Error())
+		response.Fail(c, 400, "获取参数失败: "+err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := t.TermService.CheckLevel(id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	termList, err := t.TermService.GetTermList(req.Year, req.Type)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, termList)
@@ -101,13 +101,13 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 func (t *TermHandler) DeleteTerm(c *gin.Context) {
 	var req request.DeleteTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
 	id := c.GetUint64("user_id")
 	if err := t.TermService.DeleteTerm(id, req.TermID); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (t *TermHandler) DeleteTerm(c *gin.Context) {
 func (t *TermHandler) CreateApplication(c *gin.Context) {
 	var req request.CreateApplicationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败: "+err.Error())
+		response.Fail(c, 400, "获取参数失败: "+err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -151,7 +151,7 @@ func (t *TermHandler) CreateApplication(c *gin.Context) {
 		Reason:      req.Reason,
 	})
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "创建成功")
@@ -160,7 +160,7 @@ func (t *TermHandler) CreateApplication(c *gin.Context) {
 func (t *TermHandler) UpdateApplication(c *gin.Context) {
 	var req request.UpdateApplicationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -186,7 +186,7 @@ func (t *TermHandler) UpdateApplication(c *gin.Context) {
 		Reason:      req.Reason,
 	})
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "更新成功")
@@ -197,7 +197,7 @@ func (t *TermHandler) GetMyApplications(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	application, err := t.TermService.GetMyApplications(id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, application)
@@ -206,12 +206,12 @@ func (t *TermHandler) GetMyApplications(c *gin.Context) {
 func (t *TermHandler) GetApplicationDepartmentList(c *gin.Context) {
 	var req request.GetApplicationDepartmentReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	departments, err := t.TermService.GetDepartmentByRoleID(req.RoleID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, departments)
@@ -220,12 +220,12 @@ func (t *TermHandler) GetApplicationDepartmentList(c *gin.Context) {
 func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
 	var req request.GetApplicationRoleReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	roles, err := t.TermService.GetRolesByDepartmentsID(req.DepartmentID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, roles)
@@ -235,14 +235,14 @@ func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
 func (t *TermHandler) GetApplicationList(c *gin.Context) {
 	var req request.GetApplicationListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 
 	}
 	id := c.GetUint64("user_id")
 	applications, err := t.TermService.GetApplicationList(id, req.DepartmentID, req.TermID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, applications)
@@ -252,12 +252,12 @@ func (t *TermHandler) DeleteApplication(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	var req request.DeleteApplicationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	err := t.TermService.DeleteApplication(req.ApplicationID, id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "删除申请表成功")
@@ -271,13 +271,13 @@ func (t *TermHandler) DeleteApplication(c *gin.Context) {
 func (t *TermHandler) CreateInterviewers(c *gin.Context) {
 	var req request.CreateInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := t.TermService.CreateInterviewers(id, req)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "ok")
@@ -287,13 +287,13 @@ func (t *TermHandler) CreateInterviewers(c *gin.Context) {
 func (t *TermHandler) GetInterviewerList(c *gin.Context) {
 	var req request.GetInterviewerListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	interviewerList, err := t.TermService.GetInterviewerList(id, req.TermID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, interviewerList)
@@ -301,13 +301,13 @@ func (t *TermHandler) GetInterviewerList(c *gin.Context) {
 func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 	var req request.UpdateInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := t.TermService.UpdateInterviewer(id, req)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "更新成功")
@@ -317,13 +317,13 @@ func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 func (t *TermHandler) DeleteInterviewer(c *gin.Context) {
 	var req request.DeleteInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
 	id := c.GetUint64("user_id")
 	if err := t.TermService.DeleteInterviewer(id, req.InterviewerID); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
@@ -335,13 +335,13 @@ func (t *TermHandler) DeleteInterviewer(c *gin.Context) {
 func (t *TermHandler) CreateInterviewResult(c *gin.Context) {
 	var req request.CreateInterviewResultReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := t.TermService.CreateInterviewResult(id, req)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "创建面试结果成功")
@@ -351,13 +351,13 @@ func (t *TermHandler) CreateInterviewResult(c *gin.Context) {
 func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
 	var req request.UpdateInterviewResultReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
 	operatorID := c.GetUint64("user_id")
 	if err := t.TermService.UpdateInterviewResult(operatorID, req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
@@ -367,14 +367,14 @@ func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
 func (t *TermHandler) GetInterviewResultList(c *gin.Context) {
 	var req request.GetInterviewResultListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 
 	operatorID := c.GetUint64("user_id")
 	results, err := t.TermService.GetInterviewResultList(operatorID, req.TermID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 

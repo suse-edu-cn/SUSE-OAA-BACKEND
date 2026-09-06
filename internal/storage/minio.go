@@ -48,12 +48,12 @@ func NewMinIO(
 	FileBucketName = fileBucket
 	expire = time.Duration(expireTime) * time.Minute
 	return &MinIO{
-			Client: imgClient,
-			Bucket: imgBucket,
-		}, &MinIO{
-			Client: fileClient,
-			Bucket: fileBucket,
-		}
+		Client: imgClient,
+		Bucket: imgBucket,
+	}, &MinIO{
+		Client: fileClient,
+		Bucket: fileBucket,
+	}
 }
 
 func (m *MinIO) UploadFile(

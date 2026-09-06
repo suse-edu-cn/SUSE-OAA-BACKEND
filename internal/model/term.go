@@ -120,7 +120,7 @@ type Application struct {
 
 	Decision       string           `gorm:"size:32;default:'待定';not null;index" json:"decision"` // 录取决策状态 (默认: '待定')
 	Result         OrganizationRole `gorm:"embedded;embeddedPrefix:result_" json:"result"`       // 最终录取结果 (映射为 result_department_id, result_role_id)
-	OperatorID     uint64           `gorm:"default:0" json:"operator_user_id"`                        // 做出决定的操作人UserID
+	OperatorID     uint64           `gorm:"default:0" json:"operator_user_id"`                   // 做出决定的操作人UserID
 	DecisionRemark string           `gorm:"size:255" json:"decision_remark"`                     // 决策说明/调剂备注
 
 	CreatedAt time.Time             `json:"created_at"`                                          // 提交时间

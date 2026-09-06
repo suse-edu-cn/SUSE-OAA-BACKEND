@@ -21,7 +21,7 @@ func (u *UserHandler) GetInfo(c *gin.Context) {
 	ctx := c.Request.Context()
 	result, err := u.UserService.GetUserInfo(ctx, id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, result)
@@ -30,13 +30,13 @@ func (u *UserHandler) GetInfo(c *gin.Context) {
 func (u *UserHandler) GetUserList(c *gin.Context) {
 	var req request.UserListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Fail(c, 400, "获取query失败")
+		response.Fail(c, 400, "获取query失败", nil)
 		return
 	}
 	ctx := c.Request.Context()
 	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, req.Department, req.Role, req.Page, req.PageSize, req.IsAll)
 	if err != nil {
-		response.Fail(c, 500, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	res := map[string]any{
@@ -49,14 +49,14 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 	var req request.UpdateUserInfoReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	ctx := c.Request.Context()
 	err := u.UserService.UpdateUserInfo(ctx, id, req.Username, req.Email, req.Avatar)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, nil)
@@ -64,18 +64,22 @@ func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 	var req []request.BatchUserInfoReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取json失败")
+		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	departmentID, roleID, err := u.UserService.GetDepartmentIDAndRoleIDByID(id)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	res, err := u.UserService.BatchUserInfo(req, departmentID, roleID)
 	if err != nil {
-		response.Fail(c, 500, err.Error())
+		if res == nil {
+			response.Fail(c, 400, err.Error(), nil)
+		} else {
+			response.Fail(c, 400, "部分错误", res)
+		}
 		return
 	}
 	response.Success(c, res)
@@ -85,12 +89,12 @@ func (u *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	var req request.DeleteUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	err := u.UserService.DeleteUser(id, req.UserID)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 
 	}

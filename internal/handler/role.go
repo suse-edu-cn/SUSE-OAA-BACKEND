@@ -20,7 +20,7 @@ func NewRoleHandler(roleService service.RoleService) RoleHandler {
 func (r RoleHandler) FindAll(c *gin.Context) {
 	roles, err := r.RoleService.GetAll()
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, roles)
@@ -29,13 +29,13 @@ func (r RoleHandler) FindAll(c *gin.Context) {
 func (r RoleHandler) Create(c *gin.Context) {
 	var req request.CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败")
+		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := req.CheckType()
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	err = r.RoleService.Create(id, &model.Role{
@@ -44,7 +44,7 @@ func (r RoleHandler) Create(c *gin.Context) {
 		Type:  req.Type,
 	})
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, nil)
@@ -53,13 +53,13 @@ func (r RoleHandler) Create(c *gin.Context) {
 func (r RoleHandler) Update(c *gin.Context) {
 	var req request.UpdateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := req.CheckType()
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	err = r.RoleService.Update(id, &model.Role{
@@ -69,7 +69,7 @@ func (r RoleHandler) Update(c *gin.Context) {
 		Type:  req.Type,
 	}, req.IsActive)
 	if err != nil {
-		response.Fail(c, 400, err.Error())
+		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, nil)
