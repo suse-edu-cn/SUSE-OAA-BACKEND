@@ -131,7 +131,7 @@ func checkTermType(termType string) error {
 	}
 }
 
-func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, error) {
+func (t *TermService) GetTermList(year uint64, termType string) ([]request.TermListResp, error) {
 	termList, err := t.TermRepo.GetTermList(year, termType)
 	if err != nil {
 		return nil, err
@@ -139,7 +139,40 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]*model.Term, 
 	if len(termList) == 0 {
 		return nil, errors.New("无匹配数据")
 	}
-	return termList, nil
+
+	resp := make([]request.TermListResp, 0, len(termList))
+	for _, term := range termList {
+		if term == nil {
+			continue
+		}
+		resp = append(resp, request.TermListResp{
+			ID:    term.ID,
+			Year:  term.Year,
+			Type:  term.Type,
+			Title: term.Title,
+			EditPeriod: request.TermPeriodResp{
+				StartAt: formatTermDate(term.EditStartAt),
+				EndAt:   formatTermDate(term.EditEndAt),
+			},
+			QueryPeriod: request.TermPeriodResp{
+				StartAt: formatTermDate(term.QueryStartAt),
+				EndAt:   formatTermDate(term.QueryEndAt),
+			},
+			IsExecuted:     term.IsExecuted,
+			ExecuteAfterAt: term.ExecuteAfterAt,
+			ExecutedAt:     term.ExecutedAt,
+			CreatedAt:      term.CreatedAt,
+			UpdatedAt:      term.UpdatedAt,
+		})
+	}
+	return resp, nil
+}
+
+func formatTermDate(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02")
 }
 
 func (t *TermService) DeleteTerm(userID uint64, termID uint64) error {

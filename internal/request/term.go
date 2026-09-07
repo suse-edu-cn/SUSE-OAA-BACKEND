@@ -65,6 +65,27 @@ type GetTermListReq struct {
 	Type string `form:"type"`
 }
 
+// TermPeriodResp 业务周期返回的时间区间。
+type TermPeriodResp struct {
+	StartAt string `json:"start_at"`
+	EndAt   string `json:"end_at"`
+}
+
+// TermListResp 业务周期列表项返回结构。
+type TermListResp struct {
+	ID             uint64         `json:"id"`
+	Year           uint64         `json:"year"`
+	Type           string         `json:"type"`
+	Title          string         `json:"title"`
+	EditPeriod     TermPeriodResp `json:"edit_period"`
+	QueryPeriod    TermPeriodResp `json:"query_period"`
+	IsExecuted     bool           `json:"is_executed"`
+	ExecuteAfterAt time.Time      `json:"execute_after_at"`
+	ExecutedAt     *time.Time     `json:"executed_at"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
 // --------------------------------------------------
 // 申请表
 

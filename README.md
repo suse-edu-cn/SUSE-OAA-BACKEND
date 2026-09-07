@@ -91,7 +91,32 @@ Authorization: Bearer <token>
 | GET | `/v2/term/list` | 周期列表 | Query：`year`、`type` 可选 |
 | POST | `/v2/term/delete` | 删除周期 | JSON：`term_id` |
 
-时间字段格式为日期字符串，后端会按 `Asia/Shanghai` 解析；`type` 目前只允许 `招新` 或 `换届`：
+时间字段格式为日期字符串，后端会按 `Asia/Shanghai` 解析；`type` 目前只允许 `招新` 或 `换届`。
+
+`GET /v2/term/list` 的返回中，时间字段会按下面的结构返回：
+
+```json
+{
+  "id": 1,
+  "year": 2026,
+  "type": "招新",
+  "title": "2026 年秋季招新",
+  "edit_period": {
+    "start_at": "2026-09-01",
+    "end_at": "2026-09-15"
+  },
+  "query_period": {
+    "start_at": "2026-09-20",
+    "end_at": "2026-09-30"
+  },
+  "is_executed": false,
+  "execute_after_at": "2026-10-01T00:00:59+08:00",
+  "executed_at": null,
+  "created_at": "2026-09-07T16:03:58.471+08:00",
+  "updated_at": "2026-09-07T16:03:58.471+08:00"
+}
+```
+
 
 ```json
 {
