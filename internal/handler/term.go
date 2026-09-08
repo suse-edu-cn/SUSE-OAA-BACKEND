@@ -94,6 +94,11 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
+	if len(termList) == 0 {
+		temp := []string{}
+		response.Fail(c, 200, "无匹配数据", temp)
+		return
+	}
 	response.Success(c, termList)
 	return
 }

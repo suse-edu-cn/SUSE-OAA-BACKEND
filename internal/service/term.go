@@ -137,7 +137,7 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]request.TermL
 		return nil, err
 	}
 	if len(termList) == 0 {
-		return nil, errors.New("无匹配数据")
+		return nil, nil
 	}
 
 	resp := make([]request.TermListResp, 0, len(termList))
