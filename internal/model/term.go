@@ -99,6 +99,7 @@ type OrganizationRole struct {
 type Application struct {
 	ID              uint64           `gorm:"primaryKey;autoIncrement" json:"id"`                      // 申请单自增ID
 	TermID          uint64           `gorm:"not null;uniqueIndex:idx_user_term" json:"term_id"`       // 关联的周期ID (对应 terms.id)
+	TermTitle       string           `gorm:"-" json:"term_title"`                                     // 周期展示标题 (如: "2026 年招新")
 	Type            string           `gorm:"size:16;not null;index" json:"type"`                      // 业务类型: 招新 或 换届
 	UserID          uint64           `gorm:"index;not null;uniqueIndex:idx_user_term" json:"user_id"` // 申请人系统账号ID (对应 users.id)
 	Name            string           `gorm:"size:32;not null" json:"name"`                            // 申请人姓名

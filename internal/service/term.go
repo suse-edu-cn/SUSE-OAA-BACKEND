@@ -234,8 +234,33 @@ func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, er
 	if err != nil {
 		return nil, err
 	}
+	if err := t.fillApplicationTermTitles(applications); err != nil {
+		return nil, err
+	}
 	return applications, nil
 }
+
+func (t *TermService) fillApplicationTermTitles(applications []*model.Application) error {
+	if len(applications) == 0 {
+		return nil
+	}
+
+	termMap, err := t.TermRepo.GetTermMap()
+	if err != nil {
+		return err
+	}
+
+	for _, application := range applications {
+		if application == nil {
+			continue
+		}
+		if term, ok := termMap[application.TermID]; ok {
+			application.TermTitle = term.Title
+		}
+	}
+	return nil
+}
+
 func (t *TermService) checkApplicationChoices(application model.Application) error {
 	if err := t.checkApplicationChoice(application.FirstChoice); err != nil {
 		return err
@@ -345,7 +370,16 @@ func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, ter
 		return nil, err
 	}
 
-	return t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, finalDepartmentID)
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, finalDepartmentID)
+	if err != nil {
+		return nil, err
+	}
+	for _, application := range applications {
+		if application != nil {
+			application.TermTitle = term.Title
+		}
+	}
+	return applications, nil
 }
 
 func (t *TermService) DeleteApplication(applicationID uint64, id uint64) error {
