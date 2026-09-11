@@ -170,6 +170,7 @@ Authorization: Bearer <token>
   "college": "计算机科学与工程学院",
   "major_class": "计科241",
   "gender": "男",
+  "avatar": "application/uuid.png",
   "phone": "13800000000",
   "qq": "123456789",
   "political_status": "共青团员",
@@ -192,6 +193,8 @@ Authorization: Bearer <token>
 
 - 创建和更新必须处于周期的编辑时间窗口内。
 - `name` 和 `student_id` 来自当前登录用户，不由前端传入。
+- `avatar` 存申请表照片在对象存储中的资源路径，上传图片时请使用 `scene=application`；没有照片时传空字符串或不传，后端会保持为空且不会回退默认头像。
+- `GET /v2/application/me` 和 `GET /v2/application/list` 返回的 `avatar` 会包含 `uri` 和临时访问 `url`，没有照片时二者为空。
 - `first_choice` 和 `second_choice` 允许相同，但部门与职位类型必须匹配。
 - 删除申请时，申请人本人可以删；高权限用户可以删除低权限用户的申请。
 
@@ -260,6 +263,8 @@ Authorization: Bearer <token>
 |---|---|---|---|
 | POST | `/v2/upload/image` | 上传图片 | `multipart/form-data`：`scene`、`file` |
 | POST | `/v2/upload/file` | 上传通用文件 | `multipart/form-data`：`scene`、`file` |
+
+申请表照片请调用图片上传接口并传 `scene=application`；用户头像仍使用 `scene=avatar`。
 
 上传成功返回：
 

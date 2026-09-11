@@ -131,11 +131,13 @@ func (t *TermHandler) CreateApplication(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	studentID := c.GetString("student_id")
 	name := c.GetString("name")
-	err := t.TermService.CreateApplication(model.Application{
+	ctx := c.Request.Context()
+	err := t.TermService.CreateApplication(ctx, model.Application{
 		TermID:          req.TermID,
 		UserID:          id,
 		Name:            name,
 		Gender:          req.Gender,
+		AvatarURI:       req.Avatar,
 		StudentID:       studentID,
 		College:         req.College,
 		MajorClass:      req.MajorClass,
@@ -169,9 +171,11 @@ func (t *TermHandler) UpdateApplication(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := t.TermService.UpdateApplication(model.Application{
+	ctx := c.Request.Context()
+	err := t.TermService.UpdateApplication(ctx, model.Application{
 		UserID:          id,
 		Gender:          req.Gender,
+		AvatarURI:       req.Avatar,
 		College:         req.College,
 		MajorClass:      req.MajorClass,
 		PoliticalStatus: req.PoliticalStatus,
@@ -200,7 +204,8 @@ func (t *TermHandler) UpdateApplication(c *gin.Context) {
 
 func (t *TermHandler) GetMyApplications(c *gin.Context) {
 	id := c.GetUint64("user_id")
-	application, err := t.TermService.GetMyApplications(id)
+	ctx := c.Request.Context()
+	application, err := t.TermService.GetMyApplications(ctx, id)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
@@ -245,7 +250,8 @@ func (t *TermHandler) GetApplicationList(c *gin.Context) {
 
 	}
 	id := c.GetUint64("user_id")
-	applications, err := t.TermService.GetApplicationList(id, req.DepartmentID, req.TermID)
+	ctx := c.Request.Context()
+	applications, err := t.TermService.GetApplicationList(ctx, id, req.DepartmentID, req.TermID)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return

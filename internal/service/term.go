@@ -9,6 +9,7 @@ import (
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 	"suseoaa/internal/request"
+	"suseoaa/internal/storage"
 	"time"
 )
 
@@ -194,7 +195,12 @@ func (t *TermService) DeleteTerm(userID uint64, termID uint64) error {
 //----------------------------
 //申请表
 
-func (t *TermService) CreateApplication(application model.Application) error {
+func (t *TermService) CreateApplication(ctx context.Context, application model.Application) error {
+	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
+	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
+		return err
+	}
+
 	term, err := t.TermRepo.GetTermByID(application.TermID)
 	if err != nil {
 		return err
@@ -208,7 +214,12 @@ func (t *TermService) CreateApplication(application model.Application) error {
 	application.Type = term.Type
 	return t.TermRepo.CreateApplication(application)
 }
-func (t *TermService) UpdateApplication(application model.Application) error {
+func (t *TermService) UpdateApplication(ctx context.Context, application model.Application) error {
+	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
+	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
+		return err
+	}
+
 	oldApplication, err := t.TermRepo.GetLatestApplicationByUserID(application.UserID)
 	if err != nil {
 		return err
@@ -226,10 +237,40 @@ func (t *TermService) UpdateApplication(application model.Application) error {
 	application.TermID = oldApplication.TermID
 	application.UserID = oldApplication.UserID
 	application.Type = oldApplication.Type
-	return t.TermRepo.UpdateApplication(application)
+	if err := t.TermRepo.UpdateApplication(application); err != nil {
+		return err
+	}
+	t.deleteOldApplicationAvatar(ctx, application.UserID, oldApplication.AvatarURI, application.AvatarURI)
+	return nil
 }
 
-func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, error) {
+func (t *TermService) checkApplicationAvatar(ctx context.Context, avatar string) error {
+	if avatar == "" {
+		return nil
+	}
+	if !strings.HasPrefix(avatar, "application/") {
+		return errors.New("申请表照片路径错误")
+	}
+	size, err := t.UserService.File.ImgStorage.GetFileInfo(ctx, avatar)
+	if err != nil {
+		return errors.New("申请表照片不存在" + err.Error())
+	}
+	if size > storage.MaxImageSize {
+		return errors.New("申请表照片体积过大")
+	}
+	return nil
+}
+
+func (t *TermService) deleteOldApplicationAvatar(ctx context.Context, userID uint64, oldAvatar string, newAvatar string) {
+	if oldAvatar == "" || oldAvatar == newAvatar || !strings.HasPrefix(oldAvatar, "application/") {
+		return
+	}
+	if err := t.UserService.File.ImgStorage.DeleteFile(ctx, oldAvatar); err != nil {
+		log.Printf("删除旧申请表照片失败, user_id=%d, avatar=%s, err=%v", userID, oldAvatar, err)
+	}
+}
+
+func (t *TermService) GetMyApplications(ctx context.Context, userID uint64) ([]*model.Application, error) {
 	applications, err := t.TermRepo.GetApplicationsByUserID(userID)
 	if err != nil {
 		return nil, err
@@ -237,6 +278,7 @@ func (t *TermService) GetMyApplications(userID uint64) ([]*model.Application, er
 	if err := t.fillApplicationTermTitles(applications); err != nil {
 		return nil, err
 	}
+	t.fillApplicationAvatars(ctx, applications)
 	return applications, nil
 }
 
@@ -259,6 +301,26 @@ func (t *TermService) fillApplicationTermTitles(applications []*model.Applicatio
 		}
 	}
 	return nil
+}
+
+func (t *TermService) fillApplicationAvatars(ctx context.Context, applications []*model.Application) {
+	for _, application := range applications {
+		if application == nil {
+			continue
+		}
+
+		application.Avatar.URI = application.AvatarURI
+		if application.AvatarURI == "" {
+			continue
+		}
+
+		url, err := t.UserService.File.ImgStorage.GeneratePresignedURL(ctx, application.AvatarURI)
+		if err != nil {
+			log.Printf("生成申请表照片链接失败, application_id=%d, avatar=%s, err=%v", application.ID, application.AvatarURI, err)
+			continue
+		}
+		application.Avatar.URL = url
+	}
 }
 
 func (t *TermService) checkApplicationChoices(application model.Application) error {
@@ -356,7 +418,7 @@ func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, 
 	return 0, errors.New("无权限查看该周期申请")
 }
 
-func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, termID uint64) ([]*model.Application, error) {
+func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, departmentID uint64, termID uint64) ([]*model.Application, error) {
 	term, err := t.TermRepo.GetTermByID(termID)
 	if err != nil {
 		return nil, err
@@ -379,6 +441,7 @@ func (t *TermService) GetApplicationList(userID uint64, departmentID uint64, ter
 			application.TermTitle = term.Title
 		}
 	}
+	t.fillApplicationAvatars(ctx, applications)
 	return applications, nil
 }
 

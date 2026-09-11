@@ -98,6 +98,7 @@ type CreateApplicationReq struct {
 	College         string           `json:"college" binding:"required"`
 	MajorClass      string           `json:"major_class" binding:"required"`
 	Gender          string           `json:"gender" binding:"required"`
+	Avatar          string           `json:"avatar"`
 	Phone           string           `json:"phone" binding:"required"`
 	QQ              string           `json:"qq" binding:"required"`
 	PoliticalStatus string           `json:"political_status" binding:"required"`
@@ -119,6 +120,7 @@ type UpdateApplicationReq struct {
 	College         string           `json:"college" binding:"required"`
 	MajorClass      string           `json:"major_class" binding:"required"`
 	Gender          string           `json:"gender" binding:"required"`
+	Avatar          string           `json:"avatar"`
 	Phone           string           `json:"phone" binding:"required"`
 	QQ              string           `json:"qq" binding:"required"`
 	PoliticalStatus string           `json:"political_status" binding:"required"`

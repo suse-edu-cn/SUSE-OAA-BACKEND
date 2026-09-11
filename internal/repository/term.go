@@ -27,7 +27,25 @@ func (t *TermRepository) CreateApplication(application model.Application) error 
 	return t.DB.Create(&application).Error
 }
 func (t *TermRepository) UpdateApplication(application model.Application) error {
-	return t.DB.Where("user_id = ? AND term_id = ?", application.UserID, application.TermID).Updates(&application).Error
+	return t.DB.Model(&model.Application{}).
+		Where("user_id = ? AND term_id = ?", application.UserID, application.TermID).
+		Updates(map[string]any{
+			"gender":               application.Gender,
+			"avatar":               application.AvatarURI,
+			"college":              application.College,
+			"major_class":          application.MajorClass,
+			"political_status":     application.PoliticalStatus,
+			"birth_date":           application.BirthDate,
+			"qq":                   application.QQ,
+			"phone":                application.Phone,
+			"first_department_id":  application.FirstChoice.DepartmentID,
+			"first_role_id":        application.FirstChoice.RoleID,
+			"second_department_id": application.SecondChoice.DepartmentID,
+			"second_role_id":       application.SecondChoice.RoleID,
+			"allow_adjust":         application.AllowAdjust,
+			"resume":               application.Resume,
+			"reason":               application.Reason,
+		}).Error
 }
 func (t *TermRepository) GetLatestApplicationByUserID(userID uint64) (*model.Application, error) {
 	var application model.Application

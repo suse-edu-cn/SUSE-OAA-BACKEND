@@ -104,7 +104,8 @@ type Application struct {
 	UserID          uint64           `gorm:"index;not null;uniqueIndex:idx_user_term" json:"user_id"` // 申请人系统账号ID (对应 users.id)
 	Name            string           `gorm:"size:32;not null" json:"name"`                            // 申请人姓名
 	Gender          string           `gorm:"size:8;not null" json:"gender"`                           // 性别 (男 / 女)
-	Avatar          string           `gorm:"size:255" json:"avatar"`                                  // 照片/证件照链接
+	AvatarURI       string           `gorm:"size:255;column:avatar" json:"-"`                         // 照片/证件照对象存储路径
+	Avatar          Avatar           `gorm:"-" json:"avatar"`                                         // 照片/证件照临时访问链接和对象存储路径
 	StudentID       string           `gorm:"size:32;index;not null" json:"student_id"`                // 学号
 	College         string           `gorm:"size:64;not null" json:"college"`                         // 所在学院 (如: 计算机科学与工程学院)
 	MajorClass      string           `gorm:"size:64;not null" json:"major_class"`                     // 专业班级 (如: 计科241)
