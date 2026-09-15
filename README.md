@@ -43,7 +43,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 说明 | 参数 |
 |---|---|---|---|
 | GET | `/v2/user/me` | 当前用户信息 | 无 |
-| GET | `/v2/user/list` | 用户列表（分页和筛选） | Query：`keyword`、`department`、`role`、`page`、`page_size` |
+| GET | `/v2/user/list` | 用户列表（分页和筛选） | Query：`keyword`、`department_id`、`role_id`、`department`、`role`、`page`、`page_size` |
 | POST | `/v2/user/me/update` | 更新当前用户资料 | JSON：`username`、`email`、`avatar` |
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
 | POST | `/v2/user/delete` | 删除用户 | JSON：`user_id` |

@@ -153,7 +153,7 @@ func (u *UserService) GetRefreshToken(id uint64, device string) (string, error) 
 	}
 	return token, nil
 }
-func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
+func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	const (
 		defaultPageSize = 20
 		maxPageSize     = 100
@@ -167,7 +167,7 @@ func (u *UserService) GetUserList(ctx context.Context, keyword string, departmen
 	if pageSize > maxPageSize {
 		pageSize = maxPageSize
 	}
-	userList, total, err := u.Repo.GetUserList(keyword, department, role, page, pageSize, isAll)
+	userList, total, err := u.Repo.GetUserList(keyword, department, role, departmentID, roleID, page, pageSize, isAll)
 	if err != nil {
 		return nil, 0, err
 	}

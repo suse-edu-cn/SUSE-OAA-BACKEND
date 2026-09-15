@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+	"strings"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
 	"suseoaa/pkg/response"
@@ -27,14 +29,30 @@ func (u *UserHandler) GetInfo(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func parseUserListIDOrName(id uint64, value string) (uint64, string) {
+	value = strings.TrimSpace(value)
+	if id != 0 || value == "" {
+		return id, value
+	}
+
+	parsedID, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, value
+	}
+	return parsedID, ""
+}
+
 func (u *UserHandler) GetUserList(c *gin.Context) {
 	var req request.UserListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
 		response.Fail(c, 400, "获取query失败", nil)
 		return
 	}
+	departmentID, departmentName := parseUserListIDOrName(req.DepartmentID, req.Department)
+	roleID, roleName := parseUserListIDOrName(req.RoleID, req.Role)
+
 	ctx := c.Request.Context()
-	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, req.Department, req.Role, req.Page, req.PageSize, req.IsAll)
+	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, departmentName, roleName, departmentID, roleID, req.Page, req.PageSize, req.IsAll)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return

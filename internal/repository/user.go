@@ -192,13 +192,29 @@ func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.C
 	}
 	return token, nil
 }
-func (u *UserRepository) GetUserList(keyword string, department string, role string, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
+func (u *UserRepository) GetUserList(keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	var userList []model.UserInfo
 	var users []model.User
 	var total int64
+
 	query := u.DB.Model(&model.User{}).
 		Joins("LEFT JOIN departments ON departments.id = users.department_id").
 		Joins("LEFT JOIN roles ON roles.id = users.role_id")
+	if departmentID != 0 {
+		query = query.Where("users.department_id = ?", departmentID)
+	} else if department != "" {
+		query = query.Where("departments.name LIKE ?", "%"+department+"%")
+	}
+	if roleID != 0 {
+		query = query.Where("users.role_id = ?", roleID)
+	} else if role != "" {
+		query = query.Where("roles.name LIKE ?", "%"+role+"%")
+	}
+	if keyword != "" {
+		kw := "%" + keyword + "%"
+		query = query.Where("(users.username LIKE ? OR users.name LIKE ? OR users.student_id LIKE ?)", kw, kw, kw)
+	}
+
 	if isAll != nil && *isAll {
 		err := query.Count(&total).Error
 		if err != nil {
@@ -212,16 +228,6 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 			return nil, 0, errors.New("查询数据失败")
 		}
 	} else {
-		if department != "" {
-			query = query.Where("departments.name LIKE ?", "%"+department+"%")
-		}
-		if role != "" {
-			query = query.Where("roles.name LIKE ?", "%"+role+"%")
-		}
-		if keyword != "" {
-			kw := "%" + keyword + "%"
-			query = query.Where("(users.username LIKE ? OR users.name LIKE ? OR users.student_id LIKE ?)", kw, kw, kw)
-		}
 		err := query.Count(&total).Error
 		if err != nil {
 			return nil, 0, errors.New("查询用户数量失败: " + err.Error())
