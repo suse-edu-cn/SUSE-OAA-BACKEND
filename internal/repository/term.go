@@ -291,22 +291,31 @@ func (t *TermRepository) UpdateInterviewResult(interviewResult model.InterviewRe
 		Select("decision", "result_department_id", "result_role_id", "operator_id", "remark").
 		Updates(&interviewResult).Error
 }
-func (t *TermRepository) GetInterviewResultByID(id uint64) (model.InterviewResult, error) {
+func (t *TermRepository) GetInterviewResultByApplicationID(applicationID uint64) (model.InterviewResult, error) {
 	var interviewResult model.InterviewResult
-	err := t.DB.Where("id = ?", id).First(&interviewResult).Error
+	err := t.DB.Where("application_id = ?", applicationID).First(&interviewResult).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.InterviewResult{}, errors.New("该申请表的面试结果不存在")
+	}
 	if err != nil {
 		return model.InterviewResult{}, err
 	}
 	return interviewResult, nil
 }
 
-func (t *TermRepository) GetInterviewResultList(termID uint64) ([]model.InterviewResult, error) {
-	var interviewResults []model.InterviewResult
-	tx := t.DB.Model(&model.InterviewResult{})
+func (t *TermRepository) GetInterviewResultList(termID uint64) ([]model.InterviewResultInfo, error) {
+	var interviewResults []model.InterviewResultInfo
+
+	tx := t.DB.Model(&model.InterviewResultInfo{}).
+		Select("interview_results.*, users.name").
+		Joins("LEFT JOIN users ON users.id = interview_results.user_id AND users.deleted_at = 0")
+
 	if termID != 0 {
-		tx = tx.Where("term_id = ?", termID)
+		tx = tx.Where("interview_results.term_id = ?", termID)
 	}
-	err := tx.Order("created_at DESC, id DESC").Find(&interviewResults).Error
+
+	err := tx.Order("interview_results.created_at DESC, interview_results.id DESC").
+		Find(&interviewResults).Error
 	if err != nil {
 		return nil, err
 	}

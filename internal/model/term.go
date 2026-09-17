@@ -157,7 +157,12 @@ type InterviewResult struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+type InterviewResultInfo struct {
+	InterviewResult
+	Name string `json:"name"`
+}
 
 func (InterviewResult) TableName() string {
 	return "interview_results"
 }
+func (InterviewResultInfo) TableName() string { return "interview_results" }

@@ -234,7 +234,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 说明 | 参数 |
 |---|---|---|---|
 | POST | `/v2/interviewer/result/create` | 创建面试结果 | JSON：`application_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
-| POST | `/v2/interviewer/result/update` | 更新面试结果 | JSON：`interview_result_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
+| POST | `/v2/interviewer/result/update` | 更新面试结果 | JSON：`application_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
 | GET | `/v2/interviewer/result/list` | 查询面试结果列表 | Query：`term_id` 可选；不传返回全部 |
 | GET | `/v2/interviewer/result/decision` | 获取面试结果决策枚举 | 无 |
 
@@ -253,7 +253,7 @@ Authorization: Bearer <token>
 - `录取第二志愿` 时，最终部门 / 职位必须等于申请表第二志愿。
 - `已调剂` 时，申请表必须允许调剂，且最终部门 / 职位必须合法匹配。
 - `未通过` 时，`result_department_id` 和 `result_role_id` 必须传 `0`。
-- 更新面试结果时，只允许改决策、最终部门、最终职位、操作人和备注，不允许改变关联的申请表、周期或用户。
+- 更新面试结果时通过 `application_id` 定位面试结果，只允许改决策、最终部门、最终职位、操作人和备注，不允许改变关联的申请表、周期或用户。
 - `executed_at` 为空表示草稿，非空表示已经执行后的历史结果。
 - 面试结果在查询期内只是草稿；到 `execute_after_at` 后由后台执行器统一生效。
 

@@ -692,7 +692,7 @@ func (t *TermService) CreateInterviewResult(operatorID uint64, req request.Creat
 }
 
 func (t *TermService) UpdateInterviewResult(operatorID uint64, req request.UpdateInterviewResultReq) error {
-	oldResult, err := t.TermRepo.GetInterviewResultByID(req.InterviewResultID)
+	oldResult, err := t.TermRepo.GetInterviewResultByApplicationID(req.ApplicationID)
 	if err != nil {
 		return err
 	}
@@ -722,7 +722,7 @@ func (t *TermService) UpdateInterviewResult(operatorID uint64, req request.Updat
 	return t.TermRepo.UpdateInterviewResult(interviewResult)
 }
 
-func (t *TermService) GetInterviewResultList(operatorID uint64, termID uint64) ([]model.InterviewResult, error) {
+func (t *TermService) GetInterviewResultList(operatorID uint64, termID uint64) ([]model.InterviewResultInfo, error) {
 	if err := t.CheckLevel(operatorID); err != nil {
 		return nil, err
 	}
