@@ -159,7 +159,8 @@ type InterviewResult struct {
 }
 type InterviewResultInfo struct {
 	InterviewResult
-	Name string `json:"name"`
+	Name         string `json:"name"`          // 用户/面试者姓名
+	OperatorName string `json:"operator_name"` // 操作人姓名
 }
 
 func (InterviewResult) TableName() string {

@@ -307,8 +307,9 @@ func (t *TermRepository) GetInterviewResultList(termID uint64) ([]model.Intervie
 	var interviewResults []model.InterviewResultInfo
 
 	tx := t.DB.Model(&model.InterviewResultInfo{}).
-		Select("interview_results.*, users.name").
-		Joins("LEFT JOIN users ON users.id = interview_results.user_id AND users.deleted_at = 0")
+		Select("interview_results.*, u.name AS name, op.name AS operator_name").
+		Joins("LEFT JOIN users AS u ON u.id = interview_results.user_id AND u.deleted_at = 0").
+		Joins("LEFT JOIN users AS op ON op.id = interview_results.operator_id AND op.deleted_at = 0")
 
 	if termID != 0 {
 		tx = tx.Where("interview_results.term_id = ?", termID)
@@ -319,6 +320,7 @@ func (t *TermRepository) GetInterviewResultList(termID uint64) ([]model.Intervie
 	if err != nil {
 		return nil, err
 	}
+
 	return interviewResults, nil
 }
 
