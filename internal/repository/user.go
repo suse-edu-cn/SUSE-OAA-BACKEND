@@ -91,6 +91,7 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	info.Name = user.Name
 	info.StudentID = user.StudentID
 	info.Avatar.URI = user.Avatar
+	info.RoleLevel = user.Role.Level
 	return info, nil
 }
 func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {
@@ -251,6 +252,7 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 			Name:      user.Name,
 			Avatar:    model.Avatar{URI: user.Avatar},
 			Email:     user.Email,
+			RoleLevel: user.Role.Level,
 		}
 		if user.Role != nil {
 			userInfo.Role = user.Role.Name

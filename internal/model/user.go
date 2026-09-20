@@ -32,6 +32,7 @@ type UserInfo struct {
 	Email      string `json:"email"`
 	Department string `json:"department"`
 	Role       string `json:"role"`
+	RoleLevel  uint64 `json:"role_level"`
 }
 
 type BatchUserInfo struct {
