@@ -51,12 +51,18 @@ func (a *AnnouncementService) check(userID uint64, departmentID uint64) error {
 	return nil
 }
 
-func (a *AnnouncementService) CreateAnnouncement(userID uint64, announcement model.Announcement) (uint64, error) {
+func (a *AnnouncementService) CreateAnnouncement(userID uint64, announcement model.Announcement) (map[string]uint64, error) {
 	err := a.check(userID, announcement.DepartmentID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return a.AnnouncementRepo.CreateAnnouncement(announcement)
+	announcementID, err := a.AnnouncementRepo.CreateAnnouncement(announcement)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]uint64{
+		"announcement_id": announcementID,
+	}, nil
 }
 func (a *AnnouncementService) UpdateAnnouncement(userID uint64, announcement model.Announcement) error {
 	department, err := a.AnnouncementRepo.GetDepartmentIDByID(announcement.ID)

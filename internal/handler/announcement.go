@@ -33,12 +33,12 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 		DepartmentID: req.DepartmentID,
 	}
 
-	_, err = a.AnnouncementService.CreateAnnouncement(userID, announcement)
+	res, err := a.AnnouncementService.CreateAnnouncement(userID, announcement)
 	if err != nil {
 		response.Fail(c, 500, err.Error(), nil)
 		return
 	}
-	response.Success(c, "公告创建成功")
+	response.Success(c, res)
 	return
 }
 
