@@ -12,7 +12,11 @@ type UpdateAnnouncementReq struct {
 	Content        string `json:"content" binding:"required"`
 }
 type GetAnnouncementListReq struct {
-	Status string `form:"status"  `
+	Status  string `form:"status"  `
+	Content *bool  `form:"content"  `
+}
+type GetAnnouncementReq struct {
+	AnnouncementID uint64 `form:"announcement_id"`
 }
 type PushAnnouncementReq struct {
 	AnnouncementID uint64 `json:"announcement_id" binding:"required"`

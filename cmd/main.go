@@ -42,7 +42,7 @@ func main() {
 	userService := service.NewUserService(repo, roleRepo, departmentRepo, emailService, fileService)
 	departmentService := service.NewDepartmentService(departmentRepo, roleRepo)
 	roleService := service.NewRoleService(roleRepo)
-	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo)
+	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo, fileService)
 	termService := service.NewTermService(termRepo, userService)
 	go termService.StartInterviewResultExecutor(context.Background())
 

@@ -90,13 +90,36 @@ func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(id, req.Status)
+	ctx := c.Request.Context()
+	isContent := false
+	if req.Content != nil && *req.Content {
+		isContent = true
+	}
+	announcementInfos, err := a.AnnouncementService.GetAnnouncementInfoList(ctx, id, req.Status, isContent)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, announcementInfos)
 	return
+}
+func (a *AnnouncementHandler) GetAnnouncement(c *gin.Context) {
+	var req request.GetAnnouncementReq
+	err := c.ShouldBindQuery(&req)
+	if err != nil {
+		response.Fail(c, 400, err.Error(), nil)
+		return
+	}
+	userID := c.GetUint64("user_id")
+	ctx := c.Request.Context()
+	announcement, err := a.AnnouncementService.GetAnnouncementInfo(ctx, userID, req.AnnouncementID)
+	if err != nil {
+		response.Fail(c, 400, err.Error(), nil)
+		return
+	}
+	response.Success(c, announcement)
+	return
+
 }
 func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
 	userID := c.GetUint64("user_id")

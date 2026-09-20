@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"mime/multipart"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"suseoaa/internal/storage"
 	"suseoaa/pkg/utils"
 )
@@ -22,6 +24,7 @@ func NewFileService(imgStorage *storage.MinIO, fileStorage *storage.MinIO) FileS
 	}
 }
 
+var ossRegexp = regexp.MustCompile(`oss://[^\s)\]>\"']+`)
 var allowedExt = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,
@@ -89,4 +92,51 @@ func (f *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 		"uri": objectName,
 		"url": presignedURL,
 	}, nil
+}
+func (f *FileService) ReplaceMinIOLinks(ctx context.Context, content string) (string, error) {
+	urlCache := make(map[string]string)
+	var firstErr error
+	replacedContent := ossRegexp.ReplaceAllStringFunc(content, func(matched string) string {
+		if firstErr != nil {
+			return matched
+		}
+		if err := ctx.Err(); err != nil {
+			firstErr = err
+			return matched
+		}
+		if presignedURL, exists := urlCache[matched]; exists {
+			return presignedURL
+		}
+		rawPath := strings.TrimPrefix(matched, "oss://")
+
+		parts := strings.SplitN(rawPath, "/", 2)
+		if len(parts) < 2 || parts[1] == "" {
+			return matched
+		}
+		bucketName, objectName := parts[0], parts[1]
+
+		var targetStorage *storage.MinIO
+		switch {
+		case f.ImgStorage != nil && bucketName == f.ImgStorage.Bucket:
+			targetStorage = f.ImgStorage
+		case f.FileStorage != nil && bucketName == f.FileStorage.Bucket:
+			targetStorage = f.FileStorage
+		default:
+			return matched
+		}
+
+		presignedURL, err := targetStorage.GeneratePresignedURL(ctx, objectName)
+		if err != nil {
+			firstErr = fmt.Errorf("failed to sign url for [%s]: %w", rawPath, err)
+			return matched
+		}
+
+		urlCache[matched] = presignedURL
+		return presignedURL
+	})
+
+	if firstErr != nil {
+		return "", firstErr
+	}
+	return replacedContent, nil
 }

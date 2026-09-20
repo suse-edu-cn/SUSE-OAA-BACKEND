@@ -23,7 +23,7 @@ type Announcement struct {
 }
 
 type AnnouncementInfo struct {
-	ID             uint64     `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	ID             uint64     `gorm:"primaryKey;autoIncrement;column:id" json:"announcement_id"`
 	Title          string     `gorm:"type:varchar(255);not null;column:title" json:"title"`
 	Content        string     `gorm:"type:mediumtext;not null;column:content" json:"content"`
 	IsActive       bool       `gorm:"not null;default:false;column:is_active" json:"is_active"`

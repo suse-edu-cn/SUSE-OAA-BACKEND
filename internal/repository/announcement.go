@@ -51,13 +51,15 @@ func (a *AnnouncementRepository) GetDepartmentIDByID(id uint64) (uint64, error) 
 	return announcement.DepartmentID, nil
 }
 
-func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64) (model.AnnouncementInfo, error) {
+func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64, userID uint64) (model.AnnouncementInfo, error) {
 	var announcement model.Announcement
 	err := a.DB.Model(&model.Announcement{}).
 		Preload("Department").
 		Preload("Publisher").
 		Preload("Publisher.Role").
-		Where("id = ?", id).First(&announcement).Error
+		Where("id = ?", id).
+		Where("is_active = ? OR created_id = ?", true, userID).
+		First(&announcement).Error
 	if err != nil {
 		return model.AnnouncementInfo{}, errors.New("获取失败")
 	}

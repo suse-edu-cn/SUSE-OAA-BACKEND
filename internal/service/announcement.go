@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 )
@@ -12,6 +13,7 @@ type AnnouncementService struct {
 	DepartmentRepo   repository.DepartmentRepository
 	RoleRepo         repository.RoleRepository
 	UserRepo         repository.UserRepository
+	FileService      FileService
 }
 
 func NewAnnouncementService(
@@ -19,12 +21,14 @@ func NewAnnouncementService(
 	departmentRepo repository.DepartmentRepository,
 	roleRepo repository.RoleRepository,
 	userRepo repository.UserRepository,
+	fileService FileService,
 ) AnnouncementService {
 	return AnnouncementService{
 		AnnouncementRepo: announcementRepo,
 		DepartmentRepo:   departmentRepo,
 		RoleRepo:         roleRepo,
 		UserRepo:         userRepo,
+		FileService:      fileService,
 	}
 }
 
@@ -80,8 +84,39 @@ func (a *AnnouncementService) PushAnnouncement(ctx context.Context, announcement
 	return err
 }
 
-func (a *AnnouncementService) GetAnnouncementInfoList(id uint64, status string) (*[]model.AnnouncementInfo, error) {
-	return a.AnnouncementRepo.GetAnnouncementInfoListByRole(id, status)
+func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id uint64, status string, isContent bool) (*[]model.AnnouncementInfo, error) {
+	announcementList, err := a.AnnouncementRepo.GetAnnouncementInfoListByRole(id, status)
+	if err != nil {
+		return nil, err
+	}
+	if announcementList != nil {
+		list := *announcementList
+		for i := range list {
+			if isContent {
+				content, err := a.FileService.ReplaceMinIOLinks(ctx, list[i].Content)
+				if err != nil {
+					_ = fmt.Errorf(err.Error())
+				}
+				list[i].Content = content
+			} else {
+				list[i].Content = ""
+			}
+		}
+	}
+	return announcementList, nil
+}
+
+func (a *AnnouncementService) GetAnnouncementInfo(ctx context.Context, userID uint64, announcementID uint64) (model.AnnouncementInfo, error) {
+	announcement, err := a.AnnouncementRepo.GetAnnouncementInfo(announcementID, userID)
+	if err != nil {
+		return model.AnnouncementInfo{}, err
+	}
+	content, err := a.FileService.ReplaceMinIOLinks(ctx, announcement.Content)
+	if err != nil {
+		return model.AnnouncementInfo{}, err
+	}
+	announcement.Content = content
+	return announcement, nil
 }
 
 func (a *AnnouncementService) DeleteAnnouncement(id uint64, userID uint64) error {
