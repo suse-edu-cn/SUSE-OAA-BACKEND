@@ -230,34 +230,25 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 		query = query.Where("(users.username LIKE ? OR users.name LIKE ? OR users.student_id LIKE ?)", kw, kw, kw)
 	}
 
-	if isAll != nil && *isAll {
-		err := query.Count(&total).Error
-		if err != nil {
-			return nil, 0, errors.New("查询用户数量失败: " + err.Error())
-		}
-		err = query.Select("users.*").
-			Preload("Department").
-			Preload("Role").
-			Find(&users).Error
-		if err != nil {
-			return nil, 0, errors.New("查询数据失败")
-		}
-	} else {
-		err := query.Count(&total).Error
-		if err != nil {
-			return nil, 0, errors.New("查询用户数量失败: " + err.Error())
-		}
-		offset := (page - 1) * pageSize
-		err = query.Select("users.*").
-			Preload("Department").
-			Preload("Role").
-			Limit(pageSize).
-			Offset(offset).
-			Find(&users).Error
-		if err != nil {
-			return nil, 0, errors.New("查询数据失败")
-		}
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, 0, errors.New("查询用户数量失败: " + err.Error())
 	}
+
+	dataQuery := query.Session(&gorm.Session{}).
+		Select("users.*").
+		Preload("Department").
+		Preload("Role")
+
+	if isAll == nil || !*isAll {
+		offset := (page - 1) * pageSize
+		dataQuery = dataQuery.Limit(pageSize).Offset(offset)
+	}
+
+	if err := dataQuery.Find(&users).Error; err != nil {
+		return nil, 0, errors.New("查询数据失败")
+	}
+
+	userList = make([]model.UserInfo, 0, len(users))
 	for _, user := range users {
 		userInfo := model.UserInfo{
 			UserID:    user.ID,
@@ -266,10 +257,10 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 			Name:      user.Name,
 			Avatar:    model.Avatar{URI: user.Avatar},
 			Email:     user.Email,
-			RoleLevel: user.Role.Level,
 		}
 		if user.Role != nil {
 			userInfo.Role = user.Role.Name
+			userInfo.RoleLevel = user.Role.Level
 		}
 		if user.Department != nil {
 			userInfo.Department = user.Department.Name
