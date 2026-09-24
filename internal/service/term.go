@@ -82,11 +82,8 @@ func (t *TermService) CheckLevel(userID uint64) error {
 	if err != nil {
 		return err
 	}
-	if level < 15 {
-		return errors.New("用户职位太低")
-	}
 	if level < 80 {
-		return errors.New("权力不够")
+		return errors.New("权限不够")
 	}
 	return nil
 }
@@ -138,7 +135,7 @@ func (t *TermService) GetTermList(year uint64, termType string) ([]request.TermL
 		return nil, err
 	}
 	if len(termList) == 0 {
-		return nil, nil
+		return []request.TermListResp{}, nil
 	}
 
 	resp := make([]request.TermListResp, 0, len(termList))

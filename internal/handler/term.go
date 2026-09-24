@@ -83,20 +83,9 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 		response.Fail(c, 400, "获取参数失败: "+err.Error(), nil)
 		return
 	}
-	id := c.GetUint64("user_id")
-	err := t.TermService.CheckLevel(id)
-	if err != nil {
-		response.Fail(c, 400, err.Error(), nil)
-		return
-	}
 	termList, err := t.TermService.GetTermList(req.Year, req.Type)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
-		return
-	}
-	if len(termList) == 0 {
-		temp := []string{}
-		response.Fail(c, 200, "无匹配数据", temp)
 		return
 	}
 	response.Success(c, termList)
