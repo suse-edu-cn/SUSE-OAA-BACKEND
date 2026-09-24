@@ -185,13 +185,27 @@ func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx contex
 func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.Context) (string, error) {
 	key := fmt.Sprintf("%d-%s", id, device)
 	token, err := u.Rdb.Get(ctx, key).Result()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return "", errors.New("refresh_token不存在或者过期")
-		}
+	if err == nil {
+		return token, nil
+	}
+	if !errors.Is(err, redis.Nil) {
 		return "", errors.New("获取refresh_token失败: " + err.Error())
 	}
-	return token, nil
+
+	// Redis 缓存未命中（例如 Redis 重启或键过期），回源查询 MySQL
+	var record model.RefreshToken
+	dbErr := u.DB.WithContext(ctx).Where("user_id = ? AND device = ?", id, device).First(&record).Error
+	if dbErr != nil {
+		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
+			return "", errors.New("refresh_token不存在或者过期")
+		}
+		return "", errors.New("获取refresh_token失败: " + dbErr.Error())
+	}
+
+	// 回填 Redis，保证下次读取走缓存
+	_ = u.Rdb.Set(ctx, key, record.Token, 15*24*time.Hour).Err()
+
+	return record.Token, nil
 }
 func (u *UserRepository) GetUserList(keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	var userList []model.UserInfo
