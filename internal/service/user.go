@@ -319,7 +319,8 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 			continue
 		}
 		status[req[i].UserID] = true
-		if _, err := u.Repo.FindUserById(req[i].UserID); err != nil {
+		targetUser, err := u.Repo.FindUserById(req[i].UserID)
+		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return res, errors.New("查询目标用户失败")
 			}
@@ -327,6 +328,27 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 			errorMessage[req[i].UserID] = "用户不存在"
 			continue
 		}
+
+		targetCurrentRole := roleMap[targetUser.RoleID]
+		targetCurrentLevel := uint64(0)
+		if targetCurrentRole != nil {
+			targetCurrentLevel = targetCurrentRole.Level
+		}
+
+		// 1. 不能修改同级或更高职位的用户
+		if targetCurrentLevel >= operatorRole.Level {
+			userIdList = append(userIdList, req[i].UserID)
+			errorMessage[req[i].UserID] = "不能修改同级或更高职位的用户"
+			continue
+		}
+
+		// 2. 低于副会长的管理者（如部长），不能修改原本不属于本部门的用户
+		if operatorRole.Level < level && targetUser.DepartmentID != departmentID {
+			userIdList = append(userIdList, req[i].UserID)
+			errorMessage[req[i].UserID] = "不能跨部门修改其他部门的用户"
+			continue
+		}
+
 		if roleMap[req[i].RoleID] == nil || departmentMap[req[i].DepartmentID] == nil {
 			userIdList = append(userIdList, req[i].UserID)
 			tempItem := model.UpdateUserItems{}
@@ -350,8 +372,8 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 			userIdList = append(userIdList, req[i].UserID)
 			errorMessage[req[i].UserID] = err.Error()
 
-		} else if (roleMap[roleID].Level >= level || //副会长以及以上
-			(roleMap[roleID].Level > roleMap[req[i].RoleID].Level && //职位比要设置的职位大
+		} else if (operatorRole.Level >= level || //副会长以及以上
+			(operatorRole.Level > roleMap[req[i].RoleID].Level && //职位比要设置的职位大
 				departmentMap[departmentID] != nil &&
 				departmentID == req[i].DepartmentID)) && //同一部门
 			(level > roleMap[req[i].RoleID].Level) { //只能改副会长以下职位
