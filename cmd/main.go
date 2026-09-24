@@ -23,9 +23,11 @@ func main() {
 	termRepo := repository.NewTermRepository(db)
 	imgMinio, fileMinio := storage.NewMinIO(
 		Config.MiniO.MinioEndpoint,
+		Config.MiniO.PublicEndpoint,
 		Config.MiniO.MinioAccessKey,
 		Config.MiniO.MinioSecretKey,
 		Config.MiniO.MinioUseSsl,
+		Config.MiniO.PublicUseSsl,
 		Config.MiniO.MinioImgBucket,
 		Config.MiniO.MinioFileBucket,
 		Config.MiniO.MaxFileSize,

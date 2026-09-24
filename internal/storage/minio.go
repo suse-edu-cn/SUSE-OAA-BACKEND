@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -17,42 +18,94 @@ var FileBucketName string
 var expire time.Duration
 
 type MinIO struct {
-	Client *minio.Client
-	Bucket string
+	Client     *minio.Client
+	SignClient *minio.Client
+	Bucket     string
+}
+
+func cleanEndpoint(rawEndpoint string, useSSL bool) (string, bool) {
+	rawEndpoint = strings.TrimSpace(rawEndpoint)
+	if strings.HasPrefix(rawEndpoint, "https://") {
+		return strings.TrimRight(strings.TrimPrefix(rawEndpoint, "https://"), "/"), true
+	}
+	if strings.HasPrefix(rawEndpoint, "http://") {
+		return strings.TrimRight(strings.TrimPrefix(rawEndpoint, "http://"), "/"), false
+	}
+	return strings.TrimRight(rawEndpoint, "/"), useSSL
 }
 
 func NewMinIO(
 	endpoint string,
+	publicEndpoint string,
 	accessKey string,
 	secretKey string,
 	useSSL bool,
+	publicUseSSL bool,
 	imgBucket string,
 	fileBucket string,
 	maxFileSize int64,
 	maxImageSize int64,
 	expireTime int64,
 ) (*MinIO, *MinIO) {
+	endpoint, useSSL = cleanEndpoint(endpoint, useSSL)
+
 	imgClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
-	})
-	fileClient, err := minio.New(endpoint, &minio.Options{
-		Creds: credentials.NewStaticV4(accessKey, secretKey, ""),
+		Region: "us-east-1",
 	})
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("init minio img client failed: %w", err))
 	}
+	fileClient, err := minio.New(endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: useSSL,
+		Region: "us-east-1",
+	})
+	if err != nil {
+		panic(fmt.Errorf("init minio file client failed: %w", err))
+	}
+
+	signEndpoint := endpoint
+	signUseSSL := useSSL
+	if publicEndpoint != "" {
+		signEndpoint, signUseSSL = cleanEndpoint(publicEndpoint, publicUseSSL)
+	}
+
+	imgSignClient := imgClient
+	fileSignClient := fileClient
+	if signEndpoint != endpoint || signUseSSL != useSSL {
+		imgSignClient, err = minio.New(signEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+			Secure: signUseSSL,
+			Region: "us-east-1",
+		})
+		if err != nil {
+			panic(fmt.Errorf("init minio img sign client failed: %w", err))
+		}
+		fileSignClient, err = minio.New(signEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+			Secure: signUseSSL,
+			Region: "us-east-1",
+		})
+		if err != nil {
+			panic(fmt.Errorf("init minio file sign client failed: %w", err))
+		}
+	}
+
 	MaxFileSize = maxFileSize * 1024 * 1024
 	MaxImageSize = maxImageSize * 1024 * 1024
 	ImgBucketName = imgBucket
 	FileBucketName = fileBucket
 	expire = time.Duration(expireTime) * time.Minute
 	return &MinIO{
-		Client: imgClient,
-		Bucket: imgBucket,
+		Client:     imgClient,
+		SignClient: imgSignClient,
+		Bucket:     imgBucket,
 	}, &MinIO{
-		Client: fileClient,
-		Bucket: fileBucket,
+		Client:     fileClient,
+		SignClient: fileSignClient,
+		Bucket:     fileBucket,
 	}
 }
 
@@ -72,7 +125,11 @@ func (m *MinIO) GeneratePresignedURL(
 	ctx context.Context,
 	objectName string,
 ) (string, error) {
-	url, err := m.Client.PresignedGetObject(
+	client := m.SignClient
+	if client == nil {
+		client = m.Client
+	}
+	url, err := client.PresignedGetObject(
 		ctx,
 		m.Bucket,
 		objectName,

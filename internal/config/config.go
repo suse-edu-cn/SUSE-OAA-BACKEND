@@ -48,9 +48,11 @@ type Email struct {
 
 type MiniO struct {
 	MinioEndpoint   string `mapstructure:"minio_endpoint"`
+	PublicEndpoint  string `mapstructure:"public_endpoint"`
 	MinioAccessKey  string `mapstructure:"minio_access_key"`
 	MinioSecretKey  string `mapstructure:"minio_secret_key"`
 	MinioUseSsl     bool   `mapstructure:"minio_use_ssl"`
+	PublicUseSsl    bool   `mapstructure:"public_use_ssl"`
 	MinioImgBucket  string `mapstructure:"minio_img_bucket"`
 	MinioFileBucket string `mapstructure:"minio_file_bucket"`
 	MaxFileSize     int64  `mapstructure:"max_file_size"`

@@ -36,14 +36,14 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 说明 | 参数 |
 |---|---|---|---|
 | POST | `/v2/auth/password/update` | 修改密码 | JSON：`old_password`、`new_password` |
-| POST | `/v2/auth/password/reset` | 验证码重置密码（公开） | JSON：`account`、`code`、`scene` |
+| POST | `/v2/auth/password/reset` | 验证码重置密码（公开） | JSON：`account`、`code`、`password` |
 
 ### User（用户）
 
 | 方法 | 路径 | 说明 | 参数 |
 |---|---|---|---|
 | GET | `/v2/user/me` | 当前用户信息 | 无 |
-| GET | `/v2/user/list` | 用户列表（分页和筛选） | Query：`keyword`、`department_id`、`role_id`、`department`、`role`、`page`、`page_size` |
+| GET | `/v2/user/list` | 用户列表（分页和筛选） | Query：`keyword`、`department_id`、`role_id`、`department`、`role`、`page`、`page_size`、`is_all` |
 | POST | `/v2/user/me/update` | 更新当前用户资料 | JSON：`username`、`email`、`avatar` |
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
 | POST | `/v2/user/delete` | 删除用户 | JSON：`user_id` |
@@ -78,6 +78,7 @@ Authorization: Bearer <token>
 | POST | `/v2/announcement/update` | 更新公告 | JSON：`announcement_id`、`title`、`content` |
 | POST | `/v2/announcement/push` | 推送公告 | JSON：`announcement_id` |
 | GET | `/v2/announcement/list` | 按权限获取公告列表 | Query：`status` 可选，支持 `active`、`history`、`draft`；不传则返回已发布公告 |
+| GET | `/v2/announcement/get` | 获取公告详情 | Query：`announcement_id` 必填 |
 | POST | `/v2/announcement/delete` | 删除公告 | JSON：`announcement_id` |
 
 > 当前路由里没有单独的 `/v2/announcement/active` 和 `/v2/announcement/history`，请使用 `/v2/announcement/list?status=active` 或 `/v2/announcement/list?status=history`。
@@ -325,7 +326,7 @@ Authorization: Bearer <token>
 - 组织宣传部
 - 秘书处
 - 理事会
-- 项目部
+- 项目实践部
 - 开放原子开源协会
 
 ### 批量修改规则
@@ -349,17 +350,17 @@ Authorization: Bearer <token>
 
 ### Refresh Token
 
-- 登录后生成 `refreshToken`，同时与 `user_id + device` 绑定保存。
+- 登录后生成 `refresh_token`，同时与 `user_id + device` 绑定保存。
 - 刷新 Token 时请求字段为 `refresh_token`、`user_id`、`device`。
-- 登录响应字段名为 `refreshToken`（驼峰），这是当前实现的字段差异。
+- 登录和刷新响应字段名均为 `refresh_token` 和 `token`。
 - 当前 JWT 生成逻辑使用配置 `jwt.expire_minute`，默认值 `20` 表示约 20 分钟。
 
 ### 验证码
 
 - 验证码存储在 Redis，支持过期和发送冷却。
-- `auth/send` 和 `password/reset` 的 `scene` 必须保持一致。
+- `auth/send` 传入 `account` 和 `scene`；`password/reset` 传入 `account`、`code`、`password`。
 - 重置密码成功后验证码立即失效。
-- 当前验证码重置密码的默认密码为 `123456`，登录后应立即修改密码。
+- 重置密码接口支持直接设定新密码，经 bcrypt 加密后写入。
 
 ## 技术栈
 
@@ -461,16 +462,20 @@ cp configs/config_example.yaml configs/config.yaml
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `minio_endpoint` | string | MinIO 服务地址，例如 `localhost:9000`，通常不带协议头。 |
+| `minio_endpoint` | string | 后端与 MinIO 内部通信端点，例如 `localhost:9000` 或内网域名 `obj.in.suseoaa.com`。用于上传、元数据探测与删除，不消耗公网流量。 |
+| `public_endpoint` | string | 前端或外部访问的公网端点/域名，例如 `obj.suseoaa.com`。用于生成对外预签名临时访问 URL；留空则默认同 `minio_endpoint`。 |
 | `minio_access_key` | string | MinIO Access Key。 |
 | `minio_secret_key` | string | MinIO Secret Key。 |
-| `minio_use_ssl` | boolean | 是否通过 HTTPS 连接 MinIO。 |
-| `minio_bucket` | string | 用于保存上传文件的 Bucket 名称。 |
+| `minio_use_ssl` | boolean | 后端与内部 MinIO 通信是否使用 HTTPS。 |
+| `public_use_ssl` | boolean | 外部公网访问生成的预签名链接是否使用 HTTPS（外网配置 SSL 证书时需设为 `true`）。 |
+| `minio_img_bucket` | string | 用于保存图片资源的 Bucket 名称（如 `oaa-img`）。 |
+| `minio_file_bucket` | string | 用于保存通用文件的 Bucket 名称（如 `oaa-file`）。 |
 | `max_file_size` | integer | 普通文件允许的最大大小，单位为 MB。 |
 | `max_image_size` | integer | 图片允许的最大大小，单位为 MB。 |
 | `expire_time` | integer | 对象存储临时访问链接有效期，单位为分钟。 |
 
 > `mode` 和 `charset` 当前会出现在 YAML 示例中，但没有对应的配置结构字段，因此修改它们不会改变当前程序行为。
+> `minio_endpoint` 与 `public_endpoint` 支持带或不带 `http://` / `https://`，后端初始化时会自动识别清洗并校正 SSL 模式。为了避免预签名时向外部反代发探测请求导致 502，系统已默认固定 Region 为 `us-east-1`，预签名链接纯本地计算生成。
 
 ## Makefile 命令说明
 

@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 )
@@ -101,7 +101,7 @@ func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id ui
 			if isContent {
 				content, err := a.FileService.ReplaceMinIOLinks(ctx, list[i].Content)
 				if err != nil {
-					_ = fmt.Errorf(err.Error())
+					log.Printf("替换公告图片/文件链接失败, announcement_id=%d: %v", list[i].ID, err)
 				}
 				list[i].Content = content
 			} else {
