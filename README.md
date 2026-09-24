@@ -464,6 +464,7 @@ cp configs/config_example.yaml configs/config.yaml
 |---|---|---|
 | `minio_endpoint` | string | 后端与 MinIO 内部通信端点，例如 `localhost:9000` 或内网域名 `obj.in.suseoaa.com`。用于上传、元数据探测与删除，不消耗公网流量。 |
 | `public_endpoint` | string | 前端或外部访问的公网端点/域名，例如 `obj.suseoaa.com`。用于生成对外预签名临时访问 URL；留空则默认同 `minio_endpoint`。 |
+| `minio_region` | string | MinIO 区域代码，需与 MinIO 服务端配置一致（如 `cn-west-yb0`，未配置时默认为 `cn-west-yb0`）。 |
 | `minio_access_key` | string | MinIO Access Key。 |
 | `minio_secret_key` | string | MinIO Secret Key。 |
 | `minio_use_ssl` | boolean | 后端与内部 MinIO 通信是否使用 HTTPS。 |
@@ -475,7 +476,7 @@ cp configs/config_example.yaml configs/config.yaml
 | `expire_time` | integer | 对象存储临时访问链接有效期，单位为分钟。 |
 
 > `mode` 和 `charset` 当前会出现在 YAML 示例中，但没有对应的配置结构字段，因此修改它们不会改变当前程序行为。
-> `minio_endpoint` 与 `public_endpoint` 支持带或不带 `http://` / `https://`，后端初始化时会自动识别清洗并校正 SSL 模式。为了避免预签名时向外部反代发探测请求导致 502，系统已默认固定 Region 为 `us-east-1`，预签名链接纯本地计算生成。
+> `minio_endpoint` 与 `public_endpoint` 支持带或不带 `http://` / `https://`，后端初始化时会自动识别清洗并校正 SSL 模式。预签名客户端已显式配置 Region（默认 `cn-west-yb0`），预签名链接纯本地离线计算生成，无需向公网反向代理发送 BucketLocation 探测请求，彻底避免 502 及 Region 不匹配错误。
 
 ## Makefile 命令说明
 

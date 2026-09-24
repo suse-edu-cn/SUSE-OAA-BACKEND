@@ -49,6 +49,7 @@ type Email struct {
 type MiniO struct {
 	MinioEndpoint   string `mapstructure:"minio_endpoint"`
 	PublicEndpoint  string `mapstructure:"public_endpoint"`
+	MinioRegion     string `mapstructure:"minio_region"`
 	MinioAccessKey  string `mapstructure:"minio_access_key"`
 	MinioSecretKey  string `mapstructure:"minio_secret_key"`
 	MinioUseSsl     bool   `mapstructure:"minio_use_ssl"`

@@ -37,6 +37,7 @@ func cleanEndpoint(rawEndpoint string, useSSL bool) (string, bool) {
 func NewMinIO(
 	endpoint string,
 	publicEndpoint string,
+	region string,
 	accessKey string,
 	secretKey string,
 	useSSL bool,
@@ -48,11 +49,15 @@ func NewMinIO(
 	expireTime int64,
 ) (*MinIO, *MinIO) {
 	endpoint, useSSL = cleanEndpoint(endpoint, useSSL)
+	region = strings.TrimSpace(region)
+	if region == "" {
+		region = "cn-west-yb0"
+	}
 
 	imgClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
-		Region: "us-east-1",
+		Region: region,
 	})
 	if err != nil {
 		panic(fmt.Errorf("init minio img client failed: %w", err))
@@ -60,7 +65,7 @@ func NewMinIO(
 	fileClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
-		Region: "us-east-1",
+		Region: region,
 	})
 	if err != nil {
 		panic(fmt.Errorf("init minio file client failed: %w", err))
@@ -78,7 +83,7 @@ func NewMinIO(
 		imgSignClient, err = minio.New(signEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 			Secure: signUseSSL,
-			Region: "us-east-1",
+			Region: region,
 		})
 		if err != nil {
 			panic(fmt.Errorf("init minio img sign client failed: %w", err))
@@ -86,7 +91,7 @@ func NewMinIO(
 		fileSignClient, err = minio.New(signEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 			Secure: signUseSSL,
-			Region: "us-east-1",
+			Region: region,
 		})
 		if err != nil {
 			panic(fmt.Errorf("init minio file sign client failed: %w", err))

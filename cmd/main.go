@@ -24,6 +24,7 @@ func main() {
 	imgMinio, fileMinio := storage.NewMinIO(
 		Config.MiniO.MinioEndpoint,
 		Config.MiniO.PublicEndpoint,
+		Config.MiniO.MinioRegion,
 		Config.MiniO.MinioAccessKey,
 		Config.MiniO.MinioSecretKey,
 		Config.MiniO.MinioUseSsl,

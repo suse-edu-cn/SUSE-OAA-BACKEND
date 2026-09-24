@@ -36,6 +36,7 @@ email:
 minio:
   minio_endpoint: ""
   public_endpoint: ""
+  minio_region: ""
   public_use_ssl: false
   minio_access_key: ""
   minio_secret_key: ""
