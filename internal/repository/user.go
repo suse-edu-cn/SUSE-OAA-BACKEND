@@ -424,14 +424,31 @@ func (u *UserRepository) CheckUserIsHave(id uint64) error {
 	}
 	return nil
 }
-func (u *UserRepository) DeleteUserByID(id uint64) error {
-	result := u.DB.Delete(&model.User{}, id)
-	if result.Error != nil {
-		return result.Error
+func (u *UserRepository) DeleteUserByID(id uint64, ctx context.Context) error {
+	// 1. 查询该用户在各设备的 RefreshToken，并在 Redis 中同步清理
+	var tokens []model.RefreshToken
+	_ = u.DB.WithContext(ctx).Where("user_id = ?", id).Find(&tokens).Error
+	for _, t := range tokens {
+		key := fmt.Sprintf("%d-%s", id, t.Device)
+		_ = u.Rdb.Del(ctx, key).Err()
 	}
-	if result.RowsAffected == 0 {
-		return errors.New("数据不存在")
-	}
-	return nil
 
+	// 2. 清理 Redis 中可能残留的验证码与冷却时间
+	_ = u.Rdb.Del(ctx, fmt.Sprintf("%d-reset_passwordVerificationCode", id)).Err()
+	_ = u.Rdb.Del(ctx, fmt.Sprintf("%d-CoolDown", id)).Err()
+
+	// 3. 事务删除该用户的 refresh_tokens 并软删除用户
+	return u.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", id).Delete(&model.RefreshToken{}).Error; err != nil {
+			return err
+		}
+		result := tx.Delete(&model.User{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("数据不存在")
+		}
+		return nil
+	})
 }

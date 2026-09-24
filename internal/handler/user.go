@@ -110,11 +110,11 @@ func (u *UserHandler) DeleteUser(c *gin.Context) {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
-	err := u.UserService.DeleteUser(id, req.UserID)
+	ctx := c.Request.Context()
+	err := u.UserService.DeleteUser(ctx, id, req.UserID)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
-
 	}
 	response.Success(c, nil)
 	return
