@@ -91,7 +91,8 @@ func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
-	res, err := u.UserService.BatchUserInfo(req, departmentID, roleID)
+	ctx := c.Request.Context()
+	res, err := u.UserService.BatchUserInfo(ctx, req, departmentID, roleID)
 	if err != nil {
 		if res == nil {
 			response.Fail(c, 400, err.Error(), nil)

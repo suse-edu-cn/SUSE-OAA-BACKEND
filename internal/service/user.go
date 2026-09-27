@@ -39,7 +39,7 @@ func NewUserService(
 	}
 }
 
-func (u *UserService) Register(req request.RegisterReq) error {
+func (u *UserService) Register(ctx context.Context, req request.RegisterReq) error {
 	req.StudentID = strings.TrimSpace(req.StudentID)
 	req.Username = strings.TrimSpace(req.Username)
 	req.Name = strings.TrimSpace(req.Name)
@@ -83,7 +83,7 @@ func (u *UserService) Register(req request.RegisterReq) error {
 	return nil
 }
 
-func (u *UserService) Login(req request.LoginReq, refreshTime uint) (model.User, string, error) {
+func (u *UserService) Login(ctx context.Context, req request.LoginReq, refreshTime uint) (model.User, string, error) {
 	user, err := u.Repo.FindUserByAccount(req.Account)
 	if err != nil {
 		return model.User{}, "", errors.New("获取用户信息失败")
@@ -91,7 +91,7 @@ func (u *UserService) Login(req request.LoginReq, refreshTime uint) (model.User,
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		return model.User{}, "", errors.New("密码错误")
 	}
-	refreshToken, err := u.SaveRefreshToken(user.ID, req.Device, refreshTime)
+	refreshToken, err := u.SaveRefreshToken(ctx, user.ID, req.Device, refreshTime)
 	if err != nil {
 		return model.User{}, "", err
 	}
@@ -128,26 +128,26 @@ func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, 
 
 	return u.File.ImgStorage.GeneratePresignedURL(ctx, defaultAvatar)
 }
-func (u *UserService) SaveRefreshToken(id uint64, device string, time uint) (string, error) {
+func (u *UserService) SaveRefreshToken(ctx context.Context, id uint64, device string, time uint) (string, error) {
 	token, err := utils.GetUUID()
 	if err != nil {
 		return "", errors.New("生成refresh_token失败")
 	}
-	err = u.Repo.SaveRefreshToken(id, device, token, time, context.Background())
+	err = u.Repo.SaveRefreshToken(id, device, token, time, ctx)
 	if err != nil {
 		return "", err
 	}
 	return token, nil
 }
-func (u *UserService) DeleteRefreshToken(id uint64, device string) error {
-	err := u.Repo.DeleteRefreshToken(id, device, context.Background())
+func (u *UserService) DeleteRefreshToken(ctx context.Context, id uint64, device string) error {
+	err := u.Repo.DeleteRefreshToken(id, device, ctx)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (u *UserService) GetRefreshToken(id uint64, device string) (string, error) {
-	token, err := u.Repo.GetRefreshToken(id, device, context.Background())
+func (u *UserService) GetRefreshToken(ctx context.Context, id uint64, device string) (string, error) {
+	token, err := u.Repo.GetRefreshToken(id, device, ctx)
 	if err != nil {
 		return "", err
 	}
@@ -185,7 +185,7 @@ func (u *UserService) FindUserByID(id uint64) (model.User, error) {
 	return u.Repo.FindUserById(id)
 }
 
-func (u *UserService) UpdatePassword(id uint64, oldPassword string, newPassword string) error {
+func (u *UserService) UpdatePassword(ctx context.Context, id uint64, oldPassword string, newPassword string) error {
 	user, err := u.Repo.FindUserById(id)
 	if err != nil {
 		return err
@@ -236,7 +236,7 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	return nil
 }
 
-func (u *UserService) SendVerificationCode(account string, types string) error {
+func (u *UserService) SendVerificationCode(ctx context.Context, account string, types string) error {
 	user, err := u.Repo.FindUserByAccount(account)
 	if err != nil {
 		return err
@@ -244,39 +244,39 @@ func (u *UserService) SendVerificationCode(account string, types string) error {
 	if user.Email == "" {
 		return errors.New("请先绑定邮箱")
 	}
-	if cooldown, err := u.Repo.CheckCooldown(user.ID, context.Background()); err != nil {
+	if cooldown, err := u.Repo.CheckCooldown(user.ID, ctx); err != nil {
 		return err
 	} else if cooldown {
 		return errors.New("间隔太短")
 	}
 	code := u.Email.NewVerificationCode(6)
 	expire := u.Email.GetExpireTime()
-	if err := u.Repo.SaveVerificationCode(user.ID, code, types, expire, context.Background()); err != nil {
+	if err := u.Repo.SaveVerificationCode(user.ID, code, types, expire, ctx); err != nil {
 		return err
 	}
 	if err := u.Email.SendVerificationCode(user.Email, code); err != nil {
 		return err
 	}
-	if err := u.Repo.SetCooldown(user.ID, u.Email.Cooldown, context.Background()); err != nil {
+	if err := u.Repo.SetCooldown(user.ID, u.Email.Cooldown, ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (u *UserService) ResetPassword(account string, code string, resetPassword string) error {
+func (u *UserService) ResetPassword(ctx context.Context, account string, code string, resetPassword string) error {
 	user, err := u.Repo.FindUserByAccount(account)
 	if err != nil {
 		return err
 	}
 	types := "reset_password"
-	verificationCode, err := u.Repo.GetVerificationCode(user.ID, types, context.Background())
+	verificationCode, err := u.Repo.GetVerificationCode(user.ID, types, ctx)
 	if err != nil {
 		return err
 	}
 	if verificationCode != code {
 		return errors.New("验证码错误或者失效")
 	}
-	if err := u.Repo.DeleteVerificationCode(user.ID, types, context.Background()); err != nil {
+	if err := u.Repo.DeleteVerificationCode(user.ID, types, ctx); err != nil {
 		return err
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte(resetPassword), bcrypt.DefaultCost)
@@ -289,7 +289,7 @@ func (u *UserService) ResetPassword(account string, code string, resetPassword s
 	return nil
 }
 
-func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID uint64, roleID uint64) ([]model.BatchUserInfo, error) {
+func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUserInfoReq, departmentID uint64, roleID uint64) ([]model.BatchUserInfo, error) {
 	var update []model.UpdateUserItems
 	var res []model.BatchUserInfo
 	status := make(map[uint64]bool)
@@ -392,7 +392,7 @@ func (u *UserService) BatchUserInfo(req []request.BatchUserInfoReq, departmentID
 		}
 	}
 	//将修改存入数据库
-	err = u.Repo.BatchUserInfoList(context.Background(), update)
+	err = u.Repo.BatchUserInfoList(ctx, update)
 	if err != nil {
 		return res, errors.New("存入修改失败")
 	}

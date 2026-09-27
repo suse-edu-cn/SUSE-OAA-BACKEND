@@ -6,12 +6,13 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis**，面向协�
 
 项目目前已完成以下核心模块：
 
-- **认证与账号安全**：注册、登录、刷新 Token、登出、修改密码、发送邮箱验证码、验证码重置密码
-- **用户模块**：当前用户信息、用户列表、更新用户资料、删除用户、批量修改部门 / 职位
-- **基础数据**：部门列表 / 新建 / 更新，职位列表 / 新建 / 更新
-- **公告模块**：创建、更新、推送、删除、按权限获取公告列表
-- **招新 / 换届模块**：周期创建 / 更新 / 删除 / 查询、申请表提交 / 更新 / 删除 / 查询、志愿下拉数据、面试官创建 / 更新 / 删除 / 查询、面试结果创建 / 更新 / 决策枚举查询 / 到期自动执行
-- **文件模块**：图片上传到对象存储并返回 `uri` 与临时访问链接
+- **认证与账号安全**：注册、登录、双存储 Cache-Aside 刷新 Token、登出、修改密码、发送邮箱验证码、验证码重置密码
+- **用户模块**：当前用户信息、用户列表（多条件分页筛选与头像预签名）、更新用户资料、删除用户（级联清理 Token）、权限防穿透批量修改部门与职位
+- **基础数据**：部门列表 / 新建 / 更新，职位列表 / 新建 / 更新，种子数据自动初始化
+- **公告模块**：创建、更新、推送、删除、按权限获取公告列表，富文本与 Markdown 中 `oss://` 链接自动解析预签名
+- **招新 / 换届模块**：周期创建 / 更新 / 删除 / 公开列表查询、申请表提交 / 更新 / 删除 / 查询、志愿下拉数据、面试官创建 / 更新 / 删除 / 查询、面试结果创建 / 更新 / 决策枚举查询 / 定时常驻任务到期自动执行
+- **文件与对象存储模块**：图片与通用文件上传、双端点（内网直连/公网签名）隔离、本地纯算离线预签名、文件后缀白名单校验
+- **系统底层架构**：全链路 HTTP Request Context 超时与取消透传，覆盖 MySQL (GORM)、Redis 及 MinIO
 
 ## 接口一览
 
@@ -48,7 +49,9 @@ Authorization: Bearer <token>
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
 | POST | `/v2/user/delete` | 删除用户 | JSON：`user_id` |
 
-> 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 返回时会转换成临时访问链接。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
+> - 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 和 `GET /v2/user/list` 返回时均会由后端自动转换为临时访问链接 `url`。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
+> - `GET /v2/user/list` 支持灵活筛选：`department` 和 `role` 参数既可传名称字符串也可传数字 ID；`page` 默认 `1`，`page_size` 默认 `20`（单页上限 `100`）；`is_all=true` 时可查看包括停用人员在内的全量名单。
+> - `POST /v2/user/delete` 仅允许副会长及以上（`level >= 80`）删除级别低于自己的用户，或本人注销自身。删除用户时触发**级联清理**，会一并作废该用户在 Redis 缓存与 MySQL `refresh_tokens` 表中全设备的所有 Refresh Token。
 
 ### Department（部门）
 
@@ -81,7 +84,8 @@ Authorization: Bearer <token>
 | GET | `/v2/announcement/get` | 获取公告详情 | Query：`announcement_id` 必填 |
 | POST | `/v2/announcement/delete` | 删除公告 | JSON：`announcement_id` |
 
-> 当前路由里没有单独的 `/v2/announcement/active` 和 `/v2/announcement/history`，请使用 `/v2/announcement/list?status=active` 或 `/v2/announcement/list?status=history`。
+> - 当前路由里没有单独的 `/v2/announcement/active` 和 `/v2/announcement/history`，请使用 `/v2/announcement/list?status=active` 或 `/v2/announcement/list?status=history`。
+> - 公告内容（Markdown 或 HTML）中支持直接嵌入内部对象路径（例如 `oss://oaa-img/announcement/xxx.png` 或 `oss://oaa-file/...`）。后端在返回列表详情时会自动扫描并批量生成带有效期的预签名公网 URL。
 
 ### Term（招新 / 换届周期）
 
@@ -89,12 +93,30 @@ Authorization: Bearer <token>
 |---|---|---|---|
 | POST | `/v2/term/create` | 创建周期 | JSON：`year`、`type`、`title`、`edit_period`、`query_period` |
 | POST | `/v2/term/update` | 更新周期 | JSON：`term_id`、`title`、`edit_period`、`query_period` |
-| GET | `/v2/term/list` | 周期列表 | Query：`year`、`type` 可选 |
+| GET | `/v2/term/list` | 周期列表（公开给所有登录用户） | Query：`year`、`type` 可选 |
 | POST | `/v2/term/delete` | 删除周期 | JSON：`term_id` |
 
-时间字段格式为日期字符串，后端会按 `Asia/Shanghai` 解析；`type` 目前只允许 `招新` 或 `换届`。
+时间字段格式为日期字符串（如 `2026-09-01`），后端会按 `Asia/Shanghai` 解析；`type` 目前只允许 `招新` 或 `换届`。
 
-`GET /v2/term/list` 的返回中，时间字段会按下面的结构返回：
+创建周期请求示例：
+
+```json
+{
+  "year": 2026,
+  "type": "招新",
+  "title": "2026年秋季招新",
+  "edit_period": {
+    "start_at": "2026-09-01",
+    "end_at": "2026-09-10"
+  },
+  "query_period": {
+    "start_at": "2026-09-11",
+    "end_at": "2026-09-20"
+  }
+}
+```
+
+`GET /v2/term/list` 返回示例：
 
 ```json
 {
@@ -118,28 +140,12 @@ Authorization: Bearer <token>
 }
 ```
 
+周期权限与删除规则：
 
-```json
-{
-  "year": 2026,
-  "type": "招新",
-  "title": "2026年秋季招新",
-  "edit_period": {
-    "start_at": "2026-09-01",
-    "end_at": "2026-09-10"
-  },
-  "query_period": {
-    "start_at": "2026-09-11",
-    "end_at": "2026-09-20"
-  }
-}
-```
-
-周期删除规则：
-
-- 只有高权限用户可以删除。
-- 已执行的周期不能删除。
-- 删除周期会在事务中一并软删除该周期下的申请表、面试官和面试结果。
+- `GET /v2/term/list` 面向所有登录用户开放，方便普通会员随时了解招新/换届时间表并参与申请。
+- 创建、更新与删除周期仅限高权限用户（`level >= 80`）。
+- 已执行完成的周期（`is_executed = true`）不能删除。
+- 删除周期会在数据库事务中一并软删除该周期下的申请表、面试官和面试结果。
 
 周期结果执行规则：
 
@@ -308,36 +314,55 @@ Authorization: Bearer <token>
 
 启动时自动初始化以下角色，权限通过 `level` 比较，不依赖固定数据库 ID：
 
-| 角色 | level | 类型 |
-|---|---:|---|
-| 开发者 | 100 | 协会 |
-| 会长 | 90 | 协会 |
-| 副会长 | 80 | 协会 |
-| 部长 | 60 | 部门 |
-| 副部长 | 50 | 部门 |
-| 干事 | 20 | 部门 |
-| 会员 | 10 | 协会 |
+| ID | 角色 | level | 类型 | 职责说明 |
+|---|---|---:|---|---|
+| 1 | 开发者 | 100 | 协会 | 系统维护与超级管理员 |
+| 2 | 会长 | 90 | 协会 | 协会最高负责人 |
+| 3 | 副会长 | 80 | 协会 | 协会主管负责人，拥有全量业务审批权限 |
+| 4 | 部长 | 60 | 部门 | 部门负责人，管理本部门内部日常事务 |
+| 5 | 副部长 | 50 | 部门 | 部门协助负责人 |
+| 6 | 干事 | 20 | 部门 | 部门日常执行成员 |
+| 7 | 会员 | 10 | 协会 | 普通会员，新用户注册后的默认角色 |
 
 ### 基础部门
 
-启动时自动初始化：
+启动时由系统自动初始化以下部门种子数据：
 
-- 算法竞赛部
-- 组织宣传部
-- 秘书处
-- 理事会
-- 项目实践部
-- 开放原子开源协会
+| ID | 部门名称 | 类型 | 说明 |
+|---|---|---|---|
+| 1 | 算法竞赛部 | 部门 | 负责算法日常培训、集训与各类竞赛组织 |
+| 2 | 组织宣传部 | 部门 | 负责协会宣传物料、新媒体运营与活动策划 |
+| 3 | 秘书处 | 部门 | 统筹文档、活动统筹、财务与协会行政事务 |
+| 4 | 理事会 | 部门 | 协会重大事项审议与指导机构 |
+| 5 | 项目实践部 | 部门 | 负责协会内外技术研发、工程落地与项目孵化 |
+| 6 | 开放原子开源协会 | 协会 | 协会顶层机构，新用户注册后默认归属 |
 
-### 批量修改规则
+### 权限级别阶梯说明
 
-`/v2/user/batch` 的规则是：
+- **高权限管理者（`level >= 80`：副会长、会长、开发者）**：
+  - 招新 / 换届周期的创建、修改与删除
+  - 面试官的批量添加、更新备注与移除
+  - 查看全协会所有部门的申请表与面试结果列表
+  - 跨部门批量调整人员部门与职位（可处理低于自身职位的用户）
+  - 用户账号删除与注销（仅能删除职位低于自身的用户）
+  - 查看所有部门的草稿公告、当前公告与历史归档公告
+- **部门管理者（`50 <= level < 80`：副部长、部长）**：
+  - 仅限调整本部门内部成员的职位（不可操作同级或更高职位的成员，严禁跨部门修改外部门成员）
+  - 查看本部门名下的申请表与面试结果
+  - 查看本部门内部的草稿公告与已发布公告
+- **普通成员（`level < 50`：干事、会员）**：
+  - 查看全协会已发布的公共公告
+  - 查看招新/换届周期开放列表，提交与更新个人的申请表，查询个人申请记录
 
-- 同一个 `user_id` 只处理第一次出现的记录。
-- 非法部门、职位或部门 / 职位类型不匹配时，会回填到失败项。
-- 当前操作者职位达到副会长及以上时，可跨部门处理。
-- 当前操作者职位低于副会长时，只能在本部门内修改为更低职位。
-- 成功响应中的 `data` 是未成功修改项数组；完全成功时通常为空数组。
+### 批量修改规则（`POST /v2/user/batch`）
+
+- **幂等去重**：同一批次请求中同一个 `user_id` 仅处理第一次出现的记录。
+- **状态检查**：操作者自身的职位或所属部门若处于停用状态（`is_active = false`），直接拒绝批量修改。
+- **防权限倒挂**：严禁修改同级或更高职位的用户（例如部长无法修改其他部长、副会长或会长）。
+- **防越权改派**：低于副会长的管理者（如部长），严禁跨部门修改其他部门的用户。
+- **防越权升迁**：严禁将目标用户的职位提升至同级或高于操作者当前的职位。
+- **组织架构类型校验**：部门与职位类型必须合法匹配（协会级职位只能归属于“开放原子开源协会”，部门级职位只能归属于各业务部门）。
+- **部分错误返回**：若有部分条目未通过校验，响应状态码为 `400`，`data` 数组中返回具体失败项及 `error_message` 详细原因。
 
 ### 公告可见性
 
@@ -346,32 +371,40 @@ Authorization: Bearer <token>
 - 职位等级 `>= 80`：可以看到全部公告，包括草稿。
 - 同一部门同时只有一条当前生效公告；推送新公告会使原公告变为历史公告。
 
-## Token 与验证码
+## Token 与系统架构
 
-### Refresh Token
+### Refresh Token 双存储与 Cache-Aside
 
-- 登录后生成 `refresh_token`，同时与 `user_id + device` 绑定保存。
-- 刷新 Token 时请求字段为 `refresh_token`、`user_id`、`device`。
-- 登录和刷新响应字段名均为 `refresh_token` 和 `token`。
-- 当前 JWT 生成逻辑使用配置 `jwt.expire_minute`，默认值 `20` 表示约 20 分钟。
+- **双写机制**：用户登录成功后生成 `refresh_token`，同时写入 Redis（键名：`<user_id>-<device>`，TTL 默认 15 天）并持久化到 MySQL `refresh_tokens` 表中。
+- **Cache-Aside 容灾回源**：调用 `POST /v2/auth/refresh` 刷新令牌时，优先读取 Redis 缓存；若 Redis 发生重启或缓存未命中，系统自动回源查询 MySQL 持久化表，验证通过后重新写回 Redis 缓存，保证服务高可用与零断连。
+- **级联失效**：用户登出时立即删除对应设备的 Redis 与 MySQL 记录；当用户被管理员删除（`POST /v2/user/delete`）时，系统自动清理该用户在所有设备上的全部 Refresh Token，杜绝幽灵会话。
+- **访问控制**：JWT Access Token 有效期由配置项 `jwt.expire_minute` 控制（默认 20 分钟）。
 
-### 验证码
+### 验证码频控与安全
 
-- 验证码存储在 Redis，支持过期和发送冷却。
-- `auth/send` 传入 `account` 和 `scene`；`password/reset` 传入 `account`、`code`、`password`。
-- 重置密码成功后验证码立即失效。
-- 重置密码接口支持直接设定新密码，经 bcrypt 加密后写入。
+- 验证码存储在 Redis，具备自动过期（默认 5 分钟）与发送冷却机制（默认 1 分钟）。
+- `POST /v2/auth/send` 传入 `account` 和 `scene`（支持通过用户名、学号或邮箱触发发送）。
+- `POST /v2/auth/password/reset` 重置密码成功后，Redis 验证码立即删除作废，并由后端使用 `bcrypt` 重新加密持久化新密码。
+
+### 全链路 Context 生命周期管理
+
+- **取消与超时穿透**：所有 HTTP 接口统一从 Gin 提取 `c.Request.Context()`，并深度贯穿 Service 层、Repository 层以及 MinIO 存储交互。
+- **底层协同**：
+  - 关系型数据库：GORM 事务与 SQL 执行统一挂载 `.WithContext(ctx)`。
+  - 缓存层：`go-redis/v9` 所有读写命令均绑定请求上下文。
+  - 对象存储：MinIO 文件的元数据获取与流上传/删除绑定请求上下文。
+- 当客户端提前关闭连接、断网或请求超时，服务端将立即感知并取消后续的数据库查询与网络 I/O，杜绝资源悬挂与死锁隐患。
 
 ## 技术栈
 
-- Go
-- Gin
-- GORM
-- MySQL
-- Redis
-- JWT
-- Gomail
-- bcrypt
+- **语言与核心运行时**：Go (1.23+)
+- **Web 框架**：Gin
+- **持久化 ORM**：GORM + MySQL
+- **内存缓存**：Redis (`github.com/redis/go-redis/v9`)
+- **对象存储**：MinIO SDK (`github.com/minio/minio-go/v7`)
+- **认证鉴权**：JWT (`github.com/golang-jwt/jwt/v5`)
+- **邮件服务**：Gomail (`gopkg.in/gomail.v2`)
+- **安全哈希**：`golang.org/x/crypto/bcrypt`
 
 ## 项目结构
 
@@ -536,8 +569,11 @@ go run ./cmd/main.go
 ### 4. 本地检查
 
 ```bash
-GOCACHE=/private/tmp/gocache go test ./...
-GOCACHE=/private/tmp/gocache go vet ./...
+go test ./...
+go vet ./...
+# 或直接使用 Makefile 目标：
+make vet
+make test
 ```
 
 ## 备注

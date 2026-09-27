@@ -31,7 +31,8 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
-	user, refreshToken, err := a.UserService.Login(req, a.JwtRefreshTime)
+	ctx := c.Request.Context()
+	user, refreshToken, err := a.UserService.Login(ctx, req, a.JwtRefreshTime)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
@@ -53,7 +54,8 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
-	refreshToken, err := a.UserService.GetRefreshToken(req.UserID, req.Device)
+	ctx := c.Request.Context()
+	refreshToken, err := a.UserService.GetRefreshToken(ctx, req.UserID, req.Device)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
@@ -85,7 +87,8 @@ func (a *AuthHandler) Register(c *gin.Context) {
 		response.Fail(c, 400, "获取json失败", nil)
 		return
 	}
-	if err := a.UserService.Register(req); err != nil {
+	ctx := c.Request.Context()
+	if err := a.UserService.Register(ctx, req); err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
@@ -99,8 +102,9 @@ func (a *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
+	ctx := c.Request.Context()
 
-	err := a.UserService.DeleteRefreshToken(id, req.Device)
+	err := a.UserService.DeleteRefreshToken(ctx, id, req.Device)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
@@ -115,7 +119,8 @@ func (a *AuthHandler) UpdatePassword(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	err := a.UserService.UpdatePassword(id, req.OldPassword, req.NewPassword)
+	ctx := c.Request.Context()
+	err := a.UserService.UpdatePassword(ctx, id, req.OldPassword, req.NewPassword)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
@@ -129,7 +134,8 @@ func (a *AuthHandler) SendVerificationCode(c *gin.Context) {
 		return
 	}
 
-	err := a.UserService.SendVerificationCode(req.Account, req.Scene)
+	ctx := c.Request.Context()
+	err := a.UserService.SendVerificationCode(ctx, req.Account, req.Scene)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
@@ -145,7 +151,8 @@ func (a *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	err := a.UserService.ResetPassword(req.Account, req.Code, req.Password)
+	ctx := c.Request.Context()
+	err := a.UserService.ResetPassword(ctx, req.Account, req.Code, req.Password)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return

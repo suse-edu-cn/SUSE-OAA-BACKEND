@@ -161,7 +161,7 @@ func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string
 		Token:  token,
 		UserID: id,
 	}
-	err1 := u.DB.Where(model.RefreshToken{UserID: id, Device: device}).
+	err1 := u.DB.WithContext(ctx).Where(model.RefreshToken{UserID: id, Device: device}).
 		Assign(model.RefreshToken{Token: token}).
 		FirstOrCreate(&res).Error
 	if err1 != nil {
@@ -176,7 +176,7 @@ func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx contex
 	if err != nil {
 		return errors.New("redis删除失败")
 	}
-	err1 := u.DB.Where("user_id = ? AND device = ? ", id, device).Delete(&model.RefreshToken{}).Error
+	err1 := u.DB.WithContext(ctx).Where("user_id = ? AND device = ? ", id, device).Delete(&model.RefreshToken{}).Error
 	if err1 != nil {
 		return errors.New("refresh表删除失败")
 	}
