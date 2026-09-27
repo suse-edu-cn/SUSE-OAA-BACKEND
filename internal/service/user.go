@@ -437,16 +437,19 @@ func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint6
 	return nil
 }
 func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64) error {
-	level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(id)
-	if err != nil {
-		return err
-	}
-	userLevel, _, err := u.Repo.GetRoleLevelAndDepartment(userID)
-	if err != nil {
-		return err
-	}
-	if level < 80 || userLevel >= level {
-		return errors.New("权限不够")
+	var err error
+	if id != userID {
+		level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(id)
+		if err != nil {
+			return err
+		}
+		userLevel, _, err := u.Repo.GetRoleLevelAndDepartment(userID)
+		if err != nil {
+			return err
+		}
+		if level < 80 || userLevel >= level {
+			return errors.New("权限不够")
+		}
 	}
 	err = u.Repo.DeleteUserByID(userID, ctx)
 	if err != nil {
