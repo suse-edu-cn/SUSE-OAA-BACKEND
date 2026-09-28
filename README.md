@@ -51,7 +51,12 @@ Authorization: Bearer <token>
 
 > - 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 和 `GET /v2/user/list` 返回时均会由后端自动转换为临时访问链接 `url`。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
 > - `GET /v2/user/list` 支持灵活筛选：`department` 和 `role` 参数既可传名称字符串也可传数字 ID；`page` 默认 `1`，`page_size` 默认 `20`（单页上限 `100`）；`is_all=true` 时可查看包括停用人员在内的全量名单。
-> - `POST /v2/user/delete` 仅允许副会长及以上（`level >= 80`）删除级别低于自己的用户，或本人注销自身。删除用户时触发**级联清理**，会一并作废该用户在 Redis 缓存与 MySQL `refresh_tokens` 表中全设备的所有 Refresh Token。
+> - `POST /v2/user/delete` 权限与注销规则：
+>   - **本人自主注销**：进入**注销冷静期**（常量 `UserDeletionGracePeriod = 24h`，目前为 1 天）。首次请求标记注销到期时间，返回 `200`（`{"code": 200, "message": "success", "data": null}`）；冷静期内账号权益与正常用户完全一致。
+>   - **冷静期内重复请求**：返回 `400`，`message` 为 `"账号处于冷静期"`，`data` 返回到期彻底注销的时间（格式为 `YYYY-MM-DD HH:mm:ss`，如 `{"code": 400, "message": "账号处于冷静期", "data": "2026-09-29 15:27:00"}`）。
+>   - **到期自动执行**：倒计时结束后由后台定时任务（每分钟轮询）或用户再次请求时自动彻底删除（再次请求若已过冷静期直接返回 `200` 成功）。
+>   - **管理员强制删除**：副会长及以上（`level >= 80`）可直接删除级别低于自身的用户，无需等待冷静期，立即执行级联删除，返回 `200`。
+>   - **级联清理**：账号彻底删除时触发级联清理，同步清除该用户在 Redis 缓存与 MySQL `refresh_tokens` 表中全设备的所有 Refresh Token，并清理可能残留的验证码与冷却标记。
 
 ### Department（部门）
 

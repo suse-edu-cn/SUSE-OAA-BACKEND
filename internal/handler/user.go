@@ -3,6 +3,8 @@ package handler
 import (
 	"strconv"
 	"strings"
+	"time"
+
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
 	"suseoaa/pkg/response"
@@ -112,9 +114,13 @@ func (u *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	err := u.UserService.DeleteUser(ctx, id, req.UserID)
+	scheduledDeleteAt, err := u.UserService.DeleteUser(ctx, id, req.UserID)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
+		return
+	}
+	if scheduledDeleteAt != nil {
+		response.Fail(c, 400, "账号处于冷静期", scheduledDeleteAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05"))
 		return
 	}
 	response.Success(c, nil)

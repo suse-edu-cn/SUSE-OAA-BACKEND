@@ -48,6 +48,7 @@ func main() {
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo, fileService)
 	termService := service.NewTermService(termRepo, userService)
 	go termService.StartInterviewResultExecutor(context.Background())
+	go userService.StartUserDeletionExecutor(context.Background())
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(

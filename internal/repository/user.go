@@ -92,6 +92,7 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	info.StudentID = user.StudentID
 	info.Avatar.URI = user.Avatar
 	info.RoleLevel = user.Role.Level
+	info.ScheduledDeleteAt = user.ScheduledDeleteAt
 	return info, nil
 }
 func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {
@@ -442,4 +443,16 @@ func (u *UserRepository) DeleteUserByID(id uint64, ctx context.Context) error {
 		}
 		return nil
 	})
+}
+
+func (u *UserRepository) SetScheduledDeleteAt(ctx context.Context, id uint64, scheduledDeleteAt *time.Time) error {
+	return u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Update("scheduled_delete_at", scheduledDeleteAt).Error
+}
+
+func (u *UserRepository) GetDueScheduledDeleteUsers(ctx context.Context, now time.Time) ([]model.User, error) {
+	var users []model.User
+	err := u.DB.WithContext(ctx).
+		Where("scheduled_delete_at IS NOT NULL AND scheduled_delete_at <= ?", now).
+		Find(&users).Error
+	return users, err
 }

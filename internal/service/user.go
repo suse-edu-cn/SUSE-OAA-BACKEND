@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
+	"time"
+
 	"suseoaa/internal/storage"
 	"suseoaa/pkg/utils"
 
@@ -436,24 +439,103 @@ func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint6
 	}
 	return nil
 }
-func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64) error {
-	var err error
+
+// UserDeletionGracePeriod 账户注销冷静期常量（目前为 1 天）
+const UserDeletionGracePeriod = 24 * time.Hour
+
+func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64) (*time.Time, error) {
 	if id != userID {
 		level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		userLevel, _, err := u.Repo.GetRoleLevelAndDepartment(userID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if level < 80 || userLevel >= level {
-			return errors.New("权限不够")
+			return nil, errors.New("权限不够")
+		}
+
+		// 管理员直接删除其他用户（直接执行物理软删除与Token级联清理，不设冷静期）
+		if err := u.Repo.DeleteUserByID(userID, ctx); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	// 用户本人自主注销：走冷静期流程
+	user, err := u.Repo.FindUserById(userID)
+	if err != nil {
+		return nil, errors.New("获取用户信息失败: " + err.Error())
+	}
+
+	now := time.Now()
+	// 首次发起注销：进入冷静期，返回 nil, nil（Handler 返回 200 success data: null）
+	if user.ScheduledDeleteAt == nil {
+		scheduledAt := now.Add(UserDeletionGracePeriod)
+		if err := u.Repo.SetScheduledDeleteAt(ctx, userID, &scheduledAt); err != nil {
+			return nil, errors.New("设置注销冷静期失败: " + err.Error())
+		}
+		return nil, nil
+	}
+
+	// 已经在冷静期内：检查倒计时
+	remaining := user.ScheduledDeleteAt.Sub(now)
+	if remaining > 0 {
+		// 返回冷静期截止时间，供 Handler 返回 400 及注销时间
+		return user.ScheduledDeleteAt, nil
+	}
+
+	// 冷静期倒计时已结束：立即彻底注销删除
+	if err := u.Repo.DeleteUserByID(userID, ctx); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (u *UserService) StartUserDeletionExecutor(ctx context.Context) {
+	u.executeDueUserDeletionsAndLog(ctx)
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			u.executeDueUserDeletionsAndLog(ctx)
 		}
 	}
-	err = u.Repo.DeleteUserByID(userID, ctx)
+}
+
+func (u *UserService) ExecuteDueUserDeletions(ctx context.Context) (int, error) {
+	now := time.Now()
+	users, err := u.Repo.GetDueScheduledDeleteUsers(ctx, now)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+
+	deleted := 0
+	var errs []error
+	for _, user := range users {
+		if err := u.Repo.DeleteUserByID(user.ID, ctx); err != nil {
+			errs = append(errs, fmt.Errorf("user_id=%d 注销失败: %w", user.ID, err))
+			continue
+		}
+		deleted++
+	}
+
+	return deleted, errors.Join(errs...)
+}
+
+func (u *UserService) executeDueUserDeletionsAndLog(ctx context.Context) {
+	deleted, err := u.ExecuteDueUserDeletions(ctx)
+	if deleted > 0 {
+		log.Printf("已自动执行注销到期用户数量: %d", deleted)
+	}
+	if err != nil {
+		log.Printf("执行到期用户自动注销失败: %v", err)
+	}
 }
