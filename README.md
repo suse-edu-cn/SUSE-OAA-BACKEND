@@ -30,7 +30,7 @@ Authorization: Bearer <token>
 | POST | `/v2/auth/login` | 登录（公开） | JSON：`account`、`password`、`device` |
 | POST | `/v2/auth/refresh` | 刷新 Token（公开） | JSON：`refresh_token`、`user_id`、`device` |
 | POST | `/v2/auth/logout` | 登出 | JSON：`device` |
-| POST | `/v2/auth/send` | 发送邮箱验证码（公开） | JSON：`account`、`scene` |
+| POST | `/v2/auth/send` | 发送邮箱验证码（公开） | JSON：`account`、`scene`（如 `reset_password`、`cancel_user`） |
 
 ### Password（密码）
 
@@ -48,6 +48,7 @@ Authorization: Bearer <token>
 | POST | `/v2/user/me/update` | 更新当前用户资料 | JSON：`username`、`email`、`avatar` |
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
 | POST | `/v2/user/delete` | 删除用户 | JSON：`user_id` |
+| POST | `/v2/user/delete/cancel` | 取消注销冷静期（本人） | JSON：`code` |
 
 > - 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 和 `GET /v2/user/list` 返回时均会由后端自动转换为临时访问链接 `url`。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
 > - `GET /v2/user/list` 支持灵活筛选：`department` 和 `role` 参数既可传名称字符串也可传数字 ID；`page` 默认 `1`，`page_size` 默认 `20`（单页上限 `100`）；`is_all=true` 时可查看包括停用人员在内的全量名单。
@@ -57,6 +58,10 @@ Authorization: Bearer <token>
 >   - **到期自动执行**：倒计时结束后由后台定时任务（每分钟轮询）或用户再次请求时自动彻底删除（再次请求若已过冷静期直接返回 `200` 成功）。
 >   - **管理员强制删除**：副会长及以上（`level >= 80`）可直接删除级别低于自身的用户，无需等待冷静期，立即执行级联删除，返回 `200`。
 >   - **级联清理**：账号彻底删除时触发级联清理，同步清除该用户在 Redis 缓存与 MySQL `refresh_tokens` 表中全设备的所有 Refresh Token，并清理可能残留的验证码与冷却标记。
+> - `POST /v2/user/delete/cancel` 取消注销冷静期：
+>   - **严格本人操作**：从 JWT 鉴权直接获取当前登录用户 ID，仅允许本人取消自己的注销状态。
+>   - **邮箱验证码确认**：需先通过 `POST /v2/auth/send` 发送 `scene = "cancel_user"` 的邮箱验证码（服务端发信前会校验账号是否处于冷静期中）；请求时仅需传递 `{"code": "验证码"}`。
+>   - **状态恢复**：验证码校验通过后立即清除验证码，并将 `scheduled_delete_at` 重置为 `NULL`，恢复为正常账号，返回 `200`（`{"code": 200, "message": "success", "data": null}`）。
 
 ### Department（部门）
 

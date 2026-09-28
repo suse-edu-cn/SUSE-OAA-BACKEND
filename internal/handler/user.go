@@ -126,3 +126,19 @@ func (u *UserHandler) DeleteUser(c *gin.Context) {
 	response.Success(c, nil)
 	return
 }
+
+func (u *UserHandler) CancelDeleteUser(c *gin.Context) {
+	id := c.GetUint64("user_id")
+	var req request.CancelDeleteUserReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "获取json失败", nil)
+		return
+	}
+	ctx := c.Request.Context()
+	if err := u.UserService.CancelDeleteUser(ctx, id, req.Code); err != nil {
+		response.Fail(c, 400, err.Error(), nil)
+		return
+	}
+	response.Success(c, nil)
+}
+

@@ -247,6 +247,14 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 	if user.Email == "" {
 		return errors.New("请先绑定邮箱")
 	}
+	if types == "cancel_user" {
+		if user.ScheduledDeleteAt == nil {
+			return errors.New("当前账号未处于注销冷静期")
+		}
+		if time.Now().After(*user.ScheduledDeleteAt) {
+			return errors.New("注销冷静期已结束")
+		}
+	}
 	if cooldown, err := u.Repo.CheckCooldown(user.ID, ctx); err != nil {
 		return err
 	} else if cooldown {
@@ -492,6 +500,34 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64) 
 		return nil, err
 	}
 	return nil, nil
+}
+
+func (u *UserService) CancelDeleteUser(ctx context.Context, userID uint64, code string) error {
+	user, err := u.Repo.FindUserById(userID)
+	if err != nil {
+		return errors.New("获取用户信息失败: " + err.Error())
+	}
+	if user.ScheduledDeleteAt == nil {
+		return errors.New("当前账号未处于注销冷静期")
+	}
+	if time.Now().After(*user.ScheduledDeleteAt) {
+		return errors.New("注销冷静期已结束，无法取消")
+	}
+
+	const scene = "cancel_user"
+	verificationCode, err := u.Repo.GetVerificationCode(userID, scene, ctx)
+	if err != nil || verificationCode != code {
+		return errors.New("验证码错误或已失效")
+	}
+
+	if err := u.Repo.DeleteVerificationCode(userID, scene, ctx); err != nil {
+		log.Printf("删除取消注销验证码失败, user_id=%d, err=%v", userID, err)
+	}
+
+	if err := u.Repo.SetScheduledDeleteAt(ctx, userID, nil); err != nil {
+		return errors.New("取消注销冷静期失败: " + err.Error())
+	}
+	return nil
 }
 
 func (u *UserService) StartUserDeletionExecutor(ctx context.Context) {
