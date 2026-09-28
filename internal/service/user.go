@@ -247,12 +247,17 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 	if user.Email == "" {
 		return errors.New("请先绑定邮箱")
 	}
-	if types == "cancel_user" {
+	if types == "cancel_delete" {
 		if user.ScheduledDeleteAt == nil {
 			return errors.New("当前账号未处于注销冷静期")
 		}
 		if time.Now().After(*user.ScheduledDeleteAt) {
 			return errors.New("注销冷静期已结束")
+		}
+	}
+	if types == "delete_user" {
+		if user.ScheduledDeleteAt != nil && time.Now().Before(*user.ScheduledDeleteAt) {
+			return errors.New("账号已处于注销冷静期")
 		}
 	}
 	if cooldown, err := u.Repo.CheckCooldown(user.ID, ctx); err != nil {
@@ -451,8 +456,18 @@ func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint6
 // UserDeletionGracePeriod 账户注销冷静期常量（目前为 1 天）
 const UserDeletionGracePeriod = 24 * time.Hour
 
-func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64) (*time.Time, error) {
-	if id != userID {
+func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, code string) (*time.Time, error) {
+	// 互斥校验：两个字段不能同时有参数
+	if userID != 0 && code != "" {
+		return nil, errors.New("参数错误：user_id 与 code 不能同时传递")
+	}
+
+	// 场景 1：仅传递 user_id（此时 code 为空） -> 管理员删除其他用户
+	if userID != 0 {
+		if userID == id {
+			return nil, errors.New("注销本人账号请提供验证码，或留空查询冷静期")
+		}
+
 		level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(id)
 		if err != nil {
 			return nil, err
@@ -472,32 +487,47 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64) 
 		return nil, nil
 	}
 
-	// 用户本人自主注销：走冷静期流程
-	user, err := u.Repo.FindUserById(userID)
+	// 场景 2 & 3：本人操作（userID 为 0）
+	user, err := u.Repo.FindUserById(id)
 	if err != nil {
 		return nil, errors.New("获取用户信息失败: " + err.Error())
 	}
 
 	now := time.Now()
-	// 首次发起注销：进入冷静期，返回 nil, nil（Handler 返回 200 success data: null）
-	if user.ScheduledDeleteAt == nil {
-		scheduledAt := now.Add(UserDeletionGracePeriod)
-		if err := u.Repo.SetScheduledDeleteAt(ctx, userID, &scheduledAt); err != nil {
-			return nil, errors.New("设置注销冷静期失败: " + err.Error())
+	// 已经在冷静期内：检查倒计时（无论传了 code 还是两个都空，都返回冷静期倒计时）
+	if user.ScheduledDeleteAt != nil {
+		remaining := user.ScheduledDeleteAt.Sub(now)
+		if remaining > 0 {
+			// 返回冷静期截止时间，供 Handler 返回 400 及注销时间
+			return user.ScheduledDeleteAt, nil
+		}
+
+		// 冷静期倒计时已结束：立即彻底注销删除
+		if err := u.Repo.DeleteUserByID(id, ctx); err != nil {
+			return nil, err
 		}
 		return nil, nil
 	}
 
-	// 已经在冷静期内：检查倒计时
-	remaining := user.ScheduledDeleteAt.Sub(now)
-	if remaining > 0 {
-		// 返回冷静期截止时间，供 Handler 返回 400 及注销时间
-		return user.ScheduledDeleteAt, nil
+	// 未在冷静期内：
+	// 场景 3：两个都为空（userID == 0 且 code == ""） -> 查询冷静期，但账号并未处于冷静期
+	if code == "" {
+		return nil, errors.New("当前账号未处于注销冷静期")
 	}
 
-	// 冷静期倒计时已结束：立即彻底注销删除
-	if err := u.Repo.DeleteUserByID(userID, ctx); err != nil {
-		return nil, err
+	// 场景 2：仅传递 code（首次申请注销） -> 校验验证码并进入冷静期
+	const scene = "delete_user"
+	verificationCode, err := u.Repo.GetVerificationCode(id, scene, ctx)
+	if err != nil || verificationCode != code {
+		return nil, errors.New("验证码错误或已失效")
+	}
+	if err := u.Repo.DeleteVerificationCode(id, scene, ctx); err != nil {
+		log.Printf("删除注销验证码失败, user_id=%d, err=%v", id, err)
+	}
+
+	scheduledAt := now.Add(UserDeletionGracePeriod)
+	if err := u.Repo.SetScheduledDeleteAt(ctx, id, &scheduledAt); err != nil {
+		return nil, errors.New("设置注销冷静期失败: " + err.Error())
 	}
 	return nil, nil
 }
@@ -514,7 +544,7 @@ func (u *UserService) CancelDeleteUser(ctx context.Context, userID uint64, code 
 		return errors.New("注销冷静期已结束，无法取消")
 	}
 
-	const scene = "cancel_user"
+	const scene = "cancel_delete"
 	verificationCode, err := u.Repo.GetVerificationCode(userID, scene, ctx)
 	if err != nil || verificationCode != code {
 		return errors.New("验证码错误或已失效")

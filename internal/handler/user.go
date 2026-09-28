@@ -114,7 +114,7 @@ func (u *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	scheduledDeleteAt, err := u.UserService.DeleteUser(ctx, id, req.UserID)
+	scheduledDeleteAt, err := u.UserService.DeleteUser(ctx, id, req.UserID, req.Code)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return

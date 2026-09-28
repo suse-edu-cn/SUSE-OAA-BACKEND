@@ -30,7 +30,7 @@ Authorization: Bearer <token>
 | POST | `/v2/auth/login` | 登录（公开） | JSON：`account`、`password`、`device` |
 | POST | `/v2/auth/refresh` | 刷新 Token（公开） | JSON：`refresh_token`、`user_id`、`device` |
 | POST | `/v2/auth/logout` | 登出 | JSON：`device` |
-| POST | `/v2/auth/send` | 发送邮箱验证码（公开） | JSON：`account`、`scene`（如 `reset_password`、`cancel_user`） |
+| POST | `/v2/auth/send` | 发送邮箱验证码（公开） | JSON：`account`、`scene`（如 `reset_password`、`delete_user`、`cancel_delete`） |
 
 ### Password（密码）
 
@@ -47,20 +47,24 @@ Authorization: Bearer <token>
 | GET | `/v2/user/list` | 用户列表（分页和筛选） | Query：`keyword`、`department_id`、`role_id`、`department`、`role`、`page`、`page_size`、`is_all` |
 | POST | `/v2/user/me/update` | 更新当前用户资料 | JSON：`username`、`email`、`avatar` |
 | POST | `/v2/user/batch` | 批量修改用户部门和职位 | JSON 数组：每项包含 `user_id`、`department_id`、`role_id` |
-| POST | `/v2/user/delete` | 删除用户 | JSON：`user_id` |
+| POST | `/v2/user/delete` | 删除/注销/查询注销 | JSON：`user_id`（可选）、`code`（可选，二者互斥） |
 | POST | `/v2/user/delete/cancel` | 取消注销冷静期（本人） | JSON：`code` |
 
 > - 用户资料里的 `avatar` 字段存的是对象存储中的资源路径；`GET /v2/user/me` 和 `GET /v2/user/list` 返回时均会由后端自动转换为临时访问链接 `url`。若当前头像缺失或失效，后端会回退到默认头像 `avatar/default.png`。
 > - `GET /v2/user/list` 支持灵活筛选：`department` 和 `role` 参数既可传名称字符串也可传数字 ID；`page` 默认 `1`，`page_size` 默认 `20`（单页上限 `100`）；`is_all=true` 时可查看包括停用人员在内的全量名单。
 > - `POST /v2/user/delete` 权限与注销规则：
->   - **本人自主注销**：进入**注销冷静期**（常量 `UserDeletionGracePeriod = 24h`，目前为 1 天）。首次请求标记注销到期时间，返回 `200`（`{"code": 200, "message": "success", "data": null}`）；冷静期内账号权益与正常用户完全一致。
->   - **冷静期内重复请求**：返回 `400`，`message` 为 `"账号处于冷静期"`，`data` 返回到期彻底注销的时间（格式为 `YYYY-MM-DD HH:mm:ss`，如 `{"code": 400, "message": "账号处于冷静期", "data": "2026-09-29 15:27:00"}`）。
->   - **到期自动执行**：倒计时结束后由后台定时任务（每分钟轮询）或用户再次请求时自动彻底删除（再次请求若已过冷静期直接返回 `200` 成功）。
->   - **管理员强制删除**：副会长及以上（`level >= 80`）可直接删除级别低于自身的用户，无需等待冷静期，立即执行级联删除，返回 `200`。
+>   - **字段互斥规则**：`user_id` 和 `code` 只能其中一个有值，或者两者皆为空。**严禁同时传递**，否则直接返回 400（`"参数错误：user_id 与 code 不能同时传递"`）。
+>   - **场景 1：管理员强制删除他人**（传 `{"user_id": 目标ID}`，`code` 为空）：副会长及以上（`level >= 80`）可直接删除级别低于自身的用户，无需验证码与冷静期，立即执行级联删除，返回 `200`。
+>   - **场景 2：本人首次申请注销**（传 `{"code": "验证码"}`，`user_id` 为空）：必须提供 `code`（先通过 `POST /v2/auth/send` 发送 `scene = "delete_user"` 的验证码，若已处于冷静期发信接口会直接拦截）。验证码通过后进入**注销冷静期**（常量 `UserDeletionGracePeriod = 24h`，目前为 1 天），返回 `200`（`{"code": 200, "message": "success", "data": null}`）；冷静期内账号权益与正常用户完全一致。
+>   - **场景 3：查询本人冷静期状态**（传 `{}` 或 `{"code": ""}`，两者皆为空）：
+>     - 若账号**处于冷静期内**：返回 `400`，`message` 为 `"账号处于冷静期"`，`data` 返回到期彻底注销的时间（格式为 `YYYY-MM-DD HH:mm:ss`，如 `{"code": 400, "message": "账号处于冷静期", "data": "2026-09-29 15:27:00"}`）。
+>     - 若账号**未处于冷静期**：返回 `400`，`message` 为 `"当前账号未处于注销冷静期"`。
+>     - 若账号**冷静期已到期**：立即执行彻底注销删除，返回 `200`。
+>   - **到期自动执行**：倒计时结束后由后台定时任务（每分钟轮询）或用户再次请求时自动彻底删除。
 >   - **级联清理**：账号彻底删除时触发级联清理，同步清除该用户在 Redis 缓存与 MySQL `refresh_tokens` 表中全设备的所有 Refresh Token，并清理可能残留的验证码与冷却标记。
 > - `POST /v2/user/delete/cancel` 取消注销冷静期：
 >   - **严格本人操作**：从 JWT 鉴权直接获取当前登录用户 ID，仅允许本人取消自己的注销状态。
->   - **邮箱验证码确认**：需先通过 `POST /v2/auth/send` 发送 `scene = "cancel_user"` 的邮箱验证码（服务端发信前会校验账号是否处于冷静期中）；请求时仅需传递 `{"code": "验证码"}`。
+>   - **邮箱验证码确认**：需先通过 `POST /v2/auth/send` 发送 `scene = "cancel_delete"` 的邮箱验证码（服务端发信前会校验账号是否处于冷静期中）；请求时仅需传递 `{"code": "验证码"}`。
 >   - **状态恢复**：验证码校验通过后立即清除验证码，并将 `scheduled_delete_at` 重置为 `NULL`，恢复为正常账号，返回 `200`（`{"code": 200, "message": "success", "data": null}`）。
 
 ### Department（部门）
