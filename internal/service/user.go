@@ -52,7 +52,6 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 		return errors.New("注册信息不能为空")
 	}
 
-	// 传入 req.Username 校验
 	if err := u.Repo.CheckExist(req.StudentID, req.Email, req.Username); err != nil {
 		return err
 	}
@@ -232,8 +231,6 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	}
 
 	if err = u.File.ImgStorage.DeleteFile(ctx, oldAvatar); err != nil {
-		// 头像更新已经成功，旧头像清理失败不应影响主流程。
-		// 这里保留日志级别的错误信息，方便后续排查 MinIO/对象路径问题。
 		log.Printf("删除旧头像失败, user_id=%d, avatar=%s, err=%v", id, oldAvatar, err)
 	}
 	return nil
@@ -260,20 +257,23 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 			return errors.New("账号已处于注销冷静期")
 		}
 	}
-	if cooldown, err := u.Repo.CheckCooldown(user.ID, ctx); err != nil {
+	acquired, err := u.Repo.SetCooldownNX(user.ID, u.Email.Cooldown, ctx)
+	if err != nil {
 		return err
-	} else if cooldown {
+	}
+	if !acquired {
 		return errors.New("间隔太短")
 	}
+
 	code := u.Email.NewVerificationCode(6)
 	expire := u.Email.GetExpireTime()
 	if err := u.Repo.SaveVerificationCode(user.ID, code, types, expire, ctx); err != nil {
+		_ = u.Repo.DeleteCooldown(user.ID, ctx)
 		return err
 	}
 	if err := u.Email.SendVerificationCode(user.Email, code); err != nil {
-		return err
-	}
-	if err := u.Repo.SetCooldown(user.ID, u.Email.Cooldown, ctx); err != nil {
+		_ = u.Repo.DeleteCooldown(user.ID, ctx)
+		_ = u.Repo.DeleteVerificationCode(user.ID, types, ctx)
 		return err
 	}
 	return nil

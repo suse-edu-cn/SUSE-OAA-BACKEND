@@ -304,6 +304,20 @@ func (u *UserRepository) SetCooldown(id uint64, cooldown time.Duration, ctx cont
 	return nil
 }
 
+func (u *UserRepository) SetCooldownNX(id uint64, cooldown time.Duration, ctx context.Context) (bool, error) {
+	key := fmt.Sprintf("%d-CoolDown", id)
+	success, err := u.Rdb.SetNX(ctx, key, "cooldown", cooldown).Result()
+	if err != nil {
+		return false, errors.New("设置冷却时间失败: " + err.Error())
+	}
+	return success, nil
+}
+
+func (u *UserRepository) DeleteCooldown(id uint64, ctx context.Context) error {
+	key := fmt.Sprintf("%d-CoolDown", id)
+	return u.Rdb.Del(ctx, key).Err()
+}
+
 func (u *UserRepository) CheckCooldown(id uint64, ctx context.Context) (bool, error) {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	_, err := u.Rdb.Get(ctx, key).Result()
