@@ -3,6 +3,8 @@ package database
 import (
 	"fmt"
 	"log"
+	"time"
+
 	"suseoaa/internal/config"
 	"suseoaa/internal/model"
 
@@ -22,6 +24,31 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		panic(fmt.Sprintf("获取底层 sql.DB 失败: %v", err))
+	}
+	maxOpen := cfg.MaxOpenConns
+	if maxOpen <= 0 {
+		maxOpen = 100 // 默认兜底
+	}
+	maxIdle := cfg.MaxIdleConns
+	if maxIdle <= 0 {
+		maxIdle = 25 // 默认兜底
+	}
+	lifetime := time.Duration(cfg.ConnMaxLifetimeMinute) * time.Minute
+	if lifetime <= 0 {
+		lifetime = time.Hour
+	}
+	idleTime := time.Duration(cfg.ConnMaxIdleTimeMinute) * time.Minute
+	if idleTime <= 0 {
+		idleTime = 10 * time.Minute
+	}
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetConnMaxLifetime(lifetime)
+	sqlDB.SetConnMaxIdleTime(idleTime)
 	err = db.AutoMigrate(&model.User{},
 		&model.Department{},
 		&model.RefreshToken{},
