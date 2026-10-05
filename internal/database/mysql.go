@@ -20,7 +20,9 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 		cfg.Port,
 		cfg.Database,
 	)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		panic(err)
 	}
