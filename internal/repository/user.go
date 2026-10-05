@@ -23,19 +23,19 @@ func NewUserRepository(db *gorm.DB, rdb *redis.Client) *UserRepository {
 	}
 }
 
-func (u *UserRepository) CreateUser(user model.User) error {
-	return u.DB.Create(&user).Error
+func (u *UserRepository) CreateUser(ctx context.Context, user model.User) error {
+	return u.DB.WithContext(ctx).Create(&user).Error
 }
 
-func (u *UserRepository) FindUserByAccount(message string) (model.User, error) {
+func (u *UserRepository) FindUserByAccount(ctx context.Context, message string) (model.User, error) {
 	var user model.User
-	err := u.DB.Model(&model.User{}).Where("username = ? or email = ? or student_id = ? ", message, message, message).First(&user).Error
+	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("username = ? or email = ? or student_id = ? ", message, message, message).First(&user).Error
 	return user, err
 }
 
-func (u *UserRepository) CheckExist(studentId string, email string, username string) error {
+func (u *UserRepository) CheckExist(ctx context.Context, studentId string, email string, username string) error {
 	var num int64
-	err := u.DB.Model(&model.User{}).
+	err := u.DB.WithContext(ctx).Model(&model.User{}).
 		Where("email = ? OR student_id = ? OR username = ?", email, studentId, username).
 		Count(&num).Error
 	if err != nil {
@@ -47,21 +47,22 @@ func (u *UserRepository) CheckExist(studentId string, email string, username str
 	return nil
 }
 
-func (u *UserRepository) FindUserById(id uint64) (model.User, error) {
+func (u *UserRepository) FindUserById(ctx context.Context, id uint64) (model.User, error) {
 	var user model.User
-	err := u.DB.Where("id = ?", id).First(&user).Error
+	err := u.DB.WithContext(ctx).Where("id = ?", id).First(&user).Error
 	return user, err
 }
-func (u *UserRepository) ResetPassword(id uint64, password string) error {
-	err := u.DB.Model(&model.User{}).Where("id = ?", id).Update("password", password).Error
+
+func (u *UserRepository) ResetPassword(ctx context.Context, id uint64, password string) error {
+	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Update("password", password).Error
 	if err != nil {
 		return errors.New("更新失败")
 	}
 	return nil
 }
 
-func (u *UserRepository) UpdateUser(id uint64, username string, email string, avatar string) error {
-	err := u.DB.Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{
+func (u *UserRepository) UpdateUser(ctx context.Context, id uint64, username string, email string, avatar string) error {
+	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{
 		"username": username,
 		"email":    email,
 		"avatar":   avatar,
@@ -72,10 +73,10 @@ func (u *UserRepository) UpdateUser(id uint64, username string, email string, av
 	return nil
 }
 
-func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
+func (u *UserRepository) GetUserInfoById(ctx context.Context, id uint64) (model.UserInfo, error) {
 	var user model.User
 	var info model.UserInfo
-	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
+	err := u.DB.WithContext(ctx).Preload("Department").Preload("Role").First(&user, id).Error
 	if err != nil {
 		return info, err
 	}
@@ -95,9 +96,10 @@ func (u *UserRepository) GetUserInfoById(id uint64) (model.UserInfo, error) {
 	info.ScheduledDeleteAt = user.ScheduledDeleteAt
 	return info, nil
 }
-func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, error) {
+
+func (u *UserRepository) GetRoleLevelAndDepartment(ctx context.Context, id uint64) (uint64, string, error) {
 	var user model.User
-	err := u.DB.Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
+	err := u.DB.WithContext(ctx).Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return 0, "", err
 	}
@@ -111,9 +113,9 @@ func (u *UserRepository) GetRoleLevelAndDepartment(id uint64) (uint64, string, e
 	return user.Role.Level, deptName, nil
 }
 
-func (u *UserRepository) GetActiveRoleLevelAndDepartment(id uint64) (uint64, string, error) {
+func (u *UserRepository) GetActiveRoleLevelAndDepartment(ctx context.Context, id uint64) (uint64, string, error) {
 	var user model.User
-	err := u.DB.Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
+	err := u.DB.WithContext(ctx).Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return 0, "", err
 	}
@@ -131,9 +133,10 @@ func (u *UserRepository) GetActiveRoleLevelAndDepartment(id uint64) (uint64, str
 	}
 	return user.Role.Level, user.Department.Name, nil
 }
-func (u *UserRepository) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
+
+func (u *UserRepository) GetDepartmentIDAndRoleIDByID(ctx context.Context, id uint64) (uint64, uint64, error) {
 	var user model.User
-	err := u.DB.Preload("Department").Preload("Role").First(&user, id).Error
+	err := u.DB.WithContext(ctx).Preload("Department").Preload("Role").First(&user, id).Error
 	if err != nil {
 		return 0, 0, err
 	}
@@ -151,7 +154,8 @@ func (u *UserRepository) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64
 	}
 	return user.Department.ID, user.Role.ID, nil
 }
-func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string, times uint, ctx context.Context) error {
+
+func (u *UserRepository) SaveRefreshToken(ctx context.Context, id uint64, device string, token string, times uint) error {
 	key := fmt.Sprintf("%d-%s", id, device)
 	err := u.Rdb.Set(ctx, key, token, time.Duration(times)*time.Hour*24).Err()
 	if err != nil {
@@ -171,7 +175,7 @@ func (u *UserRepository) SaveRefreshToken(id uint64, device string, token string
 	return nil
 }
 
-func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx context.Context) error {
+func (u *UserRepository) DeleteRefreshToken(ctx context.Context, id uint64, device string) error {
 	key := fmt.Sprintf("%d-%s", id, device)
 	err := u.Rdb.Del(ctx, key).Err()
 	if err != nil {
@@ -183,7 +187,8 @@ func (u *UserRepository) DeleteRefreshToken(id uint64, device string, ctx contex
 	}
 	return nil
 }
-func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.Context) (string, error) {
+
+func (u *UserRepository) GetRefreshToken(ctx context.Context, id uint64, device string) (string, error) {
 	key := fmt.Sprintf("%d-%s", id, device)
 	token, err := u.Rdb.Get(ctx, key).Result()
 	if err == nil {
@@ -208,12 +213,13 @@ func (u *UserRepository) GetRefreshToken(id uint64, device string, ctx context.C
 
 	return record.Token, nil
 }
-func (u *UserRepository) GetUserList(keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
+
+func (u *UserRepository) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	var userList []model.UserInfo
 	var users []model.User
 	var total int64
 
-	query := u.DB.Model(&model.User{}).
+	query := u.DB.WithContext(ctx).Model(&model.User{}).
 		Joins("LEFT JOIN departments ON departments.id = users.department_id").
 		Joins("LEFT JOIN roles ON roles.id = users.role_id")
 	if departmentID != 0 {
@@ -271,7 +277,7 @@ func (u *UserRepository) GetUserList(keyword string, department string, role str
 	return userList, total, nil
 }
 
-func (u *UserRepository) SaveVerificationCode(id uint64, code string, types string, expire time.Duration, ctx context.Context) error {
+func (u *UserRepository) SaveVerificationCode(ctx context.Context, id uint64, code string, types string, expire time.Duration) error {
 	key := fmt.Sprintf("%d-%sVerificationCode", id, types)
 	err := u.Rdb.Set(ctx, key, code, expire).Err()
 	if err != nil {
@@ -279,7 +285,8 @@ func (u *UserRepository) SaveVerificationCode(id uint64, code string, types stri
 	}
 	return nil
 }
-func (u *UserRepository) GetVerificationCode(id uint64, types string, ctx context.Context) (string, error) {
+
+func (u *UserRepository) GetVerificationCode(ctx context.Context, id uint64, types string) (string, error) {
 	key := fmt.Sprintf("%d-%sVerificationCode", id, types)
 	code, err := u.Rdb.Get(ctx, key).Result()
 	if err != nil {
@@ -288,14 +295,15 @@ func (u *UserRepository) GetVerificationCode(id uint64, types string, ctx contex
 	return code, nil
 }
 
-func (u *UserRepository) DeleteVerificationCode(id uint64, types string, ctx context.Context) error {
+func (u *UserRepository) DeleteVerificationCode(ctx context.Context, id uint64, types string) error {
 	key := fmt.Sprintf("%d-%sVerificationCode", id, types)
 	if err := u.Rdb.Del(ctx, key).Err(); err != nil {
 		return errors.New("删除验证码失败，" + err.Error())
 	}
 	return nil
 }
-func (u *UserRepository) SetCooldown(id uint64, cooldown time.Duration, ctx context.Context) error {
+
+func (u *UserRepository) SetCooldown(ctx context.Context, id uint64, cooldown time.Duration) error {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	err := u.Rdb.Set(ctx, key, "cooldown", cooldown).Err()
 	if err != nil {
@@ -304,7 +312,7 @@ func (u *UserRepository) SetCooldown(id uint64, cooldown time.Duration, ctx cont
 	return nil
 }
 
-func (u *UserRepository) SetCooldownNX(id uint64, cooldown time.Duration, ctx context.Context) (bool, error) {
+func (u *UserRepository) SetCooldownNX(ctx context.Context, id uint64, cooldown time.Duration) (bool, error) {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	success, err := u.Rdb.SetNX(ctx, key, "cooldown", cooldown).Result()
 	if err != nil {
@@ -313,12 +321,12 @@ func (u *UserRepository) SetCooldownNX(id uint64, cooldown time.Duration, ctx co
 	return success, nil
 }
 
-func (u *UserRepository) DeleteCooldown(id uint64, ctx context.Context) error {
+func (u *UserRepository) DeleteCooldown(ctx context.Context, id uint64) error {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	return u.Rdb.Del(ctx, key).Err()
 }
 
-func (u *UserRepository) CheckCooldown(id uint64, ctx context.Context) (bool, error) {
+func (u *UserRepository) CheckCooldown(ctx context.Context, id uint64) (bool, error) {
 	key := fmt.Sprintf("%d-CoolDown", id)
 	_, err := u.Rdb.Get(ctx, key).Result()
 	if err != nil {
@@ -351,9 +359,9 @@ func (u *UserRepository) BatchUserInfoList(ctx context.Context, items []model.Up
 	})
 }
 
-func (u *UserRepository) GetUsersInfo(ids []uint64) (map[uint64]model.BatchUserInfo, error) {
+func (u *UserRepository) GetUsersInfo(ctx context.Context, ids []uint64) (map[uint64]model.BatchUserInfo, error) {
 	var userList []model.User
-	err := u.DB.Model(&model.User{}).
+	err := u.DB.WithContext(ctx).Model(&model.User{}).
 		Preload("Department").
 		Preload("Role").
 		Where("id in (?)", ids).
@@ -373,9 +381,9 @@ func (u *UserRepository) GetUsersInfo(ids []uint64) (map[uint64]model.BatchUserI
 	return res, nil
 }
 
-func (u *UserRepository) GetUserMapByUserIDs(ids []uint64) (map[uint64]model.UserInfo, error) {
+func (u *UserRepository) GetUserMapByUserIDs(ctx context.Context, ids []uint64) (map[uint64]model.UserInfo, error) {
 	var userList []model.User
-	err := u.DB.Model(&model.User{}).
+	err := u.DB.WithContext(ctx).Model(&model.User{}).
 		Preload("Department").
 		Preload("Role").
 		Where("id in (?)", ids).
@@ -406,10 +414,10 @@ func (u *UserRepository) GetUserMapByUserIDs(ids []uint64) (map[uint64]model.Use
 	return res, nil
 }
 
-func (u *UserRepository) GetDepartmentByUserIDs(userIDs []uint64) (map[uint64]uint64, error) {
+func (u *UserRepository) GetDepartmentByUserIDs(ctx context.Context, userIDs []uint64) (map[uint64]uint64, error) {
 	result := make(map[uint64]uint64)
 	var users []*model.User
-	err := u.DB.Where("id IN (?)", userIDs).Find(&users).Error
+	err := u.DB.WithContext(ctx).Where("id IN (?)", userIDs).Find(&users).Error
 	if err != nil {
 		return nil, err
 	}
@@ -419,9 +427,9 @@ func (u *UserRepository) GetDepartmentByUserIDs(userIDs []uint64) (map[uint64]ui
 	return result, nil
 }
 
-func (u *UserRepository) CheckUserIsHave(id uint64) error {
+func (u *UserRepository) CheckUserIsHave(ctx context.Context, id uint64) error {
 	var count int64
-	err := u.DB.Model(&model.User{}).Where("id = ? ", id).Count(&count).Error
+	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ? ", id).Count(&count).Error
 	if err != nil {
 		return err
 	}
@@ -430,7 +438,8 @@ func (u *UserRepository) CheckUserIsHave(id uint64) error {
 	}
 	return nil
 }
-func (u *UserRepository) DeleteUserByID(id uint64, ctx context.Context) error {
+
+func (u *UserRepository) DeleteUserByID(ctx context.Context, id uint64) error {
 	// 1. 查询该用户在各设备的 RefreshToken，并在 Redis 中同步清理
 	var tokens []model.RefreshToken
 	_ = u.DB.WithContext(ctx).Where("user_id = ?", id).Find(&tokens).Error

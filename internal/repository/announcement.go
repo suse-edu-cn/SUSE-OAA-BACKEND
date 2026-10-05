@@ -19,16 +19,16 @@ func NewAnnouncementRepository(db *gorm.DB) *AnnouncementRepository {
 	}
 }
 
-func (a *AnnouncementRepository) CreateAnnouncement(announcement model.Announcement) (uint64, error) {
-	err := a.DB.Model(&model.Announcement{}).Create(&announcement).Error
+func (a *AnnouncementRepository) CreateAnnouncement(ctx context.Context, announcement model.Announcement) (uint64, error) {
+	err := a.DB.WithContext(ctx).Model(&model.Announcement{}).Create(&announcement).Error
 	if err != nil {
 		return 0, errors.New("创建失败")
 	}
 	return announcement.ID, nil
 }
 
-func (a *AnnouncementRepository) UpdateAnnouncement(announcement model.Announcement) error {
-	err := a.DB.Model(&model.Announcement{}).
+func (a *AnnouncementRepository) UpdateAnnouncement(ctx context.Context, announcement model.Announcement) error {
+	err := a.DB.WithContext(ctx).Model(&model.Announcement{}).
 		Where("id = ?", announcement.ID).
 		Updates(map[string]any{
 			"title":   announcement.Title,
@@ -39,21 +39,23 @@ func (a *AnnouncementRepository) UpdateAnnouncement(announcement model.Announcem
 	}
 	return nil
 }
-func (a *AnnouncementRepository) DeleteAnnouncement(id uint64) error {
-	return a.DB.Delete(&model.Announcement{}, id).Error
+
+func (a *AnnouncementRepository) DeleteAnnouncement(ctx context.Context, id uint64) error {
+	return a.DB.WithContext(ctx).Delete(&model.Announcement{}, id).Error
 }
-func (a *AnnouncementRepository) GetDepartmentIDByID(id uint64) (uint64, error) {
+
+func (a *AnnouncementRepository) GetDepartmentIDByID(ctx context.Context, id uint64) (uint64, error) {
 	var announcement model.Announcement
-	err := a.DB.Model(&model.Announcement{}).Where("id = ?", id).First(&announcement).Error
+	err := a.DB.WithContext(ctx).Model(&model.Announcement{}).Where("id = ?", id).First(&announcement).Error
 	if err != nil {
 		return 0, err
 	}
 	return announcement.DepartmentID, nil
 }
 
-func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64, userID uint64) (model.AnnouncementInfo, error) {
+func (a *AnnouncementRepository) GetAnnouncementInfo(ctx context.Context, id uint64, userID uint64) (model.AnnouncementInfo, error) {
 	var announcement model.Announcement
-	err := a.DB.Model(&model.Announcement{}).
+	err := a.DB.WithContext(ctx).Model(&model.Announcement{}).
 		Preload("Department").
 		Preload("Publisher").
 		Preload("Publisher.Role").
@@ -65,10 +67,11 @@ func (a *AnnouncementRepository) GetAnnouncementInfo(id uint64, userID uint64) (
 	}
 	return announcement.ToInfo(), nil
 }
-func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(id uint64, status string) (*[]model.AnnouncementInfo, error) {
+
+func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(ctx context.Context, id uint64, status string) (*[]model.AnnouncementInfo, error) {
 	var announcementsInfo []model.AnnouncementInfo
 	var announcements []model.Announcement
-	tx := a.DB.Model(&model.Announcement{}).
+	tx := a.DB.WithContext(ctx).Model(&model.Announcement{}).
 		Preload("Department").
 		Preload("Publisher").
 		Preload("Publisher.Role")
@@ -86,7 +89,6 @@ func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(id uint64, status
 		return &[]model.AnnouncementInfo{}, err
 	}
 	for _, announcement := range announcements {
-
 		announcementsInfo = append(announcementsInfo, announcement.ToInfo())
 	}
 	return &announcementsInfo, nil

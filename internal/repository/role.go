@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"suseoaa/internal/model"
 
@@ -17,25 +18,27 @@ func NewRoleRepository(db *gorm.DB) *RoleRepository {
 	}
 }
 
-func (r *RoleRepository) FindByName(name string) (*model.Role, error) {
+func (r *RoleRepository) FindByName(ctx context.Context, name string) (*model.Role, error) {
 	var role model.Role
-	err := r.DB.Where("name = ?", name).First(&role).Error
+	err := r.DB.WithContext(ctx).Where("name = ?", name).First(&role).Error
 	if err != nil {
 		return nil, errors.New("查询职位失败" + err.Error())
 	}
 	return &role, nil
 }
-func (r *RoleRepository) FindAll() (*[]model.Role, error) {
+
+func (r *RoleRepository) FindAll(ctx context.Context) (*[]model.Role, error) {
 	var roles []model.Role
-	err := r.DB.Find(&roles).Error
+	err := r.DB.WithContext(ctx).Find(&roles).Error
 	if err != nil {
 		return nil, errors.New("查询所有职位失败" + err.Error())
 	}
 	return &roles, nil
 }
-func (r *RoleRepository) GetRoleMap() (map[uint64]*model.Role, error) {
+
+func (r *RoleRepository) GetRoleMap(ctx context.Context) (map[uint64]*model.Role, error) {
 	res := make(map[uint64]*model.Role)
-	roles, err := r.FindAll()
+	roles, err := r.FindAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -46,28 +49,29 @@ func (r *RoleRepository) GetRoleMap() (map[uint64]*model.Role, error) {
 	return res, nil
 }
 
-func (r *RoleRepository) GetLevelByName(name string) (uint64, error) {
+func (r *RoleRepository) GetLevelByName(ctx context.Context, name string) (uint64, error) {
 	var role model.Role
-	err := r.DB.Model(&model.Role{}).Where("name = ?", name).First(&role).Error
+	err := r.DB.WithContext(ctx).Model(&model.Role{}).Where("name = ?", name).First(&role).Error
 	if err != nil {
 		return 0, errors.New("获取" + name + "失败" + err.Error())
 	}
 	return role.Level, nil
 }
 
-func (r *RoleRepository) GetLevelByID(id uint64) (uint64, error) {
+func (r *RoleRepository) GetLevelByID(ctx context.Context, id uint64) (uint64, error) {
 	var role model.Role
-	err := r.DB.Model(&model.Role{}).Where("id = ?", id).First(&role).Error
+	err := r.DB.WithContext(ctx).Model(&model.Role{}).Where("id = ?", id).First(&role).Error
 	if err != nil {
 		return 0, errors.New("获取level失败" + err.Error())
 	}
 	return role.Level, nil
 }
 
-func (r *RoleRepository) CreateRole(role *model.Role) error {
-	return r.DB.Create(role).Error
+func (r *RoleRepository) CreateRole(ctx context.Context, role *model.Role) error {
+	return r.DB.WithContext(ctx).Create(role).Error
 }
-func (r *RoleRepository) UpdateRole(role *model.Role, isActive *bool) error {
+
+func (r *RoleRepository) UpdateRole(ctx context.Context, role *model.Role, isActive *bool) error {
 	updates := map[string]any{
 		"name":  role.Name,
 		"type":  role.Type,
@@ -78,14 +82,14 @@ func (r *RoleRepository) UpdateRole(role *model.Role, isActive *bool) error {
 	}
 
 	var existing model.Role
-	if err := r.DB.Select("id").First(&existing, role.ID).Error; err != nil {
+	if err := r.DB.WithContext(ctx).Select("id").First(&existing, role.ID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("职位不存在")
 		}
 		return err
 	}
 
-	tx := r.DB.Model(&model.Role{}).
+	tx := r.DB.WithContext(ctx).Model(&model.Role{}).
 		Where("id = ?", role.ID).
 		Updates(updates)
 	if tx.Error != nil {
@@ -94,9 +98,9 @@ func (r *RoleRepository) UpdateRole(role *model.Role, isActive *bool) error {
 	return nil
 }
 
-func (r *RoleRepository) GetRoleByUserID(id uint64) (uint64, uint64, error) {
+func (r *RoleRepository) GetRoleByUserID(ctx context.Context, id uint64) (uint64, uint64, error) {
 	var user model.User
-	err := r.DB.Preload("Role").Where("id = ?", id).First(&user).Error
+	err := r.DB.WithContext(ctx).Preload("Role").Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return 0, 0, err
 	}
@@ -106,9 +110,9 @@ func (r *RoleRepository) GetRoleByUserID(id uint64) (uint64, uint64, error) {
 	return 0, 0, errors.New("用户role缺失")
 }
 
-func (r *RoleRepository) GetActiveRoleByUserID(id uint64) (uint64, uint64, error) {
+func (r *RoleRepository) GetActiveRoleByUserID(ctx context.Context, id uint64) (uint64, uint64, error) {
 	var user model.User
-	err := r.DB.Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
+	err := r.DB.WithContext(ctx).Preload("Department").Preload("Role").Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return 0, 0, err
 	}
@@ -126,17 +130,19 @@ func (r *RoleRepository) GetActiveRoleByUserID(id uint64) (uint64, uint64, error
 	}
 	return user.Role.ID, user.Role.Level, nil
 }
-func (r *RoleRepository) GetTypeByRoleID(roleID uint64) (string, error) {
+
+func (r *RoleRepository) GetTypeByRoleID(ctx context.Context, roleID uint64) (string, error) {
 	var role model.Role
-	err := r.DB.Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error
+	err := r.DB.WithContext(ctx).Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error
 	if err != nil {
 		return "", err
 	}
 	return role.Type, nil
 }
-func (r *RoleRepository) GetRoleByType(roleType string) ([]*model.Role, error) {
+
+func (r *RoleRepository) GetRoleByType(ctx context.Context, roleType string) ([]*model.Role, error) {
 	var roles []*model.Role
-	tx := r.DB.Model(&model.Role{}).Where("is_active = ?", true)
+	tx := r.DB.WithContext(ctx).Model(&model.Role{}).Where("is_active = ?", true)
 	if roleType != "" {
 		tx = tx.Where("type = ?", roleType)
 	}
@@ -146,9 +152,10 @@ func (r *RoleRepository) GetRoleByType(roleType string) ([]*model.Role, error) {
 	}
 	return roles, nil
 }
-func (r *RoleRepository) GetRoleByID(roleID uint64) (*model.Role, error) {
+
+func (r *RoleRepository) GetRoleByID(ctx context.Context, roleID uint64) (*model.Role, error) {
 	var role model.Role
-	err := r.DB.Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error
+	err := r.DB.WithContext(ctx).Model(&model.Role{}).Where("id = ?", roleID).First(&role).Error
 	if err != nil {
 		return nil, err
 	}
