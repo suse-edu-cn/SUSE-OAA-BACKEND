@@ -2,6 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
 	"suseoaa/internal/config"
 	"suseoaa/internal/database"
 	"suseoaa/internal/handler"
@@ -9,6 +14,9 @@ import (
 	"suseoaa/internal/router"
 	"suseoaa/internal/service"
 	"suseoaa/internal/storage"
+	"sync"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -47,8 +55,18 @@ func main() {
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo, fileService)
 	termService := service.NewTermService(termRepo, userService)
-	go termService.StartInterviewResultExecutor(context.Background())
-	go userService.StartUserDeletionExecutor(context.Background())
+
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	defer cancelWorkers()
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		termService.StartInterviewResultExecutor(workerCtx)
+	})
+	wg.Go(func() {
+		userService.StartUserDeletionExecutor(workerCtx)
+	})
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(
@@ -72,5 +90,35 @@ func main() {
 		fileHandler)
 
 	r := router.RouterInit(totalHandler)
-	r.Run(Config.Server.Host + ":" + Config.Server.Port)
+
+	srv := &http.Server{
+		Addr:    Config.Server.Host + ":" + Config.Server.Port,
+		Handler: r,
+	}
+
+	go func() {
+		log.Printf("HTTP服务正在启动，监听地址: %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("HTTP服务异常退出: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("接收到退出信号")
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelShutdown()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP 服务强制关闭: %v", err)
+	} else {
+		log.Println("HTTP 服务已关闭")
+	}
+	cancelWorkers()
+	wg.Wait()
+	log.Println("所有后台常驻Worker已退出")
+
+	log.Println("服务已下线")
 }
