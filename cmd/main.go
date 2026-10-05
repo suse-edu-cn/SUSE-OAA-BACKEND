@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,12 +14,15 @@ import (
 	"suseoaa/internal/router"
 	"suseoaa/internal/service"
 	"suseoaa/internal/storage"
+	"suseoaa/pkg/logger"
 	"sync"
 	"syscall"
 	"time"
 )
 
 func main() {
+	logger.Init(slog.LevelInfo)
+
 	Config := config.ConfigInit()
 	db := database.MysqlInit(Config.Mysql)
 	rdb := database.RedisInit(Config.Redis)
@@ -97,28 +100,29 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("HTTP服务正在启动，监听地址: %s", srv.Addr)
+		logger.Info("HTTP服务正在启动", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("HTTP服务异常退出: %v", err)
+			logger.Error("HTTP服务异常退出", "err", err)
+			os.Exit(1)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("接收到退出信号")
+	logger.Info("接收到退出信号，启动优雅停机流程")
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelShutdown()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP 服务强制关闭: %v", err)
+		logger.Error("HTTP 服务强制关闭", "err", err)
 	} else {
-		log.Println("HTTP 服务已关闭")
+		logger.Info("HTTP 服务已完成存量请求处理并关闭")
 	}
 	cancelWorkers()
 	wg.Wait()
-	log.Println("所有后台常驻Worker已退出")
+	logger.Info("所有后台常驻Worker已退出")
 
-	log.Println("服务已下线")
+	logger.Info("服务已安全下线")
 }

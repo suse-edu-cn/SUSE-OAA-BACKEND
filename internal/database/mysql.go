@@ -2,11 +2,11 @@ package database
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"suseoaa/internal/config"
 	"suseoaa/internal/model"
+	"suseoaa/pkg/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -68,7 +68,7 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 }
 
 func InitData(db *gorm.DB) {
-	log.Println("开始初始化基础数据...")
+	logger.Info("开始初始化基础数据...")
 
 	roles := model.DefaultRoles
 
@@ -76,7 +76,7 @@ func InitData(db *gorm.DB) {
 	for _, r := range roles {
 		role := r
 		if err := db.Where(model.Role{Name: role.Name}).FirstOrCreate(&role).Error; err != nil {
-			log.Printf("初始化角色 [%s] 失败: %v\n", role.Name, err)
+			logger.Warn("初始化角色失败", "role", role.Name, "err", err)
 		} else {
 			roleMap[role.Name] = role.ID
 		}
@@ -87,11 +87,11 @@ func InitData(db *gorm.DB) {
 	for _, d := range departments {
 		dept := d
 		if err := db.Where(model.Department{Name: dept.Name}).FirstOrCreate(&dept).Error; err != nil {
-			log.Printf("初始化部门 [%s] 失败: %v\n", dept.Name, err)
+			logger.Warn("初始化部门失败", "dept", dept.Name, "err", err)
 		} else {
 			deptMap[dept.Name] = dept.ID
 		}
 	}
 
-	log.Println(" 基础数据初始化完成！")
+	logger.Info("基础数据初始化完成！")
 }

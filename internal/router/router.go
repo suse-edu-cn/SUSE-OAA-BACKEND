@@ -15,6 +15,7 @@ type Router struct {
 
 func RouterInit(total *handler.TotalHandler) *gin.Engine {
 	r := gin.Default()
+	r.Use(middleware.Trace())
 	r.Use(middleware.CORS())
 
 	auth := r.Group("v2/auth")
