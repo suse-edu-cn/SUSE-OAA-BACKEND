@@ -13,8 +13,8 @@ type AnnouncementRepository struct {
 	DB *gorm.DB
 }
 
-func NewAnnouncementRepository(db *gorm.DB) AnnouncementRepository {
-	return AnnouncementRepository{
+func NewAnnouncementRepository(db *gorm.DB) *AnnouncementRepository {
+	return &AnnouncementRepository{
 		DB: db,
 	}
 }

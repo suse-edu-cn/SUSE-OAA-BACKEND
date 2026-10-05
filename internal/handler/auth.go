@@ -10,14 +10,14 @@ import (
 )
 
 type AuthHandler struct {
-	UserService    service.UserService
+	UserService    *service.UserService
 	JwtSecret      string
 	JwtExpire      int
 	JwtRefreshTime uint
 }
 
-func NewAuthHandler(userService service.UserService, JwtSecret string, jwtExpire int, refreshTime uint) AuthHandler {
-	return AuthHandler{
+func NewAuthHandler(userService *service.UserService, JwtSecret string, jwtExpire int, refreshTime uint) *AuthHandler {
+	return &AuthHandler{
 		UserService:    userService,
 		JwtSecret:      JwtSecret,
 		JwtExpire:      jwtExpire,

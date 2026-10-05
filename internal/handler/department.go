@@ -10,11 +10,11 @@ import (
 )
 
 type DepartmentHandler struct {
-	DepartmentService service.DepartmentService
+	DepartmentService *service.DepartmentService
 }
 
-func NewDepartmentHandler(departmentService service.DepartmentService) DepartmentHandler {
-	return DepartmentHandler{
+func NewDepartmentHandler(departmentService *service.DepartmentService) *DepartmentHandler {
+	return &DepartmentHandler{
 		DepartmentService: departmentService,
 	}
 }

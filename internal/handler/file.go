@@ -9,11 +9,11 @@ import (
 )
 
 type FileHandler struct {
-	FileService service.FileService
+	FileService *service.FileService
 }
 
-func NewFileHandler(s service.FileService) FileHandler {
-	return FileHandler{FileService: s}
+func NewFileHandler(s *service.FileService) *FileHandler {
+	return &FileHandler{FileService: s}
 }
 
 func (f *FileHandler) UploadImage(c *gin.Context) {

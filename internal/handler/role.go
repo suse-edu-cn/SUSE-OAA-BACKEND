@@ -10,14 +10,14 @@ import (
 )
 
 type RoleHandler struct {
-	RoleService service.RoleService
+	RoleService *service.RoleService
 }
 
-func NewRoleHandler(roleService service.RoleService) RoleHandler {
-	return RoleHandler{RoleService: roleService}
+func NewRoleHandler(roleService *service.RoleService) *RoleHandler {
+	return &RoleHandler{RoleService: roleService}
 }
 
-func (r RoleHandler) FindAll(c *gin.Context) {
+func (r *RoleHandler) FindAll(c *gin.Context) {
 	roles, err := r.RoleService.GetAll()
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
@@ -26,7 +26,7 @@ func (r RoleHandler) FindAll(c *gin.Context) {
 	response.Success(c, roles)
 	return
 }
-func (r RoleHandler) Create(c *gin.Context) {
+func (r *RoleHandler) Create(c *gin.Context) {
 	var req request.CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, 400, "获取参数失败", nil)
@@ -50,7 +50,7 @@ func (r RoleHandler) Create(c *gin.Context) {
 	response.Success(c, nil)
 	return
 }
-func (r RoleHandler) Update(c *gin.Context) {
+func (r *RoleHandler) Update(c *gin.Context) {
 	var req request.UpdateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, 400, err.Error(), nil)

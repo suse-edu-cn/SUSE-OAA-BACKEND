@@ -9,21 +9,21 @@ import (
 )
 
 type AnnouncementService struct {
-	AnnouncementRepo repository.AnnouncementRepository
-	DepartmentRepo   repository.DepartmentRepository
-	RoleRepo         repository.RoleRepository
-	UserRepo         repository.UserRepository
-	FileService      FileService
+	AnnouncementRepo *repository.AnnouncementRepository
+	DepartmentRepo   *repository.DepartmentRepository
+	RoleRepo         *repository.RoleRepository
+	UserRepo         *repository.UserRepository
+	FileService      *FileService
 }
 
 func NewAnnouncementService(
-	announcementRepo repository.AnnouncementRepository,
-	departmentRepo repository.DepartmentRepository,
-	roleRepo repository.RoleRepository,
-	userRepo repository.UserRepository,
-	fileService FileService,
-) AnnouncementService {
-	return AnnouncementService{
+	announcementRepo *repository.AnnouncementRepository,
+	departmentRepo *repository.DepartmentRepository,
+	roleRepo *repository.RoleRepository,
+	userRepo *repository.UserRepository,
+	fileService *FileService,
+) *AnnouncementService {
+	return &AnnouncementService{
 		AnnouncementRepo: announcementRepo,
 		DepartmentRepo:   departmentRepo,
 		RoleRepo:         roleRepo,

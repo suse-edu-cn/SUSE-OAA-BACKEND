@@ -10,11 +10,11 @@ import (
 )
 
 type TermHandler struct {
-	TermService service.TermService
+	TermService *service.TermService
 }
 
-func NewTermHandler(termService service.TermService) TermHandler {
-	return TermHandler{
+func NewTermHandler(termService *service.TermService) *TermHandler {
+	return &TermHandler{
 		TermService: termService,
 	}
 }

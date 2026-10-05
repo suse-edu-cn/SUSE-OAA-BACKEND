@@ -17,8 +17,8 @@ type FileService struct {
 	FileStorage *storage.MinIO
 }
 
-func NewFileService(imgStorage *storage.MinIO, fileStorage *storage.MinIO) FileService {
-	return FileService{
+func NewFileService(imgStorage *storage.MinIO, fileStorage *storage.MinIO) *FileService {
+	return &FileService{
 		ImgStorage:  imgStorage,
 		FileStorage: fileStorage,
 	}

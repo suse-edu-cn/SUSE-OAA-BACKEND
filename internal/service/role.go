@@ -7,11 +7,11 @@ import (
 )
 
 type RoleService struct {
-	RoleRepo repository.RoleRepository
+	RoleRepo *repository.RoleRepository
 }
 
-func NewRoleService(roleRepo repository.RoleRepository) RoleService {
-	return RoleService{
+func NewRoleService(roleRepo *repository.RoleRepository) *RoleService {
+	return &RoleService{
 		RoleRepo: roleRepo,
 	}
 }

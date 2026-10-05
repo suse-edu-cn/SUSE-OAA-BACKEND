@@ -15,8 +15,8 @@ type TermRepository struct {
 	DB *gorm.DB
 }
 
-func NewTermRepository(db *gorm.DB) TermRepository {
-	return TermRepository{
+func NewTermRepository(db *gorm.DB) *TermRepository {
+	return &TermRepository{
 		DB: db,
 	}
 }

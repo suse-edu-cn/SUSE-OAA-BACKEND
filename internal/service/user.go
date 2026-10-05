@@ -20,20 +20,20 @@ import (
 )
 
 type UserService struct {
-	Repo           repository.UserRepository
-	RoleRepo       repository.RoleRepository
-	DepartmentRepo repository.DepartmentRepository
-	Email          EmailService
-	File           FileService
+	Repo           *repository.UserRepository
+	RoleRepo       *repository.RoleRepository
+	DepartmentRepo *repository.DepartmentRepository
+	Email          *EmailService
+	File           *FileService
 }
 
 func NewUserService(
-	repo repository.UserRepository,
-	roleRepo repository.RoleRepository,
-	departmentRepo repository.DepartmentRepository,
-	email EmailService,
-	file FileService) UserService {
-	return UserService{
+	repo *repository.UserRepository,
+	roleRepo *repository.RoleRepository,
+	departmentRepo *repository.DepartmentRepository,
+	email *EmailService,
+	file *FileService) *UserService {
+	return &UserService{
 		Repo:           repo,
 		RoleRepo:       roleRepo,
 		DepartmentRepo: departmentRepo,

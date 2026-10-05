@@ -7,13 +7,13 @@ import (
 )
 
 type DepartmentService struct {
-	DepartmentRepo repository.DepartmentRepository
-	RoleRepo       repository.RoleRepository
+	DepartmentRepo *repository.DepartmentRepository
+	RoleRepo       *repository.RoleRepository
 }
 
-func NewDepartmentService(departmentRepo repository.DepartmentRepository,
-	roleRepo repository.RoleRepository) DepartmentService {
-	return DepartmentService{
+func NewDepartmentService(departmentRepo *repository.DepartmentRepository,
+	roleRepo *repository.RoleRepository) *DepartmentService {
+	return &DepartmentService{
 		DepartmentRepo: departmentRepo,
 		RoleRepo:       roleRepo,
 	}

@@ -18,8 +18,8 @@ type EmailService struct {
 	Cooldown time.Duration `json:"cooldown"`
 }
 
-func NewEmailService(host string, port int, user string, pass string, expire int, cooldown int) EmailService {
-	return EmailService{
+func NewEmailService(host string, port int, user string, pass string, expire int, cooldown int) *EmailService {
+	return &EmailService{
 		Host:     host,
 		Port:     port,
 		User:     user,

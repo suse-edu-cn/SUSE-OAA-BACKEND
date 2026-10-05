@@ -13,7 +13,7 @@ type Router struct {
 	JwtExpire uint64
 }
 
-func RouterInit(total handler.TotalHandler) *gin.Engine {
+func RouterInit(total *handler.TotalHandler) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.CORS())
 

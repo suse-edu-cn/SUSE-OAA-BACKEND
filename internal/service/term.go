@@ -14,12 +14,12 @@ import (
 )
 
 type TermService struct {
-	TermRepo    repository.TermRepository
-	UserService UserService
+	TermRepo    *repository.TermRepository
+	UserService *UserService
 }
 
-func NewTermService(termRepo repository.TermRepository, service UserService) TermService {
-	return TermService{
+func NewTermService(termRepo *repository.TermRepository, service *UserService) *TermService {
+	return &TermService{
 		TermRepo:    termRepo,
 		UserService: service,
 	}
