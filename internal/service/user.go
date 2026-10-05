@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"suseoaa/internal/storage"
+	"suseoaa/pkg/logger"
 	"suseoaa/pkg/utils"
 
 	"golang.org/x/crypto/bcrypt"
@@ -52,7 +52,7 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 		return errors.New("注册信息不能为空")
 	}
 
-	if err := u.Repo.CheckExist(req.StudentID, req.Email, req.Username); err != nil {
+	if err := u.Repo.CheckExist(ctx, req.StudentID, req.Email, req.Username); err != nil {
 		return err
 	}
 
@@ -61,11 +61,11 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 		return errors.New("密码加密失败")
 	}
 
-	role, err := u.RoleRepo.FindByName("会员")
+	role, err := u.RoleRepo.FindByName(ctx, "会员")
 	if err != nil {
 		return errors.New("获取默认角色失败: " + err.Error())
 	}
-	department, err := u.DepartmentRepo.GetDepartmentByName("开放原子开源协会")
+	department, err := u.DepartmentRepo.GetDepartmentByName(ctx, "开放原子开源协会")
 	if err != nil {
 		return errors.New("获取默认部门失败" + err.Error())
 	}
@@ -79,14 +79,14 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 		Department: department,
 	}
 
-	if err := u.Repo.CreateUser(user); err != nil {
+	if err := u.Repo.CreateUser(ctx, user); err != nil {
 		return errors.New("创建用户失败: " + err.Error())
 	}
 	return nil
 }
 
 func (u *UserService) Login(ctx context.Context, req request.LoginReq, refreshTime uint) (model.User, string, error) {
-	user, err := u.Repo.FindUserByAccount(req.Account)
+	user, err := u.Repo.FindUserByAccount(ctx, req.Account)
 	if err != nil {
 		return model.User{}, "", errors.New("获取用户信息失败")
 	}
@@ -101,7 +101,7 @@ func (u *UserService) Login(ctx context.Context, req request.LoginReq, refreshTi
 }
 
 func (u *UserService) GetUserInfo(ctx context.Context, id uint64) (model.UserInfo, error) {
-	info, err := u.Repo.GetUserInfoById(id)
+	info, err := u.Repo.GetUserInfoById(ctx, id)
 	if err != nil {
 		return model.UserInfo{}, errors.New("查询失败" + err.Error())
 	}
@@ -113,8 +113,9 @@ func (u *UserService) GetUserInfo(ctx context.Context, id uint64) (model.UserInf
 	info.Avatar.URL = avatar
 	return info, nil
 }
-func (u *UserService) GetDepartmentIDAndRoleIDByID(id uint64) (uint64, uint64, error) {
-	return u.Repo.GetDepartmentIDAndRoleIDByID(id)
+
+func (u *UserService) GetDepartmentIDAndRoleIDByID(ctx context.Context, id uint64) (uint64, uint64, error) {
+	return u.Repo.GetDepartmentIDAndRoleIDByID(ctx, id)
 }
 
 func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, error) {
@@ -130,31 +131,35 @@ func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, 
 
 	return u.File.ImgStorage.GeneratePresignedURL(ctx, defaultAvatar)
 }
+
 func (u *UserService) SaveRefreshToken(ctx context.Context, id uint64, device string, time uint) (string, error) {
 	token, err := utils.GetUUID()
 	if err != nil {
 		return "", errors.New("生成refresh_token失败")
 	}
-	err = u.Repo.SaveRefreshToken(id, device, token, time, ctx)
+	err = u.Repo.SaveRefreshToken(ctx, id, device, token, time)
 	if err != nil {
 		return "", err
 	}
 	return token, nil
 }
+
 func (u *UserService) DeleteRefreshToken(ctx context.Context, id uint64, device string) error {
-	err := u.Repo.DeleteRefreshToken(id, device, ctx)
+	err := u.Repo.DeleteRefreshToken(ctx, id, device)
 	if err != nil {
 		return err
 	}
 	return nil
 }
+
 func (u *UserService) GetRefreshToken(ctx context.Context, id uint64, device string) (string, error) {
-	token, err := u.Repo.GetRefreshToken(id, device, ctx)
+	token, err := u.Repo.GetRefreshToken(ctx, id, device)
 	if err != nil {
 		return "", err
 	}
 	return token, nil
 }
+
 func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	const (
 		defaultPageSize = 20
@@ -169,11 +174,11 @@ func (u *UserService) GetUserList(ctx context.Context, keyword string, departmen
 	if pageSize > maxPageSize {
 		pageSize = maxPageSize
 	}
-	userList, total, err := u.Repo.GetUserList(keyword, department, role, departmentID, roleID, page, pageSize, isAll)
+	userList, total, err := u.Repo.GetUserList(ctx, keyword, department, role, departmentID, roleID, page, pageSize, isAll)
 	if err != nil {
 		return nil, 0, err
 	}
-	for index, _ := range userList {
+	for index := range userList {
 		url, err := u.getAvatarURL(ctx, userList[index].Avatar.URI)
 		if err != nil {
 			continue
@@ -181,14 +186,14 @@ func (u *UserService) GetUserList(ctx context.Context, keyword string, departmen
 		userList[index].Avatar.URL = url
 	}
 	return userList, total, nil
-
 }
-func (u *UserService) FindUserByID(id uint64) (model.User, error) {
-	return u.Repo.FindUserById(id)
+
+func (u *UserService) FindUserByID(ctx context.Context, id uint64) (model.User, error) {
+	return u.Repo.FindUserById(ctx, id)
 }
 
 func (u *UserService) UpdatePassword(ctx context.Context, id uint64, oldPassword string, newPassword string) error {
-	user, err := u.Repo.FindUserById(id)
+	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -199,12 +204,13 @@ func (u *UserService) UpdatePassword(ctx context.Context, id uint64, oldPassword
 	if err != nil {
 		return errors.New("密码加密失败")
 	}
-	err = u.Repo.ResetPassword(id, string(password))
+	err = u.Repo.ResetPassword(ctx, id, string(password))
 	if err != nil {
 		return err
 	}
 	return nil
 }
+
 func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username string, email string, avatar string) error {
 	size, err := u.File.ImgStorage.GetFileInfo(ctx, avatar)
 	if err != nil {
@@ -213,7 +219,7 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	if size > storage.MaxImageSize {
 		return errors.New("头像体积过大")
 	}
-	user, err := u.Repo.FindUserById(id)
+	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -221,7 +227,7 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	const defaultAvatar = "avatar/default.png"
 	oldAvatar := user.Avatar
 
-	err = u.Repo.UpdateUser(id, username, email, avatar)
+	err = u.Repo.UpdateUser(ctx, id, username, email, avatar)
 	if err != nil {
 		return err
 	}
@@ -231,13 +237,13 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	}
 
 	if err = u.File.ImgStorage.DeleteFile(ctx, oldAvatar); err != nil {
-		log.Printf("删除旧头像失败, user_id=%d, avatar=%s, err=%v", id, oldAvatar, err)
+		logger.WarnContext(ctx, "删除旧头像失败", "user_id", id, "avatar", oldAvatar, "err", err)
 	}
 	return nil
 }
 
 func (u *UserService) SendVerificationCode(ctx context.Context, account string, types string) error {
-	user, err := u.Repo.FindUserByAccount(account)
+	user, err := u.Repo.FindUserByAccount(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -257,7 +263,7 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 			return errors.New("账号已处于注销冷静期")
 		}
 	}
-	acquired, err := u.Repo.SetCooldownNX(user.ID, u.Email.Cooldown, ctx)
+	acquired, err := u.Repo.SetCooldownNX(ctx, user.ID, u.Email.Cooldown)
 	if err != nil {
 		return err
 	}
@@ -267,39 +273,39 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 
 	code := u.Email.NewVerificationCode(6)
 	expire := u.Email.GetExpireTime()
-	if err := u.Repo.SaveVerificationCode(user.ID, code, types, expire, ctx); err != nil {
-		_ = u.Repo.DeleteCooldown(user.ID, ctx)
+	if err := u.Repo.SaveVerificationCode(ctx, user.ID, code, types, expire); err != nil {
+		_ = u.Repo.DeleteCooldown(ctx, user.ID)
 		return err
 	}
 	if err := u.Email.SendVerificationCode(user.Email, code); err != nil {
-		_ = u.Repo.DeleteCooldown(user.ID, ctx)
-		_ = u.Repo.DeleteVerificationCode(user.ID, types, ctx)
+		_ = u.Repo.DeleteCooldown(ctx, user.ID)
+		_ = u.Repo.DeleteVerificationCode(ctx, user.ID, types)
 		return err
 	}
 	return nil
 }
 
 func (u *UserService) ResetPassword(ctx context.Context, account string, code string, resetPassword string) error {
-	user, err := u.Repo.FindUserByAccount(account)
+	user, err := u.Repo.FindUserByAccount(ctx, account)
 	if err != nil {
 		return err
 	}
 	types := "reset_password"
-	verificationCode, err := u.Repo.GetVerificationCode(user.ID, types, ctx)
+	verificationCode, err := u.Repo.GetVerificationCode(ctx, user.ID, types)
 	if err != nil {
 		return err
 	}
 	if verificationCode != code {
 		return errors.New("验证码错误或者失效")
 	}
-	if err := u.Repo.DeleteVerificationCode(user.ID, types, ctx); err != nil {
+	if err := u.Repo.DeleteVerificationCode(ctx, user.ID, types); err != nil {
 		return err
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte(resetPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	if err := u.Repo.ResetPassword(user.ID, string(password)); err != nil {
+	if err := u.Repo.ResetPassword(ctx, user.ID, string(password)); err != nil {
 		return err
 	}
 	return nil
@@ -309,16 +315,16 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 	var update []model.UpdateUserItems
 	var res []model.BatchUserInfo
 	status := make(map[uint64]bool)
-	level, err := u.RoleRepo.GetLevelByName("副会长")
+	level, err := u.RoleRepo.GetLevelByName(ctx, "副会长")
 	if err != nil {
 		return res, err
 	}
 	errorMessage := make(map[uint64]string)
-	departmentMap, err := u.DepartmentRepo.GetDepartmentMap()
+	departmentMap, err := u.DepartmentRepo.GetDepartmentMap(ctx)
 	if err != nil {
 		return res, errors.New("获取部门map失败")
 	}
-	roleMap, err := u.RoleRepo.GetRoleMap()
+	roleMap, err := u.RoleRepo.GetRoleMap(ctx)
 	if err != nil {
 		return res, errors.New("获取职位map失败")
 	}
@@ -335,7 +341,7 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 			continue
 		}
 		status[req[i].UserID] = true
-		targetUser, err := u.Repo.FindUserById(req[i].UserID)
+		targetUser, err := u.Repo.FindUserById(ctx, req[i].UserID)
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return res, errors.New("查询目标用户失败")
@@ -384,7 +390,7 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 				}
 
 			}
-		} else if err := u.VerifyDepartmentPosition(req[i].DepartmentID, req[i].RoleID); err != nil { //职位和部门不合理
+		} else if err := u.VerifyDepartmentPosition(ctx, req[i].DepartmentID, req[i].RoleID); err != nil { //职位和部门不合理
 			userIdList = append(userIdList, req[i].UserID)
 			errorMessage[req[i].UserID] = err.Error()
 
@@ -413,7 +419,7 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 		return res, errors.New("存入修改失败")
 	}
 	//拼接未修改的数据
-	usersInfo, err := u.Repo.GetUsersInfo(userIdList)
+	usersInfo, err := u.Repo.GetUsersInfo(ctx, userIdList)
 	if err != nil {
 		return res, err
 	}
@@ -432,12 +438,13 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 	}
 	return res, errors.New("存在部分错误")
 }
-func (u *UserService) VerifyDepartmentPosition(departmentID uint64, roleID uint64) error {
-	department, err := u.DepartmentRepo.GetDepartmentByID(departmentID)
+
+func (u *UserService) VerifyDepartmentPosition(ctx context.Context, departmentID uint64, roleID uint64) error {
+	department, err := u.DepartmentRepo.GetDepartmentByID(ctx, departmentID)
 	if err != nil {
 		return err
 	}
-	role, err := u.RoleRepo.GetRoleByID(roleID)
+	role, err := u.RoleRepo.GetRoleByID(ctx, roleID)
 	if err != nil {
 		return err
 	}
@@ -468,11 +475,11 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 			return nil, errors.New("注销本人账号请提供验证码，或留空查询冷静期")
 		}
 
-		level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(id)
+		level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		userLevel, _, err := u.Repo.GetRoleLevelAndDepartment(userID)
+		userLevel, _, err := u.Repo.GetRoleLevelAndDepartment(ctx, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -481,14 +488,14 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 		}
 
 		// 管理员直接删除其他用户（直接执行物理软删除与Token级联清理，不设冷静期）
-		if err := u.Repo.DeleteUserByID(userID, ctx); err != nil {
+		if err := u.Repo.DeleteUserByID(ctx, userID); err != nil {
 			return nil, err
 		}
 		return nil, nil
 	}
 
 	// 场景 2 & 3：本人操作（userID 为 0）
-	user, err := u.Repo.FindUserById(id)
+	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
 		return nil, errors.New("获取用户信息失败: " + err.Error())
 	}
@@ -503,7 +510,7 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 		}
 
 		// 冷静期倒计时已结束：立即彻底注销删除
-		if err := u.Repo.DeleteUserByID(id, ctx); err != nil {
+		if err := u.Repo.DeleteUserByID(ctx, id); err != nil {
 			return nil, err
 		}
 		return nil, nil
@@ -517,12 +524,12 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 
 	// 场景 2：仅传递 code（首次申请注销） -> 校验验证码并进入冷静期
 	const scene = "delete_user"
-	verificationCode, err := u.Repo.GetVerificationCode(id, scene, ctx)
+	verificationCode, err := u.Repo.GetVerificationCode(ctx, id, scene)
 	if err != nil || verificationCode != code {
 		return nil, errors.New("验证码错误或已失效")
 	}
-	if err := u.Repo.DeleteVerificationCode(id, scene, ctx); err != nil {
-		log.Printf("删除注销验证码失败, user_id=%d, err=%v", id, err)
+	if err := u.Repo.DeleteVerificationCode(ctx, id, scene); err != nil {
+		logger.WarnContext(ctx, "删除注销验证码失败", "user_id", id, "err", err)
 	}
 
 	scheduledAt := now.Add(UserDeletionGracePeriod)
@@ -533,7 +540,7 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 }
 
 func (u *UserService) CancelDeleteUser(ctx context.Context, userID uint64, code string) error {
-	user, err := u.Repo.FindUserById(userID)
+	user, err := u.Repo.FindUserById(ctx, userID)
 	if err != nil {
 		return errors.New("获取用户信息失败: " + err.Error())
 	}
@@ -545,13 +552,13 @@ func (u *UserService) CancelDeleteUser(ctx context.Context, userID uint64, code 
 	}
 
 	const scene = "cancel_delete"
-	verificationCode, err := u.Repo.GetVerificationCode(userID, scene, ctx)
+	verificationCode, err := u.Repo.GetVerificationCode(ctx, userID, scene)
 	if err != nil || verificationCode != code {
 		return errors.New("验证码错误或已失效")
 	}
 
-	if err := u.Repo.DeleteVerificationCode(userID, scene, ctx); err != nil {
-		log.Printf("删除取消注销验证码失败, user_id=%d, err=%v", userID, err)
+	if err := u.Repo.DeleteVerificationCode(ctx, userID, scene); err != nil {
+		logger.WarnContext(ctx, "删除取消注销验证码失败", "user_id", userID, "err", err)
 	}
 
 	if err := u.Repo.SetScheduledDeleteAt(ctx, userID, nil); err != nil {
@@ -586,7 +593,7 @@ func (u *UserService) ExecuteDueUserDeletions(ctx context.Context) (int, error) 
 	deleted := 0
 	var errs []error
 	for _, user := range users {
-		if err := u.Repo.DeleteUserByID(user.ID, ctx); err != nil {
+		if err := u.Repo.DeleteUserByID(ctx, user.ID); err != nil {
 			errs = append(errs, fmt.Errorf("user_id=%d 注销失败: %w", user.ID, err))
 			continue
 		}
@@ -599,9 +606,9 @@ func (u *UserService) ExecuteDueUserDeletions(ctx context.Context) (int, error) 
 func (u *UserService) executeDueUserDeletionsAndLog(ctx context.Context) {
 	deleted, err := u.ExecuteDueUserDeletions(ctx)
 	if deleted > 0 {
-		log.Printf("已自动执行注销到期用户数量: %d", deleted)
+		logger.InfoContext(ctx, "已自动执行注销到期用户数量", "deleted", deleted)
 	}
 	if err != nil {
-		log.Printf("执行到期用户自动注销失败: %v", err)
+		logger.ErrorContext(ctx, "执行到期用户自动注销失败", "err", err)
 	}
 }

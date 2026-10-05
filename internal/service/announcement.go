@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
+	"suseoaa/pkg/logger"
 )
 
 type AnnouncementService struct {
@@ -32,13 +32,12 @@ func NewAnnouncementService(
 	}
 }
 
-func (a *AnnouncementService) check(userID uint64, departmentID uint64) error {
-
-	level, userDepartment, err := a.UserRepo.GetActiveRoleLevelAndDepartment(userID)
+func (a *AnnouncementService) check(ctx context.Context, userID uint64, departmentID uint64) error {
+	level, userDepartment, err := a.UserRepo.GetActiveRoleLevelAndDepartment(ctx, userID)
 	if err != nil {
 		return err
 	}
-	department, err := a.DepartmentRepo.GetDepartmentByID(departmentID)
+	department, err := a.DepartmentRepo.GetDepartmentByID(ctx, departmentID)
 	if err != nil {
 		return err
 	}
@@ -51,12 +50,12 @@ func (a *AnnouncementService) check(userID uint64, departmentID uint64) error {
 	return nil
 }
 
-func (a *AnnouncementService) CreateAnnouncement(userID uint64, announcement model.Announcement) (map[string]uint64, error) {
-	err := a.check(userID, announcement.DepartmentID)
+func (a *AnnouncementService) CreateAnnouncement(ctx context.Context, userID uint64, announcement model.Announcement) (map[string]uint64, error) {
+	err := a.check(ctx, userID, announcement.DepartmentID)
 	if err != nil {
 		return nil, err
 	}
-	announcementID, err := a.AnnouncementRepo.CreateAnnouncement(announcement)
+	announcementID, err := a.AnnouncementRepo.CreateAnnouncement(ctx, announcement)
 	if err != nil {
 		return nil, err
 	}
@@ -64,34 +63,33 @@ func (a *AnnouncementService) CreateAnnouncement(userID uint64, announcement mod
 		"announcement_id": announcementID,
 	}, nil
 }
-func (a *AnnouncementService) UpdateAnnouncement(userID uint64, announcement model.Announcement) error {
-	department, err := a.AnnouncementRepo.GetDepartmentIDByID(announcement.ID)
+
+func (a *AnnouncementService) UpdateAnnouncement(ctx context.Context, userID uint64, announcement model.Announcement) error {
+	department, err := a.AnnouncementRepo.GetDepartmentIDByID(ctx, announcement.ID)
 	if err != nil {
 		return err
 	}
-	err = a.check(userID, department)
+	err = a.check(ctx, userID, department)
 	if err != nil {
 		return err
 	}
-	return a.AnnouncementRepo.UpdateAnnouncement(announcement)
+	return a.AnnouncementRepo.UpdateAnnouncement(ctx, announcement)
 }
 
-func (a *AnnouncementService) PushAnnouncement(ctx context.Context, announcementID uint64,
-	pushedID uint64) error {
-	departmentID, err := a.AnnouncementRepo.GetDepartmentIDByID(announcementID)
+func (a *AnnouncementService) PushAnnouncement(ctx context.Context, announcementID uint64, pushedID uint64) error {
+	departmentID, err := a.AnnouncementRepo.GetDepartmentIDByID(ctx, announcementID)
 	if err != nil {
 		return err
 	}
-	err = a.check(pushedID, departmentID)
+	err = a.check(ctx, pushedID, departmentID)
 	if err != nil {
 		return err
 	}
-	err = a.AnnouncementRepo.PushAnnouncement(ctx, announcementID, departmentID, pushedID)
-	return err
+	return a.AnnouncementRepo.PushAnnouncement(ctx, announcementID, departmentID, pushedID)
 }
 
 func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id uint64, status string, isContent bool) (*[]model.AnnouncementInfo, error) {
-	announcementList, err := a.AnnouncementRepo.GetAnnouncementInfoListByRole(id, status)
+	announcementList, err := a.AnnouncementRepo.GetAnnouncementInfoListByRole(ctx, id, status)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +99,7 @@ func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id ui
 			if isContent {
 				content, err := a.FileService.ReplaceMinIOLinks(ctx, list[i].Content)
 				if err != nil {
-					log.Printf("替换公告图片/文件链接失败, announcement_id=%d: %v", list[i].ID, err)
+					logger.WarnContext(ctx, "替换公告图片/文件链接失败", "announcement_id", list[i].ID, "err", err)
 				}
 				list[i].Content = content
 			} else {
@@ -113,7 +111,7 @@ func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id ui
 }
 
 func (a *AnnouncementService) GetAnnouncementInfo(ctx context.Context, userID uint64, announcementID uint64) (model.AnnouncementInfo, error) {
-	announcement, err := a.AnnouncementRepo.GetAnnouncementInfo(announcementID, userID)
+	announcement, err := a.AnnouncementRepo.GetAnnouncementInfo(ctx, announcementID, userID)
 	if err != nil {
 		return model.AnnouncementInfo{}, err
 	}
@@ -125,14 +123,14 @@ func (a *AnnouncementService) GetAnnouncementInfo(ctx context.Context, userID ui
 	return announcement, nil
 }
 
-func (a *AnnouncementService) DeleteAnnouncement(id uint64, userID uint64) error {
-	departmentID, err := a.AnnouncementRepo.GetDepartmentIDByID(id)
+func (a *AnnouncementService) DeleteAnnouncement(ctx context.Context, id uint64, userID uint64) error {
+	departmentID, err := a.AnnouncementRepo.GetDepartmentIDByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	err = a.check(userID, departmentID)
+	err = a.check(ctx, userID, departmentID)
 	if err != nil {
 		return err
 	}
-	return a.AnnouncementRepo.DeleteAnnouncement(id)
+	return a.AnnouncementRepo.DeleteAnnouncement(ctx, id)
 }

@@ -64,7 +64,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 400, "refresh token 错误", nil)
 		return
 	}
-	user, err := a.UserService.FindUserByID(req.UserID)
+	user, err := a.UserService.FindUserByID(ctx, req.UserID)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return

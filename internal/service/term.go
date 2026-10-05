@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 	"suseoaa/internal/request"
 	"suseoaa/internal/storage"
+	"suseoaa/pkg/logger"
 	"time"
 )
 
@@ -67,18 +67,17 @@ func (t *TermService) ExecuteDueInterviewResults(ctx context.Context) (int, erro
 func (t *TermService) executeDueInterviewResultsAndLog(ctx context.Context) {
 	executed, err := t.ExecuteDueInterviewResults(ctx)
 	if executed > 0 {
-		log.Printf("已执行到期面试结果周期数量: %d", executed)
+		logger.InfoContext(ctx, "已执行到期面试结果周期数量", "executed", executed)
 	}
 	if err != nil {
-		log.Printf("执行到期面试结果失败: %v", err)
+		logger.ErrorContext(ctx, "执行到期面试结果失败", "err", err)
 	}
 }
 
-//-----------------------
-//业务周期
+// 业务周期
 
-func (t *TermService) CheckLevel(userID uint64) error {
-	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(userID)
+func (t *TermService) CheckLevel(ctx context.Context, userID uint64) error {
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -88,7 +87,7 @@ func (t *TermService) CheckLevel(userID uint64) error {
 	return nil
 }
 
-func (t *TermService) CreateTerm(term model.Term) error {
+func (t *TermService) CreateTerm(ctx context.Context, term model.Term) error {
 	term.Type = strings.TrimSpace(term.Type)
 	if err := checkTermType(term.Type); err != nil {
 		return err
@@ -98,14 +97,15 @@ func (t *TermService) CreateTerm(term model.Term) error {
 		return err
 	}
 	term.ExecuteAfterAt = term.QueryEndAt.Add(1 * time.Minute)
-	err = t.TermRepo.CreateTerm(term)
+	err = t.TermRepo.CreateTerm(ctx, term)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (t *TermService) UpdateTerm(term model.Term) error {
-	oldTerm, err := t.TermRepo.GetTermByID(term.ID)
+
+func (t *TermService) UpdateTerm(ctx context.Context, term model.Term) error {
+	oldTerm, err := t.TermRepo.GetTermByID(ctx, term.ID)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (t *TermService) UpdateTerm(term model.Term) error {
 		return err
 	}
 	term.ExecuteAfterAt = term.QueryEndAt.Add(1 * time.Minute)
-	return t.TermRepo.UpdateTerm(term)
+	return t.TermRepo.UpdateTerm(ctx, term)
 }
 
 func checkTermType(termType string) error {
@@ -129,8 +129,8 @@ func checkTermType(termType string) error {
 	}
 }
 
-func (t *TermService) GetTermList(year uint64, termType string) ([]request.TermListResp, error) {
-	termList, err := t.TermRepo.GetTermList(year, termType)
+func (t *TermService) GetTermList(ctx context.Context, year uint64, termType string) ([]request.TermListResp, error) {
+	termList, err := t.TermRepo.GetTermList(ctx, year, termType)
 	if err != nil {
 		return nil, err
 	}
@@ -173,12 +173,12 @@ func formatTermDate(t time.Time) string {
 	return t.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02")
 }
 
-func (t *TermService) DeleteTerm(userID uint64, termID uint64) error {
-	if err := t.CheckLevel(userID); err != nil {
+func (t *TermService) DeleteTerm(ctx context.Context, userID uint64, termID uint64) error {
+	if err := t.CheckLevel(ctx, userID); err != nil {
 		return err
 	}
 
-	term, err := t.TermRepo.GetTermByID(termID)
+	term, err := t.TermRepo.GetTermByID(ctx, termID)
 	if err != nil {
 		return err
 	}
@@ -186,11 +186,10 @@ func (t *TermService) DeleteTerm(userID uint64, termID uint64) error {
 		return errors.New("该周期已经执行，不能删除")
 	}
 
-	return t.TermRepo.DeleteTerm(termID)
+	return t.TermRepo.DeleteTerm(ctx, termID)
 }
 
-//----------------------------
-//申请表
+// 申请表
 
 func (t *TermService) CreateApplication(ctx context.Context, application model.Application) error {
 	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
@@ -198,43 +197,44 @@ func (t *TermService) CreateApplication(ctx context.Context, application model.A
 		return err
 	}
 
-	term, err := t.TermRepo.GetTermByID(application.TermID)
+	term, err := t.TermRepo.GetTermByID(ctx, application.TermID)
 	if err != nil {
 		return err
 	}
 	if !term.IsInEditPeriod(time.Now()) {
 		return errors.New("不在时间范围内")
 	}
-	if err := t.checkApplicationChoices(application); err != nil {
+	if err := t.checkApplicationChoices(ctx, application); err != nil {
 		return err
 	}
 	application.Type = term.Type
-	return t.TermRepo.CreateApplication(application)
+	return t.TermRepo.CreateApplication(ctx, application)
 }
+
 func (t *TermService) UpdateApplication(ctx context.Context, application model.Application) error {
 	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
 	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
 		return err
 	}
 
-	oldApplication, err := t.TermRepo.GetLatestApplicationByUserID(application.UserID)
+	oldApplication, err := t.TermRepo.GetLatestApplicationByUserID(ctx, application.UserID)
 	if err != nil {
 		return err
 	}
-	term, err := t.TermRepo.GetTermByID(oldApplication.TermID)
+	term, err := t.TermRepo.GetTermByID(ctx, oldApplication.TermID)
 	if err != nil {
 		return err
 	}
 	if !term.IsInEditPeriod(time.Now()) {
 		return errors.New("不在时间范围内")
 	}
-	if err := t.checkApplicationChoices(application); err != nil {
+	if err := t.checkApplicationChoices(ctx, application); err != nil {
 		return err
 	}
 	application.TermID = oldApplication.TermID
 	application.UserID = oldApplication.UserID
 	application.Type = oldApplication.Type
-	if err := t.TermRepo.UpdateApplication(application); err != nil {
+	if err := t.TermRepo.UpdateApplication(ctx, application); err != nil {
 		return err
 	}
 	t.deleteOldApplicationAvatar(ctx, application.UserID, oldApplication.AvatarURI, application.AvatarURI)
@@ -263,28 +263,28 @@ func (t *TermService) deleteOldApplicationAvatar(ctx context.Context, userID uin
 		return
 	}
 	if err := t.UserService.File.ImgStorage.DeleteFile(ctx, oldAvatar); err != nil {
-		log.Printf("删除旧申请表照片失败, user_id=%d, avatar=%s, err=%v", userID, oldAvatar, err)
+		logger.WarnContext(ctx, "删除旧申请表照片失败", "user_id", userID, "avatar", oldAvatar, "err", err)
 	}
 }
 
 func (t *TermService) GetMyApplications(ctx context.Context, userID uint64) ([]*model.Application, error) {
-	applications, err := t.TermRepo.GetApplicationsByUserID(userID)
+	applications, err := t.TermRepo.GetApplicationsByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if err := t.fillApplicationTermTitles(applications); err != nil {
+	if err := t.fillApplicationTermTitles(ctx, applications); err != nil {
 		return nil, err
 	}
 	t.fillApplicationAvatars(ctx, applications)
 	return applications, nil
 }
 
-func (t *TermService) fillApplicationTermTitles(applications []*model.Application) error {
+func (t *TermService) fillApplicationTermTitles(ctx context.Context, applications []*model.Application) error {
 	if len(applications) == 0 {
 		return nil
 	}
 
-	termMap, err := t.TermRepo.GetTermMap()
+	termMap, err := t.TermRepo.GetTermMap(ctx)
 	if err != nil {
 		return err
 	}
@@ -313,32 +313,32 @@ func (t *TermService) fillApplicationAvatars(ctx context.Context, applications [
 
 		url, err := t.UserService.File.ImgStorage.GeneratePresignedURL(ctx, application.AvatarURI)
 		if err != nil {
-			log.Printf("生成申请表照片链接失败, application_id=%d, avatar=%s, err=%v", application.ID, application.AvatarURI, err)
+			logger.WarnContext(ctx, "生成申请表照片链接失败", "application_id", application.ID, "avatar", application.AvatarURI, "err", err)
 			continue
 		}
 		application.Avatar.URL = url
 	}
 }
 
-func (t *TermService) checkApplicationChoices(application model.Application) error {
-	if err := t.checkApplicationChoice(application.FirstChoice); err != nil {
+func (t *TermService) checkApplicationChoices(ctx context.Context, application model.Application) error {
+	if err := t.checkApplicationChoice(ctx, application.FirstChoice); err != nil {
 		return err
 	}
-	if err := t.checkApplicationChoice(application.SecondChoice); err != nil {
+	if err := t.checkApplicationChoice(ctx, application.SecondChoice); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (t *TermService) checkApplicationChoice(choice model.OrganizationRole) error {
-	if err := t.UserService.VerifyDepartmentPosition(choice.DepartmentID, choice.RoleID); err != nil {
+func (t *TermService) checkApplicationChoice(ctx context.Context, choice model.OrganizationRole) error {
+	if err := t.UserService.VerifyDepartmentPosition(ctx, choice.DepartmentID, choice.RoleID); err != nil {
 		return err
 	}
-	return t.checkApplicationRole(choice.RoleID)
+	return t.checkApplicationRole(ctx, choice.RoleID)
 }
 
-func (t *TermService) checkApplicationRole(roleID uint64) error {
-	level, err := t.UserService.RoleRepo.GetLevelByID(roleID)
+func (t *TermService) checkApplicationRole(ctx context.Context, roleID uint64) error {
+	level, err := t.UserService.RoleRepo.GetLevelByID(ctx, roleID)
 	if err != nil {
 		return err
 	}
@@ -348,17 +348,17 @@ func (t *TermService) checkApplicationRole(roleID uint64) error {
 	return nil
 }
 
-func (t *TermService) GetRolesByDepartmentsID(departmentID uint64) ([]*model.Role, error) {
+func (t *TermService) GetRolesByDepartmentsID(ctx context.Context, departmentID uint64) ([]*model.Role, error) {
 	var departmentType string
 	var err error
 	departmentType = ""
 	if departmentID != 0 {
-		departmentType, err = t.UserService.DepartmentRepo.GetTypeByDepartmentID(departmentID)
+		departmentType, err = t.UserService.DepartmentRepo.GetTypeByDepartmentID(ctx, departmentID)
 		if err != nil {
 			return nil, err
 		}
 	}
-	roles, err := t.UserService.RoleRepo.GetRoleByType(departmentType)
+	roles, err := t.UserService.RoleRepo.GetRoleByType(ctx, departmentType)
 	if err != nil {
 		return nil, err
 	}
@@ -370,25 +370,26 @@ func (t *TermService) GetRolesByDepartmentsID(departmentID uint64) ([]*model.Rol
 	}
 	return result, nil
 }
-func (t *TermService) GetDepartmentByRoleID(roleID uint64) ([]*model.Department, error) {
+
+func (t *TermService) GetDepartmentByRoleID(ctx context.Context, roleID uint64) ([]*model.Department, error) {
 	var roleType string
 	var err error
 	roleType = ""
 	if roleID != 0 {
-		roleType, err = t.UserService.RoleRepo.GetTypeByRoleID(roleID)
+		roleType, err = t.UserService.RoleRepo.GetTypeByRoleID(ctx, roleID)
 		if err != nil {
 			return nil, err
 		}
 	}
-	departments, err := t.UserService.DepartmentRepo.GetDepartmentByType(roleType)
+	departments, err := t.UserService.DepartmentRepo.GetDepartmentByType(ctx, roleType)
 	if err != nil {
 		return nil, err
 	}
 	return departments, nil
 }
 
-func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
-	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(userID)
+func (t *TermService) resolveApplicationListScope(ctx context.Context, userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(ctx, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -397,7 +398,7 @@ func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, 
 		return requestedDepartmentID, nil
 	}
 
-	interviewers, err := t.TermRepo.GetInterviewerListByTermID(termID)
+	interviewers, err := t.TermRepo.GetInterviewerListByTermID(ctx, termID)
 	if err != nil {
 		return 0, err
 	}
@@ -416,7 +417,7 @@ func (t *TermService) resolveApplicationListScope(userID uint64, termID uint64, 
 }
 
 func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, departmentID uint64, termID uint64) ([]*model.Application, error) {
-	term, err := t.TermRepo.GetTermByID(termID)
+	term, err := t.TermRepo.GetTermByID(ctx, termID)
 	if err != nil {
 		return nil, err
 	}
@@ -424,12 +425,12 @@ func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, dep
 		return nil, errors.New("不在查询时间范围内")
 	}
 
-	finalDepartmentID, err := t.resolveApplicationListScope(userID, termID, departmentID)
+	finalDepartmentID, err := t.resolveApplicationListScope(ctx, userID, termID, departmentID)
 	if err != nil {
 		return nil, err
 	}
 
-	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(termID, finalDepartmentID)
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, termID, finalDepartmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -442,12 +443,12 @@ func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, dep
 	return applications, nil
 }
 
-func (t *TermService) DeleteApplication(applicationID uint64, id uint64) error {
-	application, err := t.TermRepo.GetApplicationByID(applicationID)
+func (t *TermService) DeleteApplication(ctx context.Context, applicationID uint64, id uint64) error {
+	application, err := t.TermRepo.GetApplicationByID(ctx, applicationID)
 	if err != nil {
 		return err
 	}
-	term, err := t.TermRepo.GetTermByID(application.TermID)
+	term, err := t.TermRepo.GetTermByID(ctx, application.TermID)
 	if err != nil {
 		return err
 	}
@@ -455,40 +456,38 @@ func (t *TermService) DeleteApplication(applicationID uint64, id uint64) error {
 	if !ok {
 		return errors.New("不在时间范围内")
 	}
-	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(id)
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(ctx, id)
 	if err != nil {
 		return err
 	}
-	applicationLevel, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(application.UserID)
+	applicationLevel, _, err := t.UserService.Repo.GetRoleLevelAndDepartment(ctx, application.UserID)
 	if err != nil {
 		return err
 	}
 	if (level > applicationLevel && level >= 80) || application.UserID == id {
-		err = t.TermRepo.DeleteApplication(applicationID)
+		err = t.TermRepo.DeleteApplication(ctx, applicationID)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
 	return errors.New("权限不够")
-
 }
 
-//--------------------------------------
-//面试官
+// 面试官
 
-func (t *TermService) CreateInterviewers(id uint64, req request.CreateInterviewer) error {
-	if err := t.CheckLevel(id); err != nil {
+func (t *TermService) CreateInterviewers(ctx context.Context, id uint64, req request.CreateInterviewer) error {
+	if err := t.CheckLevel(ctx, id); err != nil {
 		return err
 	}
 	if len(req.Interviewers) == 0 {
 		return errors.New("面试官列表不能为空")
 	}
-	if err := t.ensureInterviewerTermEditable(req.TermID); err != nil {
+	if err := t.ensureInterviewerTermEditable(ctx, req.TermID); err != nil {
 		return err
 	}
 
-	existing, err := t.TermRepo.GetInterviewerListByTermID(req.TermID)
+	existing, err := t.TermRepo.GetInterviewerListByTermID(ctx, req.TermID)
 	if err != nil {
 		return err
 	}
@@ -505,7 +504,7 @@ func (t *TermService) CreateInterviewers(id uint64, req request.CreateInterviewe
 		userIDs = append(userIDs, item.UserID)
 	}
 
-	departmentIDMap, err := t.UserService.Repo.GetDepartmentByUserIDs(userIDs)
+	departmentIDMap, err := t.UserService.Repo.GetDepartmentByUserIDs(ctx, userIDs)
 	if err != nil {
 		return err
 	}
@@ -531,18 +530,18 @@ func (t *TermService) CreateInterviewers(id uint64, req request.CreateInterviewe
 	if len(interviewers) == 0 {
 		return errors.New("全部都已经是面试官")
 	}
-	return t.TermRepo.CreateInterviewers(interviewers)
+	return t.TermRepo.CreateInterviewers(ctx, interviewers)
 }
 
-func (t *TermService) GetInterviewerList(userID uint64, termID uint64) ([]model.InterviewerInfo, error) {
-	departmentID, _, err := t.UserService.Repo.GetDepartmentIDAndRoleIDByID(userID)
+func (t *TermService) GetInterviewerList(ctx context.Context, userID uint64, termID uint64) ([]model.InterviewerInfo, error) {
+	departmentID, _, err := t.UserService.Repo.GetDepartmentIDAndRoleIDByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	isAdmin := t.CheckLevel(userID) == nil
+	isAdmin := t.CheckLevel(ctx, userID) == nil
 	if !isAdmin {
-		all, err := t.TermRepo.GetInterviewerListByTermID(termID)
+		all, err := t.TermRepo.GetInterviewerListByTermID(ctx, termID)
 		if err != nil {
 			return nil, err
 		}
@@ -563,52 +562,53 @@ func (t *TermService) GetInterviewerList(userID uint64, termID uint64) ([]model.
 		scopeDepartmentID = departmentID
 	}
 
-	interviews, err := t.TermRepo.GetInterviewerListByScope(termID, scopeDepartmentID)
+	interviews, err := t.TermRepo.GetInterviewerListByScope(ctx, termID, scopeDepartmentID)
 	if err != nil {
 		return nil, err
 	}
 	if len(interviews) == 0 {
 		return nil, errors.New("无匹配面试官")
 	}
-	return t.InterviewerToInterviewerInfo(interviews)
+	return t.InterviewerToInterviewerInfo(ctx, interviews)
 }
 
-func (t *TermService) UpdateInterviewer(id uint64, req request.UpdateInterviewer) error {
-	if err := t.CheckLevel(id); err != nil {
+func (t *TermService) UpdateInterviewer(ctx context.Context, id uint64, req request.UpdateInterviewer) error {
+	if err := t.CheckLevel(ctx, id); err != nil {
 		return err
 	}
 
-	interviewer, err := t.TermRepo.GetInterviewerByID(req.InterviewerID)
+	interviewer, err := t.TermRepo.GetInterviewerByID(ctx, req.InterviewerID)
 	if err != nil {
 		return err
 	}
-	if err = t.ensureInterviewerTermEditable(interviewer.TermID); err != nil {
+	if err = t.ensureInterviewerTermEditable(ctx, interviewer.TermID); err != nil {
 		return err
 	}
 
-	return t.TermRepo.UpdateInterviewers(model.Interviewer{
+	return t.TermRepo.UpdateInterviewers(ctx, model.Interviewer{
 		ID:     req.InterviewerID,
 		Remark: req.Remark,
 	})
 }
 
-func (t *TermService) DeleteInterviewer(userID uint64, interviewerID uint64) error {
-	if err := t.CheckLevel(userID); err != nil {
+func (t *TermService) DeleteInterviewer(ctx context.Context, userID uint64, interviewerID uint64) error {
+	if err := t.CheckLevel(ctx, userID); err != nil {
 		return err
 	}
 
-	interviewer, err := t.TermRepo.GetInterviewerByID(interviewerID)
+	interviewer, err := t.TermRepo.GetInterviewerByID(ctx, interviewerID)
 	if err != nil {
 		return err
 	}
-	if err = t.ensureInterviewerTermEditable(interviewer.TermID); err != nil {
+	if err = t.ensureInterviewerTermEditable(ctx, interviewer.TermID); err != nil {
 		return err
 	}
 
-	return t.TermRepo.DeleteInterviewer(interviewerID)
+	return t.TermRepo.DeleteInterviewer(ctx, interviewerID)
 }
-func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
-	termMap, err := t.TermRepo.GetTermMap()
+
+func (t *TermService) InterviewerToInterviewerInfo(ctx context.Context, interviews []model.Interviewer) ([]model.InterviewerInfo, error) {
+	termMap, err := t.TermRepo.GetTermMap(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -618,7 +618,7 @@ func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewe
 		ids = append(ids, item.UserID)
 	}
 
-	usersMap, err := t.UserService.Repo.GetUserMapByUserIDs(ids)
+	usersMap, err := t.UserService.Repo.GetUserMapByUserIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -645,8 +645,9 @@ func (t *TermService) InterviewerToInterviewerInfo(interviews []model.Interviewe
 	}
 	return result, nil
 }
-func (t *TermService) ensureInterviewerTermEditable(termID uint64) error {
-	term, err := t.TermRepo.GetTermByID(termID)
+
+func (t *TermService) ensureInterviewerTermEditable(ctx context.Context, termID uint64) error {
+	term, err := t.TermRepo.GetTermByID(ctx, termID)
 	if err != nil {
 		return err
 	}
@@ -656,15 +657,15 @@ func (t *TermService) ensureInterviewerTermEditable(termID uint64) error {
 	return nil
 }
 
-//面试结果
+// 面试结果
 
-func (t *TermService) CreateInterviewResult(operatorID uint64, req request.CreateInterviewResultReq) error {
-	application, err := t.TermRepo.GetApplicationByID(req.ApplicationID)
+func (t *TermService) CreateInterviewResult(ctx context.Context, operatorID uint64, req request.CreateInterviewResultReq) error {
+	application, err := t.TermRepo.GetApplicationByID(ctx, req.ApplicationID)
 	if err != nil {
 		return err
 	}
 
-	term, err := t.TermRepo.GetTermByID(application.TermID)
+	term, err := t.TermRepo.GetTermByID(ctx, application.TermID)
 	if err != nil {
 		return err
 	}
@@ -681,25 +682,25 @@ func (t *TermService) CreateInterviewResult(operatorID uint64, req request.Creat
 		Remark:             req.Remark,
 	}
 
-	if err := t.CheckInterviewResult(operatorID, term, application, interviewResult); err != nil {
+	if err := t.CheckInterviewResult(ctx, operatorID, term, application, interviewResult); err != nil {
 		return err
 	}
 
-	return t.TermRepo.CreateInterviewResult(interviewResult)
+	return t.TermRepo.CreateInterviewResult(ctx, interviewResult)
 }
 
-func (t *TermService) UpdateInterviewResult(operatorID uint64, req request.UpdateInterviewResultReq) error {
-	oldResult, err := t.TermRepo.GetInterviewResultByApplicationID(req.ApplicationID)
+func (t *TermService) UpdateInterviewResult(ctx context.Context, operatorID uint64, req request.UpdateInterviewResultReq) error {
+	oldResult, err := t.TermRepo.GetInterviewResultByApplicationID(ctx, req.ApplicationID)
 	if err != nil {
 		return err
 	}
 
-	application, err := t.TermRepo.GetApplicationByID(oldResult.ApplicationID)
+	application, err := t.TermRepo.GetApplicationByID(ctx, oldResult.ApplicationID)
 	if err != nil {
 		return err
 	}
 
-	term, err := t.TermRepo.GetTermByID(application.TermID)
+	term, err := t.TermRepo.GetTermByID(ctx, application.TermID)
 	if err != nil {
 		return err
 	}
@@ -712,28 +713,29 @@ func (t *TermService) UpdateInterviewResult(operatorID uint64, req request.Updat
 	interviewResult.ResultRoleID = req.ResultRoleID
 	interviewResult.Remark = req.Remark
 
-	if err := t.CheckInterviewResult(operatorID, term, application, interviewResult); err != nil {
+	if err := t.CheckInterviewResult(ctx, operatorID, term, application, interviewResult); err != nil {
 		return err
 	}
 
-	return t.TermRepo.UpdateInterviewResult(interviewResult)
+	return t.TermRepo.UpdateInterviewResult(ctx, interviewResult)
 }
 
-func (t *TermService) GetInterviewResultList(operatorID uint64, termID uint64) ([]model.InterviewResultInfo, error) {
-	if err := t.CheckLevel(operatorID); err != nil {
+func (t *TermService) GetInterviewResultList(ctx context.Context, operatorID uint64, termID uint64) ([]model.InterviewResultInfo, error) {
+	if err := t.CheckLevel(ctx, operatorID); err != nil {
 		return nil, err
 	}
 
 	if termID != 0 {
-		if _, err := t.TermRepo.GetTermByID(termID); err != nil {
+		if _, err := t.TermRepo.GetTermByID(ctx, termID); err != nil {
 			return nil, err
 		}
 	}
 
-	return t.TermRepo.GetInterviewResultList(termID)
+	return t.TermRepo.GetInterviewResultList(ctx, termID)
 }
 
 func (t *TermService) CheckInterviewResult(
+	ctx context.Context,
 	operatorID uint64,
 	term model.Term,
 	application *model.Application,
@@ -761,7 +763,7 @@ func (t *TermService) CheckInterviewResult(
 		return errors.New("不在时间范围内")
 	}
 
-	if err := t.CheckLevel(operatorID); err != nil {
+	if err := t.CheckLevel(ctx, operatorID); err != nil {
 		return err
 	}
 
@@ -783,12 +785,13 @@ func (t *TermService) CheckInterviewResult(
 			return errors.New("该用户不支持调剂")
 		}
 		if err := t.UserService.VerifyDepartmentPosition(
+			ctx,
 			interviewResult.ResultDepartmentID,
 			interviewResult.ResultRoleID,
 		); err != nil {
 			return err
 		}
-		if err := t.checkApplicationRole(interviewResult.ResultRoleID); err != nil {
+		if err := t.checkApplicationRole(ctx, interviewResult.ResultRoleID); err != nil {
 			return err
 		}
 

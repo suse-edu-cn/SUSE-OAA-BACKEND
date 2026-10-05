@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
@@ -19,34 +20,35 @@ func NewDepartmentService(departmentRepo *repository.DepartmentRepository,
 	}
 }
 
-func (d *DepartmentService) GetAll() (*[]model.Department, error) {
-	departments, err := d.DepartmentRepo.FindAll()
+func (d *DepartmentService) GetAll(ctx context.Context) (*[]model.Department, error) {
+	departments, err := d.DepartmentRepo.FindAll(ctx)
 	if err != nil {
 		return nil, errors.New("获取失败" + err.Error())
 	}
 	return departments, nil
 }
 
-func (d *DepartmentService) CreateDepartment(id uint64, department *model.Department) error {
-	_, level, err := d.RoleRepo.GetActiveRoleByUserID(id)
+func (d *DepartmentService) CreateDepartment(ctx context.Context, id uint64, department *model.Department) error {
+	_, level, err := d.RoleRepo.GetActiveRoleByUserID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if level < 80 {
 		return errors.New("权限不够")
 	}
-	return d.DepartmentRepo.CreateDepartment(department)
+	return d.DepartmentRepo.CreateDepartment(ctx, department)
 }
-func (d *DepartmentService) UpdateDepartment(id uint64, department *model.Department, isActive *bool) error {
-	_, level, err := d.RoleRepo.GetActiveRoleByUserID(id)
+
+func (d *DepartmentService) UpdateDepartment(ctx context.Context, id uint64, department *model.Department, isActive *bool) error {
+	_, level, err := d.RoleRepo.GetActiveRoleByUserID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if level < 80 {
 		return errors.New("权限不够")
 	}
-	if _, err := d.DepartmentRepo.GetDepartmentByID(department.ID); err != nil {
+	if _, err := d.DepartmentRepo.GetDepartmentByID(ctx, department.ID); err != nil {
 		return err
 	}
-	return d.DepartmentRepo.UpdateDepartment(department, isActive)
+	return d.DepartmentRepo.UpdateDepartment(ctx, department, isActive)
 }

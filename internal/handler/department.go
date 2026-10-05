@@ -20,13 +20,15 @@ func NewDepartmentHandler(departmentService *service.DepartmentService) *Departm
 }
 
 func (d *DepartmentHandler) GetAll(c *gin.Context) {
-	departments, err := d.DepartmentService.GetAll()
+	ctx := c.Request.Context()
+	departments, err := d.DepartmentService.GetAll(ctx)
 	if err != nil {
 		response.Fail(c, 500, err.Error(), nil)
 		return
 	}
 	response.Success(c, departments)
 }
+
 func (d *DepartmentHandler) Create(c *gin.Context) {
 	var req request.CreateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,7 +41,8 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
-	err = d.DepartmentService.CreateDepartment(id, &model.Department{
+	ctx := c.Request.Context()
+	err = d.DepartmentService.CreateDepartment(ctx, id, &model.Department{
 		Name: req.Name,
 		Type: req.Type,
 	})
@@ -48,8 +51,8 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 		return
 	}
 	response.Success(c, nil)
-	return
 }
+
 func (d *DepartmentHandler) Update(c *gin.Context) {
 	var req request.UpdateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,7 +65,8 @@ func (d *DepartmentHandler) Update(c *gin.Context) {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
-	err = d.DepartmentService.UpdateDepartment(id, &model.Department{
+	ctx := c.Request.Context()
+	err = d.DepartmentService.UpdateDepartment(ctx, id, &model.Department{
 		ID:   req.DepartmentID,
 		Name: req.Name,
 		Type: req.Type,
@@ -72,5 +76,4 @@ func (d *DepartmentHandler) Update(c *gin.Context) {
 		return
 	}
 	response.Success(c, nil)
-	return
 }

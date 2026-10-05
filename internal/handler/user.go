@@ -88,12 +88,12 @@ func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 		return
 	}
 	id := c.GetUint64("user_id")
-	departmentID, roleID, err := u.UserService.GetDepartmentIDAndRoleIDByID(id)
+	ctx := c.Request.Context()
+	departmentID, roleID, err := u.UserService.GetDepartmentIDAndRoleIDByID(ctx, id)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
-	ctx := c.Request.Context()
 	res, err := u.UserService.BatchUserInfo(ctx, req, departmentID, roleID)
 	if err != nil {
 		if res == nil {

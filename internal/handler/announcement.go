@@ -18,6 +18,7 @@ func NewAnnouncementHandler(announcementService *service.AnnouncementService) *A
 		AnnouncementService: announcementService,
 	}
 }
+
 func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 	var req request.CreateAnnouncementReq
 	err := c.ShouldBindJSON(&req)
@@ -33,13 +34,13 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 		DepartmentID: req.DepartmentID,
 	}
 
-	res, err := a.AnnouncementService.CreateAnnouncement(userID, announcement)
+	ctx := c.Request.Context()
+	res, err := a.AnnouncementService.CreateAnnouncement(ctx, userID, announcement)
 	if err != nil {
 		response.Fail(c, 500, err.Error(), nil)
 		return
 	}
 	response.Success(c, res)
-	return
 }
 
 func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
@@ -55,13 +56,13 @@ func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
 		Title:   req.Title,
 		Content: req.Content,
 	}
-	err = a.AnnouncementService.UpdateAnnouncement(userID, announcement)
+	ctx := c.Request.Context()
+	err = a.AnnouncementService.UpdateAnnouncement(ctx, userID, announcement)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "公告更新成功")
-	return
 }
 
 func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
@@ -79,7 +80,6 @@ func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
 		return
 	}
 	response.Success(c, "推送成功")
-	return
 }
 
 func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
@@ -101,8 +101,8 @@ func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
 		return
 	}
 	response.Success(c, announcementInfos)
-	return
 }
+
 func (a *AnnouncementHandler) GetAnnouncement(c *gin.Context) {
 	var req request.GetAnnouncementReq
 	err := c.ShouldBindQuery(&req)
@@ -118,9 +118,8 @@ func (a *AnnouncementHandler) GetAnnouncement(c *gin.Context) {
 		return
 	}
 	response.Success(c, announcement)
-	return
-
 }
+
 func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
 	userID := c.GetUint64("user_id")
 	var req request.DeleteAnnouncementReq
@@ -129,11 +128,11 @@ func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
 		response.Fail(c, 400, "获取参数失败", nil)
 		return
 	}
-	err = a.AnnouncementService.DeleteAnnouncement(req.AnnouncementID, userID)
+	ctx := c.Request.Context()
+	err = a.AnnouncementService.DeleteAnnouncement(ctx, req.AnnouncementID, userID)
 	if err != nil {
 		response.Fail(c, 400, err.Error(), nil)
 		return
 	}
 	response.Success(c, "删除公告成功")
-	return
 }
