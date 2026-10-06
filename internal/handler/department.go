@@ -23,7 +23,7 @@ func (d *DepartmentHandler) GetAll(c *gin.Context) {
 	ctx := c.Request.Context()
 	departments, err := d.DepartmentService.GetAll(ctx)
 	if err != nil {
-		response.Fail(c, 500, err.Error(), nil)
+		response.ServerError(c, "获取部门列表", err)
 		return
 	}
 	response.Success(c, departments)
@@ -32,13 +32,13 @@ func (d *DepartmentHandler) GetAll(c *gin.Context) {
 func (d *DepartmentHandler) Create(c *gin.Context) {
 	var req request.CreateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, "获取参数失败", nil)
+		response.BadRequest(c, "获取参数失败")
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := req.CheckType()
 	if err != nil {
-		response.Fail(c, 400, err.Error(), nil)
+		response.BadRequest(c, err.Error())
 		return
 	}
 	ctx := c.Request.Context()
@@ -47,7 +47,11 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 		Type: req.Type,
 	})
 	if err != nil {
-		response.Fail(c, 500, err.Error(), nil)
+		if err.Error() == "权限不够" {
+			response.Forbidden(c, "权限不足")
+			return
+		}
+		response.ServerError(c, "创建部门", err)
 		return
 	}
 	response.Success(c, nil)
@@ -56,13 +60,13 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 func (d *DepartmentHandler) Update(c *gin.Context) {
 	var req request.UpdateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, 400, err.Error(), nil)
+		response.BadRequest(c, "获取参数失败")
 		return
 	}
 	id := c.GetUint64("user_id")
 	err := req.CheckType()
 	if err != nil {
-		response.Fail(c, 400, err.Error(), nil)
+		response.BadRequest(c, err.Error())
 		return
 	}
 	ctx := c.Request.Context()
@@ -72,7 +76,11 @@ func (d *DepartmentHandler) Update(c *gin.Context) {
 		Type: req.Type,
 	}, req.IsActive)
 	if err != nil {
-		response.Fail(c, 500, err.Error(), nil)
+		if err.Error() == "权限不够" {
+			response.Forbidden(c, "权限不足")
+			return
+		}
+		response.ServerError(c, "更新部门", err)
 		return
 	}
 	response.Success(c, nil)

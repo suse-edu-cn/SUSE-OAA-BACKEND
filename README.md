@@ -7,7 +7,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 ## 目录
 
 - [核心架构亮点](#核心架构亮点)
-- [统一响应规范](#统一响应规范)
+- [统一响应与错误分类规范](#统一响应与错误分类规范)
 - [接口一览与详细文档](#接口一览与详细文档)
   - [Auth（认证与令牌）](#auth认证与令牌)
   - [Password（密码服务）](#password密码服务)
@@ -21,13 +21,16 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
   - [Interview Result（面试结果）](#interview-result面试结果)
   - [Upload（文件与对象存储）](#upload文件与对象存储)
 - [核心机制设计](#核心机制设计)
-  - [Redis SetNX 原子防刷与回滚机制](#1-redis-setnx-原子防刷与回滚机制)
-  - [账户注销冷静期与级联清理](#2-账户注销冷静期与级联清理)
-  - [双后台常驻定时执行器（Daemons）](#3-双后台常驻定时执行器daemons)
-  - [Refresh Token 双存储与 Cache-Aside](#4-refresh-token-双存储与-cache-aside)
-  - [全链路 Context 生命周期穿透](#5-全链路-context-生命周期穿透)
-  - [MySQL 生产级连接池调优](#6-mysql-生产级连接池调优)
-  - [MinIO 双端点隔离与纯本地离线预签名](#7-minio-双端点隔离与纯本地离线预签名)
+  - [1. Redis SetNX 原子防刷与回滚机制](#1-redis-setnx-原子防刷与回滚机制)
+  - [2. 账户注销冷静期与级联清理](#2-账户注销冷静期与级联清理)
+  - [3. 双后台常驻定时执行器（Daemons）](#3-双后台常驻定时执行器daemons)
+  - [4. Refresh Token 双存储与 Cache-Aside](#4-refresh-token-双存储与-cache-aside)
+  - [5. 基于 Redis 原子计数的敏感接口 IP 频次限流](#5-基于-redis-原子计数的敏感接口-ip-频次限流)
+  - [6. 全链路 TraceID 注入与 slog 结构化日志追溯](#6-全链路-traceid-注入与-slog-结构化日志追溯)
+  - [7. 全链路 Context 生命周期穿透](#7-全链路-context-生命周期穿透)
+  - [8. 信号监听与全流程优雅停机（Graceful Shutdown）](#8-信号监听与全流程优雅停机graceful-shutdown)
+  - [9. MySQL 生产级连接池调优与逻辑外键演进](#9-mysql-生产级连接池调优与逻辑外键演进)
+  - [10. MinIO 双端点隔离与纯本地离线预签名](#10-minio-双端点隔离与纯本地离线预签名)
 - [权限与组织架构设计](#权限与组织架构设计)
 - [技术栈](#技术栈)
 - [配置文件与部署运行](#配置文件与部署运行)
@@ -39,41 +42,60 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 - **账号与令牌安全**：
   - 双存储 Cache-Aside 架构（Redis 优先缓存 + MySQL 持久化底座），支持零断连容灾回源。
   - 登出或账号注销时，触发全端级联清理（物理清除 MySQL 记录与 Redis 全设备 Refresh Token、验证码与冷却 Key）。
+- **敏感接口 IP 频次限流（Rate Limiting）**：
+  - 基于 Redis 原生原子计数器 `Incr` 实现前置轻量级限流中间件，对密码登录（10 次/分）与邮箱发信（5 次/分）实施精准防刷与防爆破，超频直接返回 `429 Too Many Requests`，避免流量穿透到底层高耗算力模块（Bcrypt 校验）与第三方 SMTP 服务。
 - **验证码原子防刷**：
   - 基于 Redis `SetNX` 单指令实现前置原子互斥锁定，彻底消除传统“先查后发”在高延迟 SMTP 网络 I/O 下的并发穿透漏洞。
-  - 具备发信异常自动回滚（Compensating Rollback）机制，避免系统故障误锁用户。
+  - 具备发信异常自动补偿回滚（Compensating Rollback）机制，避免系统故障误锁用户。
 - **完善的注销冷静期流程**：
   - 用户自主注销进入 24 小时冷静期（常量 `UserDeletionGracePeriod = 24h`），期间账号权益完全正常。
   - 支持随时通过 `POST /v2/user/delete` 查询倒计时，支持通过安全邮箱验证码（`scene = "cancel_delete"`）一键撤销冷静期。
   - 结合后台常驻执行器每分钟轮询，倒计时结束自动彻底软删除并清理所有凭证。
-- **生产级底层健壮性**：
+- **全链路可观测性与 TraceID 日志**：
+  - 全局中间件自动为每个 HTTP 请求注入唯一 `X-Trace-ID` 响应头与 Request Context。
+  - 基于 Go 1.21+ 标准库 `log/slog` 构建结构化日志，全链路日志自动附带 TraceID，支持生产环境单次请求的精准端到端问题复现。
+- **生产级底层健壮性与优雅停机**：
+  - **优雅停机（Graceful Shutdown）**：捕获系统中断信号（`SIGINT`/`SIGTERM`），通过 Context 级联平滑终止后台常驻协程，配合 `srv.Shutdown` 超时缓冲机制等待活跃请求正常响应，杜绝服务重启时的事务半写入与数据不一致。
   - **MySQL 连接池全套调优**：最大打开连接（100）、最大空闲连接（25）、单连接存活寿命（60m）、空闲回收时间（10m），配合 Fail-Fast 启动保护与智能默认值兜底。
+  - **逻辑外键演进**：全表杜绝物理外键强依赖，由业务层事务保证引用完整性，根除高并发下的外键间隙锁死锁与 DDL 锁表隐患。
   - **全链路 Context 穿透**：所有 HTTP 请求上下文深度贯穿 GORM 事务、Redis 缓存与 MinIO 传输，客户端断开或超时即刻阻断底层 I/O，杜绝资源悬挂。
   - **MinIO 双端点隔离**：内网走局域网无公网开销；外网签名纯本地哈希离线计算，消除网络探测延迟与 502/Region 不匹配错误。
 
 ---
 
-## 统一响应规范
+## 统一响应与错误分类规范
 
-所有 HTTP 接口的响应格式统一遵循以下结构，HTTP 状态码与业务 `code` 保持一致：
+所有 HTTP 接口的响应格式统一遵循以下结构，HTTP 状态码与业务 `code` 严格对齐，形成标准的 **5+1 语义化响应体系**：
 
-### 1. 成功响应 (`200 OK`)
+### 1. 响应结构定义
+
 ```json
 {
   "code": 200,
   "message": "success",
-  "data": {} // 或数组、字符串、null
+  "data": null // 数据载荷（对象、数组、字符串或 null）
 }
 ```
 
-### 2. 失败响应 (`400 Bad Request` / `401 Unauthorized` / `500 Internal Server Error`)
-```json
-{
-  "code": 400,
-  "message": "具体错误提示信息",
-  "data": null // 部分接口（如批量操作出现部分失败、注销冷静期倒计时）会在 data 中携带附加数据
-}
-```
+### 2. 状态码与语义分类体系
+
+| HTTP 状态码 | 业务方法 | 适用场景 | 前端处理建议 |
+| :--- | :--- | :--- | :--- |
+| **`200 OK`** | `response.Success(c, data)` | 业务正常执行完毕 | 正常消费 `data` 并渲染页面 |
+| **`400 Bad Request`** | `response.BadRequest(c, msg)`<br>`response.BadRequestWithData(c, msg, data)` | 业务参数校验失败、账号密码错误、不在填报时间范围内、业务规则受限 | 页面提示错误文案；若携带 `data`（如批量部分失败、冷静期时间）则提取展示 |
+| **`401 Unauthorized`** | `response.Unauthorized(c, msg)` | 请求头未携带 Token、Bearer 格式错误、Token 过期或被篡改 | **清除本地缓存 Token，跳转至登录页面** |
+| **`403 Forbidden`** | `response.Forbidden(c, msg)` | 身份有效但权限不足（如越权修改高职级数据、跨部门非法操作） | 弹窗或浮层提示“无权操作此资源” |
+| **`429 Too Many Requests`** | `response.TooManyRequests(c)` | 触发 IP 频次限制（登录/发信超频） | 按钮倒计时置灰并提示“请求过于频繁，请稍后再试” |
+| **`500 Internal Error`** | `response.ServerError(c, action, err)` | 数据库故障、网络宕机、第三方存储异常等未预期服务器崩溃 | 统一展示脱敏友好提示：`"服务开小差了，请稍后再试"` |
+
+### 3. 底层错误脱敏与转译策略
+
+1. **500 异常强脱敏与日志追溯**：
+   `response.ServerError(c, action, err)` 绝不向前端暴露底层 SQL 语句、表名、代码堆栈或 MinIO 错误，统一返回安全文案 `"服务开小差了，请稍后再试"`；同时在服务端自动提取上下文 TraceID 并通过 `logger.ErrorContext` 输出完整堆栈与错误原因，便于运维定位。
+2. **MySQL 1062 唯一约束冲突转译**：
+   在 Repository 层针对数据插入与更新捕获 `mysqlErr.Number == 1062`，自动转译为业务人话（如 `"学号、邮箱或用户名已被占用"`、`"创建失败，该年份类型的数据已存在"`），作为 400 业务错误返回。
+3. **`gorm.ErrRecordNotFound` 转译**：
+   在 Service 层捕获 GORM 空记录异常并转译为 `"账号不存在"`、`"用户不存在"` 等具体业务语义，避免向客户端输出原生的 `record not found`。
 
 ---
 
@@ -91,13 +113,13 @@ Authorization: Bearer <token>
 
 ### Auth（认证与令牌）
 
-| 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
-|---|---|---|---|---|
-| POST | `/v2/auth/register` | 公开 | 用户注册 | JSON：`student_id`、`username`、`name`、`email`、`password` |
-| POST | `/v2/auth/login` | 公开 | 用户登录 | JSON：`account`（支持学号/用户名/邮箱）、`password`、`device`（设备标识） |
-| POST | `/v2/auth/refresh` | 公开 | 刷新令牌 | JSON：`refresh_token`、`user_id`、`device` |
-| POST | `/v2/auth/send` | 公开 | 发送邮箱验证码 | JSON：`account`、`scene`（场景值） |
-| POST | `/v2/auth/logout` | 登录 | 当前设备登出 | JSON：`device` |
+| 方法 | 路径 | 鉴权 | 说明 | 频控限制 | 请求参数 |
+|---|---|---|---|---|---|
+| POST | `/v2/auth/register` | 公开 | 用户注册 | 无 | JSON：`student_id`、`username`、`name`、`email`、`password` |
+| POST | `/v2/auth/login` | 公开 | 用户登录 | **10次/分 (IP)** | JSON：`account`（支持学号/用户名/邮箱）、`password`、`device`（设备标识） |
+| POST | `/v2/auth/refresh` | 公开 | 刷新令牌 | 无 | JSON：`refresh_token`、`user_id`、`device` |
+| POST | `/v2/auth/send` | 公开 | 发送邮箱验证码 | **5次/分 (IP)** | JSON：`account`、`scene`（场景值） |
+| POST | `/v2/auth/logout` | 登录 | 当前设备登出 | 无 | JSON：`device` |
 
 #### `POST /v2/auth/send` 支持的业务场景（`scene`）：
 1. `reset_password`：找回/重置密码。
@@ -365,7 +387,7 @@ Authorization: Bearer <token>
 
 ### 3. 双后台常驻定时执行器（Daemons）
 
-系统在 `cmd/main.go` 启动时并行拉起两个轻量级后台常驻协程（基于 `time.NewTicker`，每分钟调度一次）：
+系统在 `cmd/main.go` 启动时并行拉起两个轻量级后台常驻协程（基于 `time.NewTicker`，每分钟调度一次，受 `context.Context` 生命周期控制）：
 
 1. **`StartUserDeletionExecutor`（到期用户注销执行器）**：
    - 轮询扫描数据库：`scheduled_delete_at IS NOT NULL AND scheduled_delete_at <= NOW()`；
@@ -379,23 +401,73 @@ Authorization: Bearer <token>
 - **双写保障**：用户登录或刷新 Token 时，新生成的 `refresh_token` 同步写入 Redis 缓存与 MySQL 持久化表（TTL 默认 15 天）。
 - **Cache-Aside 容灾回源**：客户端调用 `/v2/auth/refresh` 刷新令牌时，优先读取 Redis；若 Redis 重启或键被逐出，系统自动回源查询 MySQL，验证通过后自动回填写回 Redis，兼具极速响应与零断连容灾能力。
 
-### 5. 全链路 Context 生命周期穿透
+### 5. 基于 Redis 原子计数的敏感接口 IP 频次限流
+
+针对暴破密码和高频调用第三方短信/邮件等薄弱攻击面，系统引入了轻量级、无锁的 IP 限流中间件（`internal/middleware/rate_limit.go`）：
+
+```text
+客户端 IP 请求 -> Redis INCR ratelimit:{scene}:{ip}
+  ├── 计数值 == 1 (首次请求) ──> 设置窗口过期时间 EXPIRE (例如 1分钟) ──> 放行 Next()
+  ├── 计数值 <= limit ─────────> 放行 Next()
+  └── 计数值 > limit ──────────> 中断请求 Abort()，立即响应 429 Too Many Requests
+```
+
+- **登录接口保护**：`/v2/auth/login` 限制单个 IP 每分钟最多尝试 10 次，彻底阻断密码暴力破解，保护 Bcrypt 密文哈希计算资源。
+- **邮件发送保护**：`/v2/auth/send` 限制单个 IP 每分钟最多调用 5 次，与账号维度的 `SetNX` 冷却形成“IP 层 + 用户账号层”双重立体防护，杜绝恶意肉鸡刷爆 SMTP 接口。
+- **故障降级保护**：若 Redis 出现偶发性网络抖动，限流逻辑自动捕获错误并执行 `c.Next()` 放行降级，保障业务主链路绝不因限流组件故障而雪崩。
+
+### 6. 全链路 TraceID 注入与 slog 结构化日志追溯
+
+为了彻底解决微服务或单体架构中多协程并发日志混乱、问题难以排查的痛点，项目接入了标准库 `log/slog` 与分布式追踪理念：
+
+- **全局 Trace 中间件**（`internal/middleware/trace.go`）：
+  - 拦截每个 HTTP 入口请求，生成全球唯一 UUID 作为 `TraceID`；
+  - 写入 HTTP 响应头 `X-Trace-ID`，供前端或外部网关快速关联；
+  - 注入 `c.Request.Context()`，实现跨层级透明穿透。
+- **结构化日志包封装**（`pkg/logger/logger.go`）：
+  - 定制 `TraceHandler`，自动从传入的 `context.Context` 中提取 `TraceID` 字段，作为日志固定属性输出；
+  - 支持 `logger.InfoContext`、`logger.WarnContext`、`logger.ErrorContext` 等标准 API；
+  - 开发环境采用人类可读的 Text 格式输出，生产环境无缝切换为 JSON 格式便于接入 ELK / Loki 等日志收集系统。
+
+### 7. 全链路 Context 生命周期穿透
 
 - Gin Handler 统一提取 `c.Request.Context()`，并透明透传至 Service 层与 Repository 层。
 - GORM 数据库操作一律挂载 `.WithContext(ctx)`，Redis 命令一律使用 `rdb.WithContext(ctx)`，MinIO I/O 深度绑定 `ctx`。
 - 一旦前端页面离开、客户端主动断开连接或发生网关超时，内核能够即刻中断底层耗时的 SQL 查询与网络 I/O，杜绝连接泄露与数据库死锁。
 
-### 6. MySQL 生产级连接池调优
+### 8. 信号监听与全流程优雅停机（Graceful Shutdown）
 
-在 `internal/database/mysql.go` 中对底层 `*sql.DB` 进行了深度定制与保护：
+在生产环境中，容器滚动发布或进程重启不能直接强杀（`kill -9`），否则会导致正在执行的数据库事务中断或后台协程产生脏数据。
 
+系统在 `cmd/main.go` 中实现了完整的优雅退出编排：
+
+```text
+操作系统信号 (SIGINT / SIGTERM)
+  │
+  ├── 1. 触发 workerCtx 取消 (cancelWorkers()) ──> 立即停止两个常驻后台定时协程
+  ├── 2. 等待后台协程退出 (wg.Wait())
+  ├── 3. 调用 srv.Shutdown(shutdownCtx) (带 5 秒超时保护)
+  │     └── 停止接收新请求，等待处理中活跃请求完成并刷新响应
+  └── 4. 安全关闭 MySQL 连接池与 Redis 客户端 ──> 进程正常退出
+```
+
+### 9. MySQL 生产级连接池调优与逻辑外键演进
+
+#### 生产级连接池调优（`internal/database/mysql.go`）
+对底层 `*sql.DB` 进行了深度定制与保护：
 - **`max_open_conns`（默认 100）**：限制最大并发打开连接数，防止突发流量直接冲垮 MySQL 实例。
 - **`max_idle_conns`（默认 25）**：保持合理空闲连接（通常为最大连接的 1/4 到 1/2），避免并发时频繁进行 TCP 三次握手与身份认证。
 - **`conn_max_lifetime`（默认 60 分钟）**：限制连接生命周期，避免长时间复用导致防火墙/NAT 网关或 MySQL `wait_timeout` 静默切断产生的 `broken pipe`。
 - **`conn_max_idle_time`（默认 10 分钟）**：超时回收闲置连接，高峰期过后释放数据库资源。
 - **Fail-Fast 保护**：初始化若获取底层 `sql.DB` 失败直接触发 `panic` 快速失败，杜绝服务带病启动。
 
-### 7. MinIO 双端点隔离与纯本地离线预签名
+#### 逻辑外键替代物理外键
+系统全表数据表模型均采用**逻辑外键设计**，数据库底层 DDL 不建立任何物理 `FOREIGN KEY` 约束：
+- **消灭死锁**：高并发插入或修改主从表时，物理外键会隐式触发行锁甚至间隙锁（Gap Lock），极易在高频并发下引发死锁；
+- **分库分表与归档友好**：去除物理外键约束后，历史数据归档、软删除以及后续水平分库不再受底层外键约束阻碍；
+- **应用层事务保障**：数据关联一致性完全由 Service 层的数据库事务与校验逻辑进行保障。
+
+### 10. MinIO 双端点隔离与纯本地离线预签名
 
 - **双端点架构**：
   - `minio_endpoint`：后端与 MinIO 内部通信使用内网端点（如 `localhost:9000` 或集群内网 DNS），上传与管理流量均在内网闭环，不产生公网宽带消耗。
@@ -450,9 +522,10 @@ Authorization: Bearer <token>
 |---|---|---|
 | **语言与运行时** | Go 1.23+ | 高性能并发运行时 |
 | **Web 路由框架** | Gin (`github.com/gin-gonic/gin`) | 高性能 HTTP 路由与中间件 |
-| **ORM 框架** | GORM (`gorm.io/gorm` + `gorm.io/driver/mysql`) | 关系型数据库对象关系映射 |
-| **缓存中间件** | Redis (`github.com/redis/go-redis/v9`) | 分布式缓存、Session 刷新凭据与防刷前置锁 |
+| **ORM 框架** | GORM (`gorm.io/gorm` + `gorm.io/driver/mysql`) | 关系型数据库对象关系映射（全逻辑外键） |
+| **缓存中间件** | Redis (`github.com/redis/go-redis/v9`) | 分布式缓存、Session 刷新凭据、防刷锁与频次限流 |
 | **对象存储** | MinIO SDK (`github.com/minio/minio-go/v7`) | 兼容 S3 协议的大文件与图片存储 |
+| **结构化日志** | Go 1.21+ `log/slog` | 标准库轻量级结构化日志 + 全链路 TraceID 注入 |
 | **认证与加密** | JWT (`golang-jwt/jwt/v5`) + Bcrypt | 密码强哈希与无状态 Access Token |
 | **邮件投递** | Gomail (`gopkg.in/gomail.v2`) | SMTP 邮箱验证码发送服务 |
 | **配置解析** | Viper (`github.com/spf13/viper`) | YAML 配置文件读取与环境注入 |

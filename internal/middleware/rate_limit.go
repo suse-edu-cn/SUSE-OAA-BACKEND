@@ -25,7 +25,7 @@ func RateLimit(rdb *redis.Client, scene string, limit int64, window time.Duratio
 			_ = rdb.Expire(ctx, key, window).Err()
 		}
 		if count > limit {
-			response.Fail(c, 429, "请求过于频繁，请稍后再试", nil)
+			response.TooManyRequests(c)
 			c.Abort()
 			return
 		}

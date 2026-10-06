@@ -88,7 +88,10 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 func (u *UserService) Login(ctx context.Context, req request.LoginReq, refreshTime uint) (model.User, string, error) {
 	user, err := u.Repo.FindUserByAccount(ctx, req.Account)
 	if err != nil {
-		return model.User{}, "", errors.New("获取用户信息失败")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.User{}, "", errors.New("账号不存在")
+		}
+		return model.User{}, "", err
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		return model.User{}, "", errors.New("密码错误")
@@ -195,6 +198,9 @@ func (u *UserService) FindUserByID(ctx context.Context, id uint64) (model.User, 
 func (u *UserService) UpdatePassword(ctx context.Context, id uint64, oldPassword string, newPassword string) error {
 	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("用户不存在")
+		}
 		return err
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
@@ -245,6 +251,9 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 func (u *UserService) SendVerificationCode(ctx context.Context, account string, types string) error {
 	user, err := u.Repo.FindUserByAccount(ctx, account)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("账号不存在")
+		}
 		return err
 	}
 	if user.Email == "" {
@@ -288,6 +297,9 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 func (u *UserService) ResetPassword(ctx context.Context, account string, code string, resetPassword string) error {
 	user, err := u.Repo.FindUserByAccount(ctx, account)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("账号不存在")
+		}
 		return err
 	}
 	types := "reset_password"
@@ -497,7 +509,10 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 	// 场景 2 & 3：本人操作（userID 为 0）
 	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
-		return nil, errors.New("获取用户信息失败: " + err.Error())
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("用户不存在")
+		}
+		return nil, err
 	}
 
 	now := time.Now()
@@ -542,6 +557,9 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 func (u *UserService) CancelDeleteUser(ctx context.Context, userID uint64, code string) error {
 	user, err := u.Repo.FindUserById(ctx, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("用户不存在")
+		}
 		return errors.New("获取用户信息失败: " + err.Error())
 	}
 	if user.ScheduledDeleteAt == nil {

@@ -7,6 +7,7 @@ import (
 	"suseoaa/internal/model"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -24,7 +25,14 @@ func NewUserRepository(db *gorm.DB, rdb *redis.Client) *UserRepository {
 }
 
 func (u *UserRepository) CreateUser(ctx context.Context, user model.User) error {
-	return u.DB.WithContext(ctx).Create(&user).Error
+	if err := u.DB.WithContext(ctx).Create(&user).Error; err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			return errors.New("学号、邮箱或用户名已被占用")
+		}
+		return err
+	}
+	return nil
 }
 
 func (u *UserRepository) FindUserByAccount(ctx context.Context, message string) (model.User, error) {
@@ -68,6 +76,10 @@ func (u *UserRepository) UpdateUser(ctx context.Context, id uint64, username str
 		"avatar":   avatar,
 	}).Error
 	if err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			return errors.New("邮箱或用户名已被占用")
+		}
 		return errors.New("更新失败")
 	}
 	return nil
