@@ -1,10 +1,13 @@
 package router
 
 import (
+	"time"
+
 	"suseoaa/internal/handler"
 	"suseoaa/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 type Router struct {
@@ -13,18 +16,21 @@ type Router struct {
 	JwtExpire uint64
 }
 
-func RouterInit(total *handler.TotalHandler) *gin.Engine {
+func RouterInit(total *handler.TotalHandler, rdb *redis.Client) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.Trace())
 	r.Use(middleware.CORS())
 
+	loginLimiter := middleware.RateLimit(rdb, "login", 10, time.Minute)
+	sendLimiter := middleware.RateLimit(rdb, "send_code", 5, time.Minute)
+
 	auth := r.Group("v2/auth")
 	{
-		auth.POST("login", total.Auth.Login)
+		auth.POST("login", loginLimiter, total.Auth.Login)
 		auth.POST("register", total.Auth.Register)
 		auth.POST("refresh", total.Auth.Refresh)
 		auth.POST("password/reset", total.Auth.ResetPassword)
-		auth.POST("send", total.Auth.SendVerificationCode)
+		auth.POST("send", sendLimiter, total.Auth.SendVerificationCode)
 		auth.Use(middleware.JWTAuth(total.Auth.JwtSecret))
 		auth.POST("logout", total.Auth.Logout)
 
