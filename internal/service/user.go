@@ -124,15 +124,20 @@ func (u *UserService) GetDepartmentIDAndRoleIDByID(ctx context.Context, id uint6
 func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, error) {
 	const defaultAvatar = "avatar/default.png"
 
-	if avatar != "" {
-		if _, err := u.File.ImgStorage.GetFileInfo(ctx, avatar); err == nil {
-			if url, err := u.File.ImgStorage.GeneratePresignedURL(ctx, avatar); err == nil {
-				return url, nil
-			}
-		}
+	targetAvatar := strings.TrimSpace(avatar)
+	if targetAvatar == "" {
+		targetAvatar = defaultAvatar
 	}
 
-	return u.File.ImgStorage.GeneratePresignedURL(ctx, defaultAvatar)
+	url, err := u.File.ImgStorage.GeneratePresignedURL(ctx, targetAvatar)
+	if err != nil {
+		if targetAvatar != defaultAvatar {
+			return u.File.ImgStorage.GeneratePresignedURL(ctx, defaultAvatar)
+		}
+		return "", err
+	}
+
+	return url, nil
 }
 
 func (u *UserService) SaveRefreshToken(ctx context.Context, id uint64, device string, time uint) (string, error) {
