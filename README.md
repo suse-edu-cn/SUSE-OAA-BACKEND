@@ -117,7 +117,7 @@ Authorization: Bearer <token>
 |---|---|---|---|---|---|
 | POST | `/v2/auth/register` | 公开 | 用户注册 | 无 | JSON：`student_id`、`username`、`name`、`email`、`password` |
 | POST | `/v2/auth/login` | 公开 | 用户登录 | **10次/分 (IP)** | JSON：`account`（支持学号/用户名/邮箱）、`password`、`device`（设备标识） |
-| POST | `/v2/auth/refresh` | 公开 | 刷新令牌 | 无 | JSON：`refresh_token`、`user_id`、`device` |
+| POST | `/v2/auth/refresh` | 公开 | 刷新令牌 | 无 | JSON：`refresh_token` |
 | POST | `/v2/auth/send` | 公开 | 发送邮箱验证码 | **5次/分 (IP)** | JSON：`account`、`scene`（场景值） |
 | POST | `/v2/auth/logout` | 登录 | 当前设备登出 | 无 | JSON：`device` |
 
@@ -398,8 +398,8 @@ Authorization: Bearer <token>
 
 ### 4. Refresh Token 双存储与 Cache-Aside
 
-- **双写保障**：用户登录或刷新 Token 时，新生成的 `refresh_token` 同步写入 Redis 缓存与 MySQL 持久化表（TTL 默认 15 天）。
-- **Cache-Aside 容灾回源**：客户端调用 `/v2/auth/refresh` 刷新令牌时，优先读取 Redis；若 Redis 重启或键被逐出，系统自动回源查询 MySQL，验证通过后自动回填写回 Redis，兼具极速响应与零断连容灾能力。
+- **双写保障与单端防踢**：用户登录时，新生成的 `refresh_token` 同步写入 Redis 缓存（键名 `{user_id}-{device}`）与 MySQL 持久化表。同用户同设备类型新登录将自动覆盖旧 Token（实现同端单设备在线与互踢下线）。
+- **极简刷新与容灾回源**：客户端调用 `/v2/auth/refresh` 刷新令牌时**仅需提供 `refresh_token`**（无需传入 `user_id` 与 `device`）。服务端基于 `token` 唯一索引反查所属用户与设备，并比对 Redis 当前设备在线态（防止被踢下线设备重放）；若 Redis 发生重启等缓存丢失，系统自动通过 MySQL 记录回填 Redis，兼具零断连容灾能力与极简调用体验。
 
 ### 5. 基于 Redis 原子计数的敏感接口 IP 频次限流
 

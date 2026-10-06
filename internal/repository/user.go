@@ -226,6 +226,33 @@ func (u *UserRepository) GetRefreshToken(ctx context.Context, id uint64, device 
 	return record.Token, nil
 }
 
+func (u *UserRepository) GetRefreshTokenByToken(ctx context.Context, token string) (*model.RefreshToken, error) {
+	var record model.RefreshToken
+	dbErr := u.DB.WithContext(ctx).Where("token = ?", token).First(&record).Error
+	if dbErr != nil {
+		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
+			return nil, errors.New("refresh_token不存在或者过期")
+		}
+		return nil, errors.New("获取refresh_token失败: " + dbErr.Error())
+	}
+
+	// 校验 Redis：检查此用户在当前设备上的最新 token 是否仍然是此 token（防单端多设备顶号或过期）
+	key := fmt.Sprintf("%d-%s", record.UserID, record.Device)
+	cachedToken, err := u.Rdb.Get(ctx, key).Result()
+	if err == nil {
+		if cachedToken != token {
+			return nil, errors.New("账号已在其他设备登录或已失效")
+		}
+	} else if errors.Is(err, redis.Nil) {
+		// Redis 缓存未命中（例如 Redis 重启或键过期），回填 Redis
+		_ = u.Rdb.Set(ctx, key, record.Token, 15*24*time.Hour).Err()
+	} else {
+		return nil, errors.New("获取refresh_token失败: " + err.Error())
+	}
+
+	return &record, nil
+}
+
 func (u *UserRepository) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	var userList []model.UserInfo
 	var users []model.User

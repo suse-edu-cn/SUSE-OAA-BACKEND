@@ -55,16 +55,12 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	refreshToken, err := a.UserService.GetRefreshToken(ctx, req.UserID, req.Device)
+	record, err := a.UserService.GetRefreshTokenByToken(ctx, req.RefreshToken)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if refreshToken != req.RefreshToken {
-		response.BadRequest(c, "refresh token 错误")
-		return
-	}
-	user, err := a.UserService.FindUserByID(ctx, req.UserID)
+	user, err := a.UserService.FindUserByID(ctx, record.UserID)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -76,7 +72,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 	}
 	res := map[string]string{
 		"token":         token,
-		"refresh_token": refreshToken,
+		"refresh_token": record.Token,
 	}
 	response.Success(c, res)
 }

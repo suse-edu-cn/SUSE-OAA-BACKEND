@@ -163,6 +163,10 @@ func (u *UserService) GetRefreshToken(ctx context.Context, id uint64, device str
 	return token, nil
 }
 
+func (u *UserService) GetRefreshTokenByToken(ctx context.Context, token string) (*model.RefreshToken, error) {
+	return u.Repo.GetRefreshTokenByToken(ctx, token)
+}
+
 func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	const (
 		defaultPageSize = 20
