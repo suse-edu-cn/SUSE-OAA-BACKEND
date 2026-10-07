@@ -38,7 +38,7 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 	if file.Size > storage.MaxImageSize {
 		return nil, errors.New("图片体积过大")
 	}
-	ext := filepath.Ext(file.Filename)
+	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedExt[ext] {
 		return nil, errors.New("图片类型错误")
 	}
@@ -78,7 +78,7 @@ func (f *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 		return nil, err
 	}
 	defer fileValue.Close()
-	ext := filepath.Ext(file.Filename)
+	ext := strings.ToLower(filepath.Ext(file.Filename))
 	objectName := fmt.Sprintf("%s/%s%s", scene, uuid, ext)
 	err = f.FileStorage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
 	if err != nil {
