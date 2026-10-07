@@ -487,9 +487,13 @@ func (u *UserRepository) DeleteUserByID(ctx context.Context, id uint64) error {
 		_ = u.Rdb.Del(ctx, key).Err()
 	}
 
-	// 2. 清理 Redis 中可能残留的验证码与冷却时间
-	_ = u.Rdb.Del(ctx, fmt.Sprintf("%d-reset_passwordVerificationCode", id)).Err()
-	_ = u.Rdb.Del(ctx, fmt.Sprintf("%d-CoolDown", id)).Err()
+	// 2. 清理 Redis 中可能残留的各场景验证码与冷却时间
+	_ = u.Rdb.Del(ctx,
+		fmt.Sprintf("%d-reset_passwordVerificationCode", id),
+		fmt.Sprintf("%d-delete_userVerificationCode", id),
+		fmt.Sprintf("%d-cancel_deleteVerificationCode", id),
+		fmt.Sprintf("%d-CoolDown", id),
+	).Err()
 
 	// 3. 事务删除该用户的 refresh_tokens 并软删除用户
 	return u.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
