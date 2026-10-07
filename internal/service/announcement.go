@@ -88,23 +88,20 @@ func (a *AnnouncementService) PushAnnouncement(ctx context.Context, announcement
 	return a.AnnouncementRepo.PushAnnouncement(ctx, announcementID, departmentID, pushedID)
 }
 
-func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id uint64, status string, isContent bool) (*[]model.AnnouncementInfo, error) {
+func (a *AnnouncementService) GetAnnouncementInfoList(ctx context.Context, id uint64, status string, isContent bool) ([]model.AnnouncementInfo, error) {
 	announcementList, err := a.AnnouncementRepo.GetAnnouncementInfoListByRole(ctx, id, status)
 	if err != nil {
 		return nil, err
 	}
-	if announcementList != nil {
-		list := *announcementList
-		for i := range list {
-			if isContent {
-				content, err := a.FileService.ReplaceMinIOLinks(ctx, list[i].Content)
-				if err != nil {
-					logger.WarnContext(ctx, "替换公告图片/文件链接失败", "announcement_id", list[i].ID, "err", err)
-				}
-				list[i].Content = content
-			} else {
-				list[i].Content = ""
+	for i := range announcementList {
+		if isContent {
+			content, err := a.FileService.ReplaceMinIOLinks(ctx, announcementList[i].Content)
+			if err != nil {
+				logger.WarnContext(ctx, "替换公告图片/文件链接失败", "announcement_id", announcementList[i].ID, "err", err)
 			}
+			announcementList[i].Content = content
+		} else {
+			announcementList[i].Content = ""
 		}
 	}
 	return announcementList, nil

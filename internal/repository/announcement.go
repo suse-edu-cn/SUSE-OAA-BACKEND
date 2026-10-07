@@ -68,7 +68,7 @@ func (a *AnnouncementRepository) GetAnnouncementInfo(ctx context.Context, id uin
 	return announcement.ToInfo(), nil
 }
 
-func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(ctx context.Context, id uint64, status string) (*[]model.AnnouncementInfo, error) {
+func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(ctx context.Context, id uint64, status string) ([]model.AnnouncementInfo, error) {
 	var announcementsInfo []model.AnnouncementInfo
 	var announcements []model.Announcement
 	tx := a.DB.WithContext(ctx).Model(&model.Announcement{}).
@@ -86,12 +86,12 @@ func (a *AnnouncementRepository) GetAnnouncementInfoListByRole(ctx context.Conte
 	}
 	err := tx.Find(&announcements).Error
 	if err != nil {
-		return &[]model.AnnouncementInfo{}, err
+		return nil, err
 	}
 	for _, announcement := range announcements {
 		announcementsInfo = append(announcementsInfo, announcement.ToInfo())
 	}
-	return &announcementsInfo, nil
+	return announcementsInfo, nil
 }
 
 func (a *AnnouncementRepository) PushAnnouncement(

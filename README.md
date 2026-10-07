@@ -25,7 +25,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
   - [2. 账户注销冷静期与级联清理](#2-账户注销冷静期与级联清理)
   - [3. 双后台常驻定时执行器（Daemons）](#3-双后台常驻定时执行器daemons)
   - [4. Refresh Token 双存储与 Cache-Aside](#4-refresh-token-双存储与-cache-aside)
-  - [5. 基于 Redis 原子计数的敏感接口 IP 频次限流](#5-基于-redis-原子计数的敏感接口-ip-频次限流)
+  - [5. 基于 Redis Lua 脚本原子计数的敏感接口 IP 频次限流](#5-基于-redis-lua-脚本原子计数的敏感接口-ip-频次限流)
   - [6. 全链路 TraceID 注入与 slog 结构化日志追溯](#6-全链路-traceid-注入与-slog-结构化日志追溯)
   - [7. 全链路 Context 生命周期穿透](#7-全链路-context-生命周期穿透)
   - [8. 信号监听与全流程优雅停机（Graceful Shutdown）](#8-信号监听与全流程优雅停机graceful-shutdown)
@@ -401,15 +401,15 @@ Authorization: Bearer <token>
 - **双写保障与单端防踢**：用户登录时，新生成的 `refresh_token` 同步写入 Redis 缓存（键名 `{user_id}-{device}`）与 MySQL 持久化表。同用户同设备类型新登录将自动覆盖旧 Token（实现同端单设备在线与互踢下线）。
 - **极简刷新与容灾回源**：客户端调用 `/v2/auth/refresh` 刷新令牌时**仅需提供 `refresh_token`**（无需传入 `user_id` 与 `device`）。服务端基于 `token` 唯一索引反查所属用户与设备，并比对 Redis 当前设备在线态（防止被踢下线设备重放）；若 Redis 发生重启等缓存丢失，系统自动通过 MySQL 记录回填 Redis，兼具零断连容灾能力与极简调用体验。
 
-### 5. 基于 Redis 原子计数的敏感接口 IP 频次限流
+### 5. 基于 Redis Lua 脚本原子计数的敏感接口 IP 频次限流
 
 针对暴破密码和高频调用第三方短信/邮件等薄弱攻击面，系统引入了轻量级、无锁的 IP 限流中间件（`internal/middleware/rate_limit.go`）：
 
 ```text
-客户端 IP 请求 -> Redis INCR ratelimit:{scene}:{ip}
-  ├── 计数值 == 1 (首次请求) ──> 设置窗口过期时间 EXPIRE (例如 1分钟) ──> 放行 Next()
-  ├── 计数值 <= limit ─────────> 放行 Next()
-  └── 计数值 > limit ──────────> 中断请求 Abort()，立即响应 429 Too Many Requests
+客户端 IP 请求 -> Redis Lua 脚本原子执行:
+  ├── 首次请求: INCR + 自动绑定 EXPIRE 窗口过期时间 (如 1分钟) -> 放行 Next()
+  ├── 窗口期内累加: 计数值 <= limit -> 放行 Next()
+  └── 超过阈值: 计数值 > limit -> 中断请求 Abort()，立即响应 429 Too Many Requests
 ```
 
 - **登录接口保护**：`/v2/auth/login` 限制单个 IP 每分钟最多尝试 10 次，彻底阻断密码暴力破解，保护 Bcrypt 密文哈希计算资源。
