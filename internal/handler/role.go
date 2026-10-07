@@ -51,6 +51,10 @@ func (r *RoleHandler) Create(c *gin.Context) {
 			response.Forbidden(c, "权限不足")
 			return
 		}
+		if strings.Contains(err.Error(), "已存在") || strings.Contains(err.Error(), "不存在") {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.ServerError(c, "创建角色", err)
 		return
 	}
@@ -79,6 +83,10 @@ func (r *RoleHandler) Update(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "权限不够" || strings.Contains(err.Error(), "不能修改") || strings.Contains(err.Error(), "不能把目标") {
 			response.Forbidden(c, err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "已存在") || strings.Contains(err.Error(), "不存在") {
+			response.BadRequest(c, err.Error())
 			return
 		}
 		response.ServerError(c, "更新角色", err)

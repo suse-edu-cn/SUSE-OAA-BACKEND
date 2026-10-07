@@ -5,6 +5,7 @@ import (
 	"errors"
 	"suseoaa/internal/model"
 
+	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -68,7 +69,14 @@ func (r *RoleRepository) GetLevelByID(ctx context.Context, id uint64) (uint64, e
 }
 
 func (r *RoleRepository) CreateRole(ctx context.Context, role *model.Role) error {
-	return r.DB.WithContext(ctx).Create(role).Error
+	if err := r.DB.WithContext(ctx).Create(role).Error; err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			return errors.New("职位名称已存在")
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *RoleRepository) UpdateRole(ctx context.Context, role *model.Role, isActive *bool) error {
@@ -93,6 +101,10 @@ func (r *RoleRepository) UpdateRole(ctx context.Context, role *model.Role, isAct
 		Where("id = ?", role.ID).
 		Updates(updates)
 	if tx.Error != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(tx.Error, &mysqlErr) && mysqlErr.Number == 1062 {
+			return errors.New("职位名称已存在")
+		}
 		return tx.Error
 	}
 	return nil

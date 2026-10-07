@@ -5,6 +5,7 @@ import (
 	"errors"
 	"suseoaa/internal/model"
 
+	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -68,7 +69,14 @@ func (d *DepartmentRepository) GetDepartmentByName(ctx context.Context, name str
 }
 
 func (d *DepartmentRepository) CreateDepartment(ctx context.Context, department *model.Department) error {
-	return d.DB.WithContext(ctx).Create(department).Error
+	if err := d.DB.WithContext(ctx).Create(department).Error; err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			return errors.New("部门名称已存在")
+		}
+		return err
+	}
+	return nil
 }
 
 func (d *DepartmentRepository) UpdateDepartment(ctx context.Context, department *model.Department, isActive *bool) error {
@@ -92,6 +100,10 @@ func (d *DepartmentRepository) UpdateDepartment(ctx context.Context, department 
 		Where("id = ?", department.ID).
 		Updates(updates)
 	if tx.Error != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(tx.Error, &mysqlErr) && mysqlErr.Number == 1062 {
+			return errors.New("部门名称已存在")
+		}
 		return tx.Error
 	}
 	return nil

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
@@ -51,6 +52,10 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 			response.Forbidden(c, "权限不足")
 			return
 		}
+		if strings.Contains(err.Error(), "已存在") || strings.Contains(err.Error(), "不存在") {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.ServerError(c, "创建部门", err)
 		return
 	}
@@ -78,6 +83,10 @@ func (d *DepartmentHandler) Update(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "权限不够" {
 			response.Forbidden(c, "权限不足")
+			return
+		}
+		if strings.Contains(err.Error(), "已存在") || strings.Contains(err.Error(), "不存在") {
+			response.BadRequest(c, err.Error())
 			return
 		}
 		response.ServerError(c, "更新部门", err)
