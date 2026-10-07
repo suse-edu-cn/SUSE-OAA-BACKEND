@@ -1,9 +1,10 @@
 package service
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"time"
 
 	"gopkg.in/gomail.v2"
@@ -29,10 +30,14 @@ func NewEmailService(host string, port int, user string, pass string, expire int
 	}
 }
 func (e *EmailService) NewVerificationCode(length uint) string {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	code := make([]byte, length)
 	for i := uint(0); i < length; i++ {
-		code[i] = byte('0' + r.Intn(10))
+		num, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			code[i] = '0'
+			continue
+		}
+		code[i] = byte('0' + num.Int64())
 	}
 	return string(code)
 }
