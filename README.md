@@ -35,6 +35,10 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 - [权限与组织架构设计](#权限与组织架构设计)
 - [技术栈](#技术栈)
 - [配置文件与部署运行](#配置文件与部署运行)
+  - [1. 配置文件结构说明](#1-配置文件结构说明)
+  - [2. 构建与运行命令（Makefile）](#2-构建与运行命令makefile)
+  - [3. 直接启动](#3-直接启动)
+  - [4. CI/CD 流水线与实体机部署](#4-cicd-流水线与实体机部署)
 
 ---
 
@@ -89,6 +93,10 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
   - **逻辑外键演进**：全表杜绝物理外键强依赖，由业务层事务保证引用完整性，根除高并发下的外键间隙锁死锁与 DDL 锁表隐患。
   - **全链路 Context 穿透**：所有 HTTP 请求上下文深度贯穿 GORM 事务、Redis 缓存与 MinIO 传输，客户端断开或超时即刻阻断底层 I/O，杜绝资源悬挂。
   - **MinIO 双端点隔离**：内网走局域网无公网开销；外网签名纯本地哈希离线计算，消除网络探测延迟与 502/Region 不匹配错误。
+- **自动化 CI/CD 与实体机持续交付**：
+  - 基于 GitHub Actions 搭建全自动 CI/CD 质量门禁（PR/Push 自动触发 `go vet`、竞态单元测试 `-race` 与编译检查），从源头杜绝破坏性代码流入主干分支。
+  - 支持 Git Tag 一键自动化发版打包（Linux amd64 静态编译、剥离调试符号瘦身并自动生成 SHA256 校验和上传 GitHub Releases）。
+  - 支持基于 GitHub Self-Hosted Runner 的实体机自动化无感热部署（内网长连接反向拉取任务，零公网 IP/端口暴露风险）。
 
 ---
 
@@ -559,6 +567,7 @@ Authorization: Bearer <token>
 | **认证与加密** | JWT (`golang-jwt/jwt/v5`) + Bcrypt | 密码强哈希与无状态 Access Token |
 | **邮件投递** | Gomail (`gopkg.in/gomail.v2`) | SMTP 邮箱验证码发送服务 |
 | **配置解析** | Viper (`github.com/spf13/viper`) | YAML 配置文件读取与环境注入 |
+| **持续集成与交付** | GitHub Actions + Self-Hosted Runner | 自动化代码门禁、Release 制品打包与实体机持续部署 |
 
 ---
 
@@ -662,3 +671,19 @@ make linux GOARCH=arm64
 ```bash
 go run ./cmd/main.go
 ```
+
+### 4. CI/CD 流水线与实体机部署
+
+项目已接入工业级 GitHub Actions 持续集成与发布流水线（`.github/workflows/`）：
+
+1. **持续集成（CI - `ci.yml`）**：
+   - 监听对 `main` 分支的 Push 和 PR 请求；
+   - 自动运行 `go vet ./...` 语法检测、`go test -v -race ./...` 单元测试与构建验证，保障主干分支质量门禁。
+2. **自动化发布（CD - `release.yml`）**：
+   - 当推送语义化版本标签（如 `git tag v2.0.1 && git push origin v2.0.1`）时自动触发；
+   - 在纯净 Linux 容器中交叉编译生产 Linux amd64 静态二进制文件（`-trimpath -ldflags="-s -w"` 剔除绝对路径与符号表瘦身）；
+   - 自动打包二进制与 `config.example.yaml` 为 `.tar.gz` 压缩包并计算 SHA256 校验和，自动创建并发布至 **GitHub Releases**。
+3. **实体机自动部署（两种方式）**：
+   - **模式 A：全自动（GitHub Self-Hosted Runner）**：在高校内网实体服务器上注册 GitHub Runner（由主机主动向 GitHub 建立长连接，零公网 IP/端口暴露风险），发布 Release 后触发就地秒级拉取解压并平滑重启服务；
+   - **模式 B：一键脚本（`scripts/deploy.sh`）**：在实体服务器终端直接执行 `./scripts/deploy.sh [版本号]`，自动通过 GitHub API 拉取指定或最新 Release 制品并安全平滑重启服务。
+

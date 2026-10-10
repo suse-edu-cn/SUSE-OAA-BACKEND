@@ -1,0 +1,82 @@
+name: Release & CD
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Pre-release Test & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run Unit Tests
+        run: go test -v -race ./...
+
+  build-and-release:
+    name: Build & Publish Release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build Linux amd64 Binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/OAAbeta ./cmd
+          cp configs/config.example.yaml dist/
+          cd dist
+          tar -czvf suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz OAAbeta config.example.yaml
+          sha256sum suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz > sha256sum.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz
+            dist/sha256sum.txt
+          generate_release_notes: true
+
+  deploy-self-hosted:
+    name: Auto Deploy to Physical Server
+    needs: build-and-release
+    # 实体机 runner 若配置了 self-hosted 标签即可触发自动更新
+    # 增加超时保护，若实体机离线避免无限制排队挂起
+    timeout-minutes: 10
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Download & Deploy Latest Release
+        run: |
+          echo "==> 实体机 Self-Hosted Runner 收到部署指令，执行更新..."
+          if [ -f "./scripts/deploy.sh" ]; then
+            chmod +x ./scripts/deploy.sh
+            ./scripts/deploy.sh "${{ github.ref_name }}"
+          else
+            echo "提示: 未检测到 ./scripts/deploy.sh，请按文档配置实体机部署脚本。"
+          fi
