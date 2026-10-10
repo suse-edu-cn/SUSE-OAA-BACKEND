@@ -8,7 +8,13 @@ set -euo pipefail
 
 REPO="suse-edu-cn/SUSE-OAA-BACKEND"
 APP_NAME="OAAbeta"
-INSTALL_DIR="${INSTALL_DIR:-$(pwd)/bin}"
+if [ -z "${INSTALL_DIR:-}" ]; then
+  if [ -d "${HOME}/OAA" ]; then
+    INSTALL_DIR="${HOME}/OAA"
+  else
+    INSTALL_DIR="$(pwd)/bin"
+  fi
+fi
 SERVICE_NAME="${SERVICE_NAME:-suse-oaa}"
 TMP_DIR=$(mktemp -d)
 
@@ -59,14 +65,23 @@ chmod +x "${INSTALL_DIR}/${APP_NAME}"
 
 # 6. 重启服务
 echo "==> 正在触发服务重启..."
-if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+TMUX_SESSION="OAA"
+
+if command -v tmux >/dev/null 2>&1 && tmux has-session -t "${TMUX_SESSION}" 2>/dev/null; then
+  echo "==> 检测到 tmux 会话 [${TMUX_SESSION}]，发送 Ctrl+C 触发优雅停机..."
+  tmux send-keys -t "${TMUX_SESSION}" C-c
+  sleep 2
+  echo "==> 在 tmux 会话 [${TMUX_SESSION}] 中启动新版 ${APP_NAME}..."
+  tmux send-keys -t "${TMUX_SESSION}" "cd ${INSTALL_DIR} && ./${APP_NAME}" Enter
+  echo "✅ 已在 tmux [${TMUX_SESSION}] 窗口中成功重启最新版本！"
+elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
   echo "==> 通过 systemctl 重启 ${SERVICE_NAME} 服务..."
   sudo systemctl restart "${SERVICE_NAME}"
   echo "✅ ${SERVICE_NAME} 服务已平滑重启！"
 else
-  echo "ℹ️ 未检测到运行中的 systemd 服务 [${SERVICE_NAME}]。"
+  echo "ℹ️ 未检测到运行中的 tmux 会话 [${TMUX_SESSION}] 或 systemd 服务 [${SERVICE_NAME}]。"
   echo "   已更新二进制产物至: ${INSTALL_DIR}/${APP_NAME}"
-  echo "   请按当前主机的守护进程方式（如 nohup / supervisor / systemd）自行重启或加载。"
+  echo "   若需手动在 tmux 启动，可执行: tmux attach -t ${TMUX_SESSION}"
 fi
 
 echo "=============================================================================="
