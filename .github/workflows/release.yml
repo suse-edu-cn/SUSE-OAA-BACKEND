@@ -50,9 +50,9 @@ jobs:
         run: |
           mkdir -p dist
           go build -trimpath -ldflags="-s -w" -o dist/OAAbeta ./cmd
-          cp configs/config.example.yaml dist/
+          cp configs/config_example.yaml dist/
           cd dist
-          tar -czvf suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz OAAbeta config.example.yaml
+          tar -czvf suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz OAAbeta config_example.yaml
           sha256sum suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz > sha256sum.txt
 
       - name: Create GitHub Release
@@ -71,12 +71,11 @@ jobs:
     timeout-minutes: 10
     runs-on: [self-hosted, linux]
     steps:
-      - name: Download & Deploy Latest Release
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Execute Deploy Script
         run: |
           echo "==> 实体机 Self-Hosted Runner 收到部署指令，执行更新..."
-          if [ -f "./scripts/deploy.sh" ]; then
-            chmod +x ./scripts/deploy.sh
-            ./scripts/deploy.sh "${{ github.ref_name }}"
-          else
-            echo "提示: 未检测到 ./scripts/deploy.sh，请按文档配置实体机部署脚本。"
-          fi
+          chmod +x ./scripts/deploy.sh
+          ./scripts/deploy.sh "${{ github.ref_name }}"
