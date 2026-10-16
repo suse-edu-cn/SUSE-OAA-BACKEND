@@ -123,6 +123,19 @@ func main() {
 	cancelWorkers()
 	wg.Wait()
 	logger.Info("所有后台常驻Worker已退出")
+	if sqlDB, err := db.DB(); err == nil {
+		if err := sqlDB.Close(); err != nil {
+			logger.Error("关闭 MySQL 连接池失败", "err", err)
+		} else {
+			logger.Info("MySQL 连接池已安全关闭")
+		}
+	}
+	// 安全关闭 Redis 客户端
+	if err := rdb.Close(); err != nil {
+		logger.Error("关闭 Redis 客户端失败", "err", err)
+	} else {
+		logger.Info("Redis 客户端已安全关闭")
+	}
 
 	logger.Info("服务已安全下线")
 }

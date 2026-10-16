@@ -481,10 +481,10 @@ Authorization: Bearer <token>
 ```text
 操作系统信号 (SIGINT / SIGTERM)
   │
-  ├── 1. 触发 workerCtx 取消 (cancelWorkers()) ──> 立即停止两个常驻后台定时协程
-  ├── 2. 等待后台协程退出 (wg.Wait())
-  ├── 3. 调用 srv.Shutdown(shutdownCtx) (带 5 秒超时保护)
+  ├── 1. 调用 srv.Shutdown(shutdownCtx) (带 5 秒超时保护)
   │     └── 停止接收新请求，等待处理中活跃请求完成并刷新响应
+  ├── 2. 触发 workerCtx 取消 (cancelWorkers()) ──> 通知常驻后台定时协程平滑终止
+  ├── 3. 等待后台协程退出完成 (wg.Wait())
   └── 4. 安全关闭 MySQL 连接池与 Redis 客户端 ──> 进程正常退出
 ```
 
@@ -558,7 +558,7 @@ Authorization: Bearer <token>
 
 | 层次 | 核心技术选型 | 说明 |
 |---|---|---|
-| **语言与运行时** | Go 1.23+ | 高性能并发运行时 |
+| **语言与运行时** | Go 1.25+（当前运行 Go 1.26.4） | 高性能并发运行时，采用 `sync.WaitGroup.Go` 协程编排 |
 | **Web 路由框架** | Gin (`github.com/gin-gonic/gin`) | 高性能 HTTP 路由与中间件 |
 | **ORM 框架** | GORM (`gorm.io/gorm` + `gorm.io/driver/mysql`) | 关系型数据库对象关系映射（全逻辑外键） |
 | **缓存中间件** | Redis (`github.com/redis/go-redis/v9`) | 分布式缓存、Session 刷新凭据、防刷锁与频次限流 |
@@ -589,6 +589,7 @@ cp configs/config_example.yaml configs/config.yaml
 | `host` | string | 服务绑定监听地址，例如 `0.0.0.0`。 |
 | `port` | string | 服务监听端口，例如 `8080`。 |
 | `mode` | string | Gin 运行模式（`debug` / `release` / `test`）。 |
+| `trusted_proxies` | list | 受信任反向代理 IP 列表（默认 `["127.0.0.1", "::1"]`），防范客户端伪造代理头绕过限流。 |
 
 #### `mysql`
 | 字段 | 类型 | 说明 |
