@@ -311,17 +311,10 @@ func (u *UserService) ResetPassword(ctx context.Context, account string, code st
 		}
 		return err
 	}
-	types := "reset_password"
-	verificationCode, err := u.Repo.GetVerificationCode(ctx, user.ID, types)
-	if err != nil {
+	if err := u.Repo.VerifyAndConsumeVerificationCode(ctx, user.ID, "reset_password", code, 5); err != nil {
 		return err
 	}
-	if verificationCode != code {
-		return errors.New("验证码错误或者失效")
-	}
-	if err := u.Repo.DeleteVerificationCode(ctx, user.ID, types); err != nil {
-		return err
-	}
+
 	password, err := bcrypt.GenerateFromPassword([]byte(resetPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -548,14 +541,9 @@ func (u *UserService) DeleteUser(ctx context.Context, id uint64, userID uint64, 
 
 	// 场景 2：仅传递 code（首次申请注销） -> 校验验证码并进入冷静期
 	const scene = "delete_user"
-	verificationCode, err := u.Repo.GetVerificationCode(ctx, id, scene)
-	if err != nil || verificationCode != code {
-		return nil, errors.New("验证码错误或已失效")
+	if err := u.Repo.VerifyAndConsumeVerificationCode(ctx, id, scene, code, 5); err != nil {
+		return nil, err
 	}
-	if err := u.Repo.DeleteVerificationCode(ctx, id, scene); err != nil {
-		logger.WarnContext(ctx, "删除注销验证码失败", "user_id", id, "err", err)
-	}
-
 	scheduledAt := now.Add(UserDeletionGracePeriod)
 	if err := u.Repo.SetScheduledDeleteAt(ctx, id, &scheduledAt); err != nil {
 		return nil, errors.New("设置注销冷静期失败: " + err.Error())
@@ -579,13 +567,8 @@ func (u *UserService) CancelDeleteUser(ctx context.Context, userID uint64, code 
 	}
 
 	const scene = "cancel_delete"
-	verificationCode, err := u.Repo.GetVerificationCode(ctx, userID, scene)
-	if err != nil || verificationCode != code {
-		return errors.New("验证码错误或已失效")
-	}
-
-	if err := u.Repo.DeleteVerificationCode(ctx, userID, scene); err != nil {
-		logger.WarnContext(ctx, "删除取消注销验证码失败", "user_id", userID, "err", err)
+	if err := u.Repo.VerifyAndConsumeVerificationCode(ctx, userID, scene, code, 5); err != nil {
+		return err
 	}
 
 	if err := u.Repo.SetScheduledDeleteAt(ctx, userID, nil); err != nil {

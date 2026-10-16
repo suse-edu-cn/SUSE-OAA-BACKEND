@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"suseoaa/internal/model"
@@ -375,6 +376,42 @@ func (u *UserRepository) CheckCooldown(ctx context.Context, id uint64) (bool, er
 		return false, errors.New("检查冷却时间失败: " + err.Error())
 	}
 	return true, nil
+}
+
+// 安全校验验证码
+func (u *UserRepository) VerifyAndConsumeVerificationCode(ctx context.Context, id uint64, types string, inputCode string, maxFails int64) error {
+	codeKey := fmt.Sprintf("%d-%sVerificationCode", id, types)
+	failKey := fmt.Sprintf("%d-%sVerificationCode-Fails", id, types)
+	// 1. 获取真实验证码
+	expectedCode, err := u.Rdb.Get(ctx, codeKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return errors.New("验证码错误或已失效")
+		}
+		return errors.New("获取验证码失败: " + err.Error())
+	}
+	// 2. 恒定时间比对
+	if subtle.ConstantTimeCompare([]byte(expectedCode), []byte(inputCode)) != 1 {
+		// 校验失败，累计失败次数
+		fails, incrErr := u.Rdb.Incr(ctx, failKey).Result()
+		if incrErr == nil {
+			if fails == 1 {
+				// 获取验证码剩余的 TTL，让失败计数器与验证码同步过期
+				if ttl, ttlErr := u.Rdb.TTL(ctx, codeKey).Result(); ttlErr == nil && ttl > 0 {
+					_ = u.Rdb.Expire(ctx, failKey, ttl).Err()
+				}
+			}
+			// 连续输错 5 次，立即销毁验证码
+			if fails >= maxFails {
+				_ = u.Rdb.Del(ctx, codeKey, failKey).Err()
+				return errors.New("验证码错误次数过多，已作废，请重新获取")
+			}
+		}
+		return errors.New("验证码错误")
+	}
+	// 3. 校验成功，销毁验证码与失败计数器
+	_ = u.Rdb.Del(ctx, codeKey, failKey).Err()
+	return nil
 }
 
 func (u *UserRepository) BatchUserInfoList(ctx context.Context, items []model.UpdateUserItems) error {
