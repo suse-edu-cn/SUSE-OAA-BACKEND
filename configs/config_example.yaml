@@ -5,6 +5,10 @@ server:
   host: ""
   port: ""
   mode: ""
+  mode: debug
+  trusted_proxies:
+    - "127.0.0.1"
+    - "::1"
 
 mysql:
   host: ""

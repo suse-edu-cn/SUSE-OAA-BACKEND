@@ -25,8 +25,10 @@ type Mysql struct {
 	ConnMaxIdleTimeMinute int    `mapstructure:"conn_max_idle_time_minute"`
 }
 type Server struct {
-	Port string `mapstructure:"port"`
-	Host string `mapstructure:"host"`
+	Port           string   `mapstructure:"port"`
+	Host           string   `mapstructure:"host"`
+	Mode           string   `mapstructure:"mode"`
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 type Jwt struct {

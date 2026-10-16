@@ -92,7 +92,7 @@ func main() {
 		termHandler,
 		fileHandler)
 
-	r := router.RouterInit(totalHandler, rdb)
+	r := router.RouterInit(totalHandler, rdb, Config.Server.TrustedProxies)
 
 	srv := &http.Server{
 		Addr:    Config.Server.Host + ":" + Config.Server.Port,
