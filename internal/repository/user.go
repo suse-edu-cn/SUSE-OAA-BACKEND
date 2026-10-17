@@ -13,6 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// 仅当键的值与传入的 token 一致时才删除，防止超时误删他人后置标记
+var releaseCooldownScript = redis.NewScript(`
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+`)
+
 type UserRepository struct {
 	DB  *gorm.DB
 	Rdb *redis.Client
@@ -352,18 +361,18 @@ func (u *UserRepository) SetCooldown(ctx context.Context, id uint64, cooldown ti
 	return nil
 }
 
-func (u *UserRepository) SetCooldownNX(ctx context.Context, id uint64, cooldown time.Duration) (bool, error) {
+func (u *UserRepository) SetCooldownNX(ctx context.Context, id uint64, token string, cooldown time.Duration) (bool, error) {
 	key := fmt.Sprintf("%d-CoolDown", id)
-	success, err := u.Rdb.SetNX(ctx, key, "cooldown", cooldown).Result()
+	success, err := u.Rdb.SetNX(ctx, key, token, cooldown).Result()
 	if err != nil {
 		return false, errors.New("设置冷却时间失败: " + err.Error())
 	}
 	return success, nil
 }
 
-func (u *UserRepository) DeleteCooldown(ctx context.Context, id uint64) error {
+func (u *UserRepository) DeleteCooldown(ctx context.Context, token string, id uint64) error {
 	key := fmt.Sprintf("%d-CoolDown", id)
-	return u.Rdb.Del(ctx, key).Err()
+	return releaseCooldownScript.Run(ctx, u.Rdb, []string{key}, token).Err()
 }
 
 func (u *UserRepository) CheckCooldown(ctx context.Context, id uint64) (bool, error) {

@@ -7,6 +7,9 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 ## 目录
 
 - [项目背景与业务定位](#项目背景与业务定位)
+- [核心业务流转与时序模型](#核心业务流转与时序模型)
+  - [1. 招新与换届生命周期状态流转图](#1-招新与换届生命周期状态流转图)
+  - [2. Access + Refresh 双 Token 认证与刷新时序图](#2-access--refresh-双-token-认证与刷新时序图)
 - [核心架构亮点](#核心架构亮点)
 - [统一响应与错误分类规范](#统一响应与错误分类规范)
 - [接口一览与详细文档](#接口一览与详细文档)
@@ -22,7 +25,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
   - [Interview Result（面试结果）](#interview-result面试结果)
   - [Upload（文件与对象存储）](#upload文件与对象存储)
 - [核心机制设计](#核心机制设计)
-  - [1. Redis SetNX 原子防刷与回滚机制](#1-redis-setnx-原子防刷与回滚机制)
+  - [1. Redis SetNX 原子防刷与安全回滚机制](#1-redis-setnx-原子防刷与安全回滚机制)
   - [2. 账户注销冷静期与级联清理](#2-账户注销冷静期与级联清理)
   - [3. 双后台常驻定时执行器（Daemons）](#3-双后台常驻定时执行器daemons)
   - [4. Refresh Token 双存储与 Cache-Aside](#4-refresh-token-双存储与-cache-aside)
@@ -33,6 +36,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
   - [9. MySQL 生产级连接池调优与逻辑外键演进](#9-mysql-生产级连接池调优与逻辑外键演进)
   - [10. MinIO 双端点隔离与纯本地离线预签名](#10-minio-双端点隔离与纯本地离线预签名)
 - [权限与组织架构设计](#权限与组织架构设计)
+- [已知限制与架构取舍](#已知限制与架构取舍)
 - [技术栈](#技术栈)
 - [配置文件与部署运行](#配置文件与部署运行)
   - [1. 配置文件结构说明](#1-配置文件结构说明)
@@ -55,46 +59,108 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 1. **多端认证与精细化组织架构**：支持学号/邮箱安全登录、多设备会话管理、多级组织树流转与基于 Level 的自研 RBAC 动态鉴权；
 2. **公告分级下发与精准触达**：支持全员公告、部门定向公告与置顶机制，辅以单条生效与富文本附件直链；
 3. **招新与换届全生命周期自动化引擎（核心业务）**：
-   - **报名填报期（Edit Period）**：支撑高并发填报申请表与免冠证件照上传；
+   - **报名填报期（Edit Period）**：支撑并发填报申请表与免冠证件照上传；
    - **面试决策与异议公示期（Query Period）**：多面试官打分、面试结果动态审批与公开异议倒计时；
-   - **到期自动生效流转（Execute Period）**：基于后台常驻 Worker 与冷启动补偿机制，无需人工干预即可在截止后毫秒级原子将面试结果全量批量回填入正式用户表与组织架构中。
+   - **到期自动生效流转（Execute Period）**：基于后台常驻 Worker 与冷启动补偿机制，无需人工干预即可在截止后由事务安全、批量地将面试结果回填入正式用户表与组织架构中。
 
 ### 3. 架构演进之路（1.0 ➔ 2.0）
 本项目经历了一次至关重要的架构升级与全链路独立重构：
 - **1.0 原型期（双人探索）**：早期版本由两位核心成员共同搭建，主要验证业务链路可行性。受限于早期经验，业务逻辑与数据访问层深度杂糅，且强依赖外部商业云服务器与商用对象存储，扩展性弱且维护成本高昂。
 - **2.0 独立重构期（独立主导）**：随着业务复杂度剧增，为支撑复杂状态机与高并发诉求，由核心开发者独立主导了 2.0 版本的全链路重构：
-  - **整洁分层架构**：彻底推行 `Handler ➔ Service ➔ Repository` 三层解耦标准，消灭数据访问耦合，提升高并发下的可维护性；
+  - **整洁分层架构**：规范推行 `Handler ➔ Service ➔ Repository` 三层解耦标准，隔离数据访问与业务逻辑，提升系统的可维护性与可测试性；
   - **基础设施自主可控与降本增效**：团队将核心系统迁移至实体服务器，并自建私有化 **MinIO 分布式对象存储**集群替代云 OSS，通过内网闭环上传与纯本地离线预签名直链，消除外部带宽成本并大幅降低读写延迟；
-  - **企业级高可用加固**：落地全链路 `TraceID` 可观测性、基于 Redis Lua 脚本的高性能无锁 IP 限流、软删除联合索引防失效破局、优雅停机与异步执行器冷启动补偿等企业级工程实践。
+  - **企业级健壮性加固**：落地全链路 `TraceID` 可观测性、基于 Redis Lua 脚本的高性能无锁 IP 限流、软删除联合索引防失效破局、优雅停机与异步执行器冷启动补偿等工程实践。
+
+---
+
+## 核心业务流转与时序模型
+
+### 1. 招新与换届生命周期状态流转图
+
+```mermaid
+flowchart TD
+    Init["创建周期 (TermCreated)"] --> Edit["报名填报期 (Edit Period)<br/>• 候选人填报/修改申请表<br/>• 上传证件照免冠照"]
+    Edit -->|"到达 edit_period.end_at"| Query["面试决选与公示期 (Query Period)<br/>• 委派面试官协同评审<br/>• 录入审批面试结果 (草稿态)<br/>• 候选人查询结果与异议缓冲"]
+    Query -->|"到达 execute_after_at"| Executor{"后台执行器轮询探测<br/>(StartInterviewResultExecutor)"}
+    Executor -->|"未执行 (is_executed = false)"| Trans["执行数据库事务<br/>• 批量更新录取者所属部门与职位<br/>• 记录变动历史快照<br/>• 标记 is_executed = true"]
+    Trans --> Done["周期归档生效 (Executed)"]
+    Executor -->|"已执行或未到期"| Sleep["等待下一周期 (Ticker 1m)"]
+```
+
+### 2. Access + Refresh 双 Token 认证与刷新时序图
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as 客户端
+    participant Gateway as Gin 路由网关
+    participant Service as AuthService
+    participant Redis as Redis 缓存
+    participant MySQL as MySQL 数据库
+
+    Note over Client,MySQL: 用户登录阶段
+    Client->>Gateway: POST /v2/auth/login (学号/密码/设备)
+    Gateway->>Service: 校验密码并生成双令牌
+    Service->>Redis: 缓存 Refresh Token (key: {user_id}-{device})
+    Service->>MySQL: 插入/更新 Refresh Token 持久化记录
+    Service-->>Client: 返回 Access Token (短期) + Refresh Token (长期)
+
+    Note over Client,MySQL: 业务访问与令牌刷新阶段
+    Client->>Gateway: 请求受保护接口 (Header: Bearer AccessToken)
+    Gateway-->>Client: 本地密钥快速解密验签 (零数据库/Redis 开销)
+    Note over Client,Gateway: Access Token 过期 (返回 401)
+    Client->>Gateway: POST /v2/auth/refresh (仅携带 refresh_token)
+    Gateway->>Service: 提取 Token 并验证所属用户与设备
+    Service->>Redis: 查询当前设备是否处于有效在线态
+    alt Redis 缓存命中且匹配
+        Service-->>Client: 签发新 Access Token (原 Refresh Token 保持不变)
+    else Redis 宕机或未命中 (Cache-Aside 容灾回源)
+        Service->>MySQL: 校验数据库持久化记录
+        Service->>Redis: 异步回填 Redis 缓存
+        Service-->>Client: 签发新 Access Token
+    end
+
+    Note over Client,MySQL: 登出与会话终结
+    Client->>Gateway: POST /v2/auth/logout (携带 device)
+    Gateway->>Service: 触发登出注销
+    Service->>Redis: 删除 Redis 缓存中的 Refresh Token
+    Service->>MySQL: 物理删除 MySQL 中的对应记录
+    Service-->>Client: 登出成功 (阻断后续续签)
+```
 
 ---
 
 ## 核心架构亮点
 
-- **账号与令牌安全**：
-  - 双存储 Cache-Aside 架构（Redis 优先缓存 + MySQL 持久化底座），支持零断连容灾回源。
-  - 登出或账号注销时，触发全端级联清理（物理清除 MySQL 记录与 Redis 全设备 Refresh Token、验证码与冷却 Key）。
+- **账号与令牌安全（Access + Refresh 双 Token 机制）**：
+  - 采用无状态短周期 Access Token + 有状态长周期 Refresh Token 双令牌模型，兼顾高效本地验签与精准会话控制。
+  - Refresh Token 采用双存储 Cache-Aside 架构（Redis 优先缓存 + MySQL 持久化底座），支持零断连容灾回源与同端单设备互踢。
+  - 登出或账号注销时，主动清理 Redis 与 MySQL 中的 Refresh Token 凭据，阻断后续会话续签；存量 Access Token 依靠短暂生命周期自然失效。
 - **敏感接口 IP 频次限流（Rate Limiting）**：
   - 基于 Redis Lua 脚本原子执行 `INCR` 与 `EXPIRE` 实现无锁限流中间件（单次网络 RTT 闭环），对密码登录（10 次/分）与邮箱发信（5 次/分）实施精准防刷与防爆破，超频直接返回 `429 Too Many Requests`，避免流量穿透到底层高耗算力模块（Bcrypt 校验）与第三方 SMTP 服务。
-- **密码学级安全验证码与原子防刷**：
-  - 基于 Go 标准库 `crypto/rand` 与 `math/big` 动态生成密码学安全的纯数字验证码，彻底杜绝伪随机数种子被时间戳碰撞预测的安全隐患。
-  - 基于 Redis `SetNX` 单指令实现前置原子互斥锁定，彻底消除传统“先查后发”在高延迟 SMTP 网络 I/O 下的并发穿透漏洞。
-  - 具备发信异常自动补偿回滚（Compensating Rollback）机制，避免系统故障误锁用户。
+  - 网关显式配置 `SetTrustedProxies` 受信任反向代理列表，阻断伪造 `X-Forwarded-For` 绕过限流的安全漏洞。
+- **密码学级安全验证码与原子防刷（SetNX 冷却标记，失败安全回滚）**：
+  - 基于 Go 标准库 `crypto/rand` 与 `math/big` 动态生成密码学安全的纯数字验证码，防范伪随机数种子被时间戳预测的隐患。
+  - 基于 Redis `SetNX` 单指令写入请求独占的随机 Token 作为前置原子防刷冷却标记，解决传统“先查后发”在高延迟 SMTP 网络 I/O 下的并发穿透隐患。
+  - 具备发信异常补偿回滚机制：释放冷却标记时通过 Redis Lua 脚本原子校验 Token（CAS 比对并删除），避免因网络抖动超时误删他人后置冷却标记。
+- **密码重置与安全敏感链路加固**：
+  - 重置密码接口挂载独立限流中间件（5 次/分），防止枚举。
+  - 验证码比对引入 Go 标准库 `crypto/subtle.ConstantTimeCompare` 恒定时间算法，阻断计时侧信道攻击；且单次验证码连续输错达到 5 次立即在 Redis 中原子销毁作废，有效防范 6 位纯数字暴力枚举。
 - **完善的注销冷静期流程**：
   - 用户自主注销进入 24 小时冷静期（常量 `UserDeletionGracePeriod = 24h`），期间账号权益完全正常。
   - 支持随时通过 `POST /v2/user/delete` 查询倒计时，支持通过安全邮箱验证码（`scene = "cancel_delete"`）一键撤销冷静期。
-  - 结合后台常驻执行器每分钟轮询，倒计时结束自动彻底软删除并清理所有凭证。
+  - 结合后台常驻执行器每分钟轮询，倒计时结束自动软删除并级联清理所有关联凭证。
 - **全链路可观测性与 TraceID 日志**：
-  - 全局中间件自动为每个 HTTP 请求注入唯一 `X-Trace-ID` 响应头与 Request Context。
+  - 全局中间件自动为每个 HTTP 请求注入唯一 `X-Trace-ID` 响应头与 Request Context，对客户端传入的 TraceID 实施严格长度与字符集白名单校验，防范 CRLF 日志注入与响应头拆分攻击。
   - 基于 Go 1.21+ 标准库 `log/slog` 构建结构化日志，全链路日志自动附带 TraceID，支持生产环境单次请求的精准端到端问题复现。
 - **生产级底层健壮性与优雅停机**：
-  - **优雅停机（Graceful Shutdown）**：捕获系统中断信号（`SIGINT`/`SIGTERM`），通过 Context 级联平滑终止后台常驻协程，配合 `srv.Shutdown` 超时缓冲机制等待活跃请求正常响应，杜绝服务重启时的事务半写入与数据不一致。
+  - **优雅停机（Graceful Shutdown）**：捕获系统中断信号（`SIGINT`/`SIGTERM`），自顶向下先通过 `srv.Shutdown` 缓冲处理存量请求，再级联终止后台常驻协程并等待退出，最后安全关闭 MySQL 与 Redis 连接池，避免事务半写入与连接泄露。
   - **MySQL 连接池全套调优**：最大打开连接（100）、最大空闲连接（25）、单连接存活寿命（60m）、空闲回收时间（10m），配合 Fail-Fast 启动保护与智能默认值兜底。
-  - **逻辑外键演进**：全表杜绝物理外键强依赖，由业务层事务保证引用完整性，根除高并发下的外键间隙锁死锁与 DDL 锁表隐患。
-  - **全链路 Context 穿透**：所有 HTTP 请求上下文深度贯穿 GORM 事务、Redis 缓存与 MinIO 传输，客户端断开或超时即刻阻断底层 I/O，杜绝资源悬挂。
+  - **逻辑外键演进**：全表采用逻辑外键设计，由业务层事务保证引用完整性，避免高并发下的外键间隙锁死锁与 DDL 锁表隐患。
+  - **全链路 Context 穿透**：所有 HTTP 请求上下文深度贯穿 GORM 事务、Redis 缓存与 MinIO 传输，客户端断开或超时即刻阻断底层 I/O，减少无用资源悬挂。
   - **MinIO 双端点隔离**：内网走局域网无公网开销；外网签名纯本地哈希离线计算，消除网络探测延迟与 502/Region 不匹配错误。
 - **自动化 CI/CD 与实体机持续交付**：
-  - 基于 GitHub Actions 搭建全自动 CI/CD 质量门禁（PR/Push 自动触发 `go vet`、竞态单元测试 `-race` 与编译检查），从源头杜绝破坏性代码流入主干分支。
+  - 基于 GitHub Actions 搭建全自动 CI/CD 质量门禁（PR/Push 自动触发 `go vet`、竞态单元测试 `-race` 与编译检查），保障主干分支代码质量。
   - 支持 Git Tag 一键自动化发版打包（Linux amd64 静态编译、剥离调试符号瘦身并自动生成 SHA256 校验和上传 GitHub Releases）。
   - 支持基于 GitHub Self-Hosted Runner 的实体机自动化无感热部署（内网长连接反向拉取任务，零公网 IP/端口暴露风险）。
 
@@ -130,7 +196,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 1. **500 异常强脱敏与日志追溯**：
    `response.ServerError(c, action, err)` 绝不向前端暴露底层 SQL 语句、表名、代码堆栈或 MinIO 错误，统一返回安全文案 `"服务开小差了，请稍后再试"`；同时在服务端自动提取上下文 TraceID 并通过 `logger.ErrorContext` 输出完整堆栈与错误原因，便于运维定位。
 2. **MySQL 1062 唯一约束冲突转译**：
-   在 Repository 层针对数据插入与更新捕获 `mysqlErr.Number == 1062`，自动转译为业务人话（如 `"学号、邮箱或用户名已被占用"`、`"部门名称已存在"`、`"职位名称已存在"`、`"创建失败，该年份类型的数据已存在"`），作为 400 业务错误返回，彻底杜绝暴露 500。
+   在 Repository 层针对数据插入与更新捕获 `mysqlErr.Number == 1062`，自动转译为业务友好提示（如 `"学号、邮箱或用户名已被占用"`、`"部门名称已存在"`、`"职位名称已存在"`、`"创建失败，该年份类型的数据已存在"`），作为 400 业务错误返回，避免向客户端直接暴露 500 堆栈。
 3. **`gorm.ErrRecordNotFound` 转译**：
    在 Service 层捕获 GORM 空记录异常并转译为 `"账号不存在"`、`"用户不存在"` 等具体业务语义，避免向客户端输出原生的 `record not found`。
 
@@ -155,8 +221,8 @@ Authorization: Bearer <token>
 | POST | `/v2/auth/register` | 公开 | 用户注册 | 无 | JSON：`student_id`、`username`、`name`、`email`、`password` |
 | POST | `/v2/auth/login` | 公开 | 用户登录 | **10次/分 (IP)** | JSON：`account`（支持学号/用户名/邮箱）、`password`、`device`（设备标识） |
 | POST | `/v2/auth/refresh` | 公开 | 刷新令牌 | 无 | JSON：`refresh_token` |
-| POST | `/v2/auth/send` | 公开 | 发送邮箱验证码 | **5次/分 (IP)** | JSON：`account`、`scene`（场景值） |
-| POST | `/v2/auth/logout` | 登录 | 当前设备登出 | 无 | JSON：`device` |
+| POST | `/v2/auth/send` | 公开 | 发送邮箱验证码（SetNX 随机 Token 冷却防刷） | **5次/分 (IP)** | JSON：`account`、`scene`（场景值） |
+| POST | `/v2/auth/logout` | 登录 | 当前设备登出（清理 Refresh Token） | 无 | JSON：`device` |
 
 #### `POST /v2/auth/send` 支持的业务场景（`scene`）：
 1. `reset_password`：找回/重置密码。
@@ -167,10 +233,10 @@ Authorization: Bearer <token>
 
 ### Password（密码服务）
 
-| 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
-|---|---|---|---|---|
-| POST | `/v2/auth/password/update` | 登录 | 修改登录密码 | JSON：`old_password`、`new_password` |
-| POST | `/v2/auth/password/reset` | 公开 | 邮箱验证码重置密码 | JSON：`account`、`code`、`password` |
+| 方法 | 路径 | 鉴权 | 说明 | 频控限制 | 请求参数 |
+|---|---|---|---|---|---|
+| POST | `/v2/auth/password/update` | 登录 | 修改登录密码 | 无 | JSON：`old_password`、`new_password` |
+| POST | `/v2/auth/password/reset` | 公开 | 邮箱验证码重置密码（恒定时间校验，连续输错 5 次熔断作废） | **5次/分 (IP)** | JSON：`account`、`code`、`password` |
 
 ---
 
@@ -396,28 +462,31 @@ Authorization: Bearer <token>
 
 ## 核心机制设计
 
-### 1. Redis SetNX 原子防刷与回滚机制
+### 1. Redis SetNX 原子防刷与安全回滚机制
 
 传统邮箱验证码防刷常采用“先查 Redis 是否有冷却 Key，若没有则调 SMTP 发信，发完再写 Redis”，在 SMTP 发信通常需要 500ms ~ 2s 网络 I/O 的情况下，极易被并发请求穿透刷信。
 
-本系统将其重构为 **`SetNX` 前置原子互斥锁 + 失败自动回滚**：
+本系统将其重构为 **`SetNX` 前置原子防刷冷却标记 + Lua CAS 安全回滚**：
+
+- **独占 Token 占位**：调用 `SetCooldownNX` 时，生成当前请求独占的高熵随机 Token（UUID）作为 Value 进行原子占位，防范并发穿透；
+- **Lua CAS 安全释放**：若验证码写入或 SMTP 发信失败，通过 Redis Lua 脚本原子比对当前 Key 的 Value 是否与当前 Token 一致，仅在匹配时才执行 `DEL`，避免因外部网络延迟导致标记过期后误删他人后置冷却标记。
 
 ```text
-客户端请求 -> SetCooldownNX (rdb.SetNX 单指令前置占位)
-  ├── 写入失败 (Key 已存在) ──> 立即拦截，返回 400 "间隔太短" (零耗时，不调用邮件服务)
-  └── 写入成功 (抢占锁成功) ──> 生成验证码写入 Redis ──> 调用 SMTP 发信
+客户端请求 -> SetCooldownNX (rdb.SetNX 写入专属随机 Token 前置占位)
+  ├── 写入失败 (冷却未到期) ──> 立即拦截，返回 400 "间隔太短" (零耗时，不调用邮件服务)
+  └── 写入成功 (占位成功)   ──> 生成验证码写入 Redis ──> 调用 SMTP 发信
                                 ├── 发信成功 ──> 返回 200 success
-                                └── 发信失败 ──> 自动触发补偿回滚 (DEL 冷却 Key + DEL 验证码) ──> 允许用户即时重试
+                                └── 发信失败 ──> 触发安全补偿回滚 (Redis Lua 校验 Token 一致才 DEL 冷却 Key) ──> 允许即时重试
 ```
 
 ### 2. 账户注销冷静期与级联清理
 
-为了防止用户误操作注销，同时杜绝账号注销后的安全隐患与幽灵会话，系统设计了闭环的注销机制：
+为了防止用户误操作注销，同时防范账号注销后的越权与幽灵会话隐患，系统设计了闭环的注销机制：
 
 1. **进入冷静期**：本人自主注销必须提供 `scene = "delete_user"` 的邮箱验证码，验证通过后进入 24 小时冷静期（`scheduled_delete_at = NOW() + 24h`），在此期间用户保留所有访问权限。
 2. **状态感知与查询**：冷静期内，`GET /v2/user/me` 会返回 `scheduled_delete_at`；调用 `POST /v2/user/delete`（不带参数或传空 `{}`）可直接获取以北京时间格式化的到期截止时间（`YYYY-MM-DD HH:mm:ss`）。
 3. **取消注销冷静期**：用户若中途改变主意，通过 `POST /v2/auth/send` 获取 `scene = "cancel_delete"` 的验证码，调用 `POST /v2/user/delete/cancel` 即可将 `scheduled_delete_at` 恢复为 `NULL`。
-4. **级联物理清退**：当账号冷静期结束（或被高级别管理员强制删除）触发彻底删除时，系统将：
+4. **级联清理与软删除**：当账号冷静期结束（或被高级别管理员强制删除）触发正式删除时，系统将：
    - 软删除 `users` 记录；
    - 级联清除 MySQL `refresh_tokens` 表中该用户在全设备的所有 Refresh Token；
    - 级联删除 Redis 中该用户所有设备的 Refresh Token 缓存（`{user_id}-{device}`）、所有业务场景验证码（`{user_id}-{scene}VerificationCode`，涵盖重置密码、注销及取消注销）以及防刷冷却标记（`{user_id}-CoolDown`）。
@@ -428,7 +497,7 @@ Authorization: Bearer <token>
 
 1. **`StartUserDeletionExecutor`（到期用户注销执行器）**：
    - 轮询扫描数据库：`scheduled_delete_at IS NOT NULL AND scheduled_delete_at <= NOW()`；
-   - 批量触发级联彻底删除，无需等待用户下次主动访问。
+   - 批量触发级联软删除与会话清理，无需等待用户下次主动访问。
 2. **`StartInterviewResultExecutor`（周期面试结果执行器）**：
    - 轮询扫描到期招新/换届周期：`is_executed = false AND execute_after_at <= NOW()`；
    - 在独立数据库事务中，自动将候选人面试决策落地，批量变更录用者的部门与职位，记录变动轨迹，并将周期标记为已执行。
@@ -449,16 +518,17 @@ Authorization: Bearer <token>
   └── 超过阈值: 计数值 > limit -> 中断请求 Abort()，立即响应 429 Too Many Requests
 ```
 
-- **登录接口保护**：`/v2/auth/login` 限制单个 IP 每分钟最多尝试 10 次，彻底阻断密码暴力破解，保护 Bcrypt 密文哈希计算资源。
-- **邮件发送保护**：`/v2/auth/send` 限制单个 IP 每分钟最多调用 5 次，与账号维度的 `SetNX` 冷却形成“IP 层 + 用户账号层”双重立体防护，杜绝恶意肉鸡刷爆 SMTP 接口。
-- **故障降级保护**：若 Redis 出现偶发性网络抖动，限流逻辑自动捕获错误并执行 `c.Next()` 放行降级，保障业务主链路绝不因限流组件故障而雪崩。
+- **登录接口保护**：`/v2/auth/login` 限制单个 IP 每分钟最多尝试 10 次，防范密码暴力尝试与枚举，保护 Bcrypt 密文哈希计算资源。
+- **邮件发送保护**：`/v2/auth/send` 限制单个 IP 每分钟最多调用 5 次，与账号维度的 `SetNX` 冷却形成“IP 层 + 用户账号层”双重立体防护，防范恶意刷爆 SMTP 接口。
+- **故障降级保护**：若 Redis 出现偶发性网络抖动，限流逻辑自动捕获错误并执行 `c.Next()` 降级放行，保障核心业务链路可用性。
 
 ### 6. 全链路 TraceID 注入与 slog 结构化日志追溯
 
-为了彻底解决微服务或单体架构中多协程并发日志混乱、问题难以排查的痛点，项目接入了标准库 `log/slog` 与分布式追踪理念：
+为了有效解决并发协程调用中日志关联混乱、问题难以排查的痛点，项目接入了标准库 `log/slog` 与分布式追踪理念：
 
 - **全局 Trace 中间件**（`internal/middleware/trace.go`）：
   - 拦截每个 HTTP 入口请求，生成全球唯一 UUID 作为 `TraceID`；
+  - 严格校验客户端传入的 `X-Trace-ID` 长度与字符集白名单，防范 CRLF 日志注入与响应拆分；
   - 写入 HTTP 响应头 `X-Trace-ID`，供前端或外部网关快速关联；
   - 注入 `c.Request.Context()`，实现跨层级透明穿透。
 - **结构化日志包封装**（`pkg/logger/logger.go`）：
@@ -470,7 +540,7 @@ Authorization: Bearer <token>
 
 - Gin Handler 统一提取 `c.Request.Context()`，并透明透传至 Service 层与 Repository 层。
 - GORM 数据库操作一律挂载 `.WithContext(ctx)`，Redis 命令一律使用 `rdb.WithContext(ctx)`，MinIO I/O 深度绑定 `ctx`。
-- 一旦前端页面离开、客户端主动断开连接或发生网关超时，内核能够即刻中断底层耗时的 SQL 查询与网络 I/O，杜绝连接泄露与数据库死锁。
+- 一旦前端页面离开、客户端主动断开连接或发生网关超时，内核能够即刻中断底层耗时的 SQL 查询与网络 I/O，避免无用连接悬挂与资源浪费。
 
 ### 8. 信号监听与全流程优雅停机（Graceful Shutdown）
 
@@ -496,11 +566,11 @@ Authorization: Bearer <token>
 - **`max_idle_conns`（默认 25）**：保持合理空闲连接（通常为最大连接的 1/4 到 1/2），避免并发时频繁进行 TCP 三次握手与身份认证。
 - **`conn_max_lifetime`（默认 60 分钟）**：限制连接生命周期，避免长时间复用导致防火墙/NAT 网关或 MySQL `wait_timeout` 静默切断产生的 `broken pipe`。
 - **`conn_max_idle_time`（默认 10 分钟）**：超时回收闲置连接，高峰期过后释放数据库资源。
-- **Fail-Fast 保护**：初始化若获取底层 `sql.DB` 失败直接触发 `panic` 快速失败，杜绝服务带病启动。
+- **Fail-Fast 保护**：初始化若获取底层 `sql.DB` 失败直接触发 `panic` 快速失败，防止服务带病启动。
 
 #### 逻辑外键替代物理外键
 系统全表数据表模型均采用**逻辑外键设计**，数据库底层 DDL 不建立任何物理 `FOREIGN KEY` 约束：
-- **消灭死锁**：高并发插入或修改主从表时，物理外键会隐式触发行锁甚至间隙锁（Gap Lock），极易在高频并发下引发死锁；
+- **避免外键死锁与锁表隐患**：高并发插入或修改主从表时，物理外键会隐式触发行锁甚至间隙锁（Gap Lock），极易在高频并发下引发死锁；
 - **分库分表与归档友好**：去除物理外键约束后，历史数据归档、软删除以及后续水平分库不再受底层外键约束阻碍；
 - **应用层事务保障**：数据关联一致性完全由 Service 层的数据库事务与校验逻辑进行保障。
 
@@ -511,7 +581,7 @@ Authorization: Bearer <token>
   - `public_endpoint`：对外返回给前端使用的公网端点（如 `obj.suseoaa.com`）。
 - **纯本地离线计算预签名（零网络探测耗时）**：
   - 后端针对公网端点在本地纯算 AWS S3 V4 签名算法生成 Presigned URL，不向外网反向代理发送探测请求，从根本上解决 502 Bad Gateway 以及 Region 不匹配错误。
-  - **读链路彻底解耦**：用户资料读取（如 `GET /v2/user/me`）直接在本地基于密钥生成头像直链，杜绝每次读操作向内网存储发送 `StatObject` 文件探活网络请求，将接口响应时间由 5 秒（超时挂起）骤降至 2ms 以内，即使对象存储服务重启或内网网络波动，核心业务读取链路也绝对不受影响。
+  - **读链路离线预签名解耦**：用户资料读取（如 `GET /v2/user/me`）直接在本地基于密钥生成头像直链，避免每次读操作向内网存储发送 `StatObject` 文件探活网络请求，大幅降低读链路网络时延与对象存储服务波动对主干业务的影响。
 
 ---
 
@@ -554,6 +624,28 @@ Authorization: Bearer <token>
 
 ---
 
+## 已知限制与架构取舍
+
+任何优秀的系统架构都是在特定业务场景和技术约束下的权衡结果。本项目在设计时明确遵循“实用主义与简单可靠”原则，以下为当前系统的核心架构取舍与已知边界：
+
+### 1. 为什么采用单体分层架构，而非拆分微服务？
+- **业务规模评估**：本系统的服务对象为高校社团成员，核心数据量在千级，常态并发平稳，仅在每年招新季存在脉冲式流量。
+- **架构权衡**：微服务架构会引入跨网络 RPC 延迟、分布式事务一致性难题（如 Saga / TCC）以及高昂的服务治理与监控运维成本。系统采用整洁的单体分层架构（`Handler ➔ Service ➔ Repository`），以极高的开发人效和极低的运维负担满足了当前的高吞吐与可用性要求；若未来多校联盟推广，可依托当前已彻底解耦的 Service 接口契约平滑演进。
+
+### 2. 为什么使用定时轮询 Worker，而非引入外部消息队列（MQ）？
+- **可靠性与复杂度**：招新结果全量生效一年仅触发 1~2 次，用户注销冷静期也是天级别的长周期流转。
+- **单一数据源原则**：通过 MySQL 字段标记状态机（如 `is_executed`、`scheduled_delete_at`）配合本地轻量级后台 Worker 轮询，具备天然的数据源唯一性与幂等控制，完全规避了引入 Kafka/RabbitMQ 等消息队列所导致的消费重复、消息积压及 DB-MQ 双写不一致问题，保障了系统架构的极简与自治。
+
+### 3. Access Token 的无状态性与主动吊销边界
+- **性能优先的权衡**：Access Token 为短期无状态 JWT，网关本地通过密钥快速验签（零 I/O 延迟）。当用户主动注销或登出时，系统立即清理持久化层与 Redis 中的 Refresh Token，掐断后续的令牌续签链路。
+- **已知边界**：已签发的存量 Access Token 在其短暂生命周期内（如 15~30 分钟）仍可通行。在高校社团这类中低安全敏感级场景下，该设计在“极致 API 读取吞吐”与“会话即时管控”之间取得了最佳平衡；若未来业务对即时吊销有严苛诉求，可无缝演进基于 Redis JTI 黑名单或版本号比对的即时拦截机制。
+
+### 4. 成员关键词搜索的索引表现与预期演进
+- **现状分析**：`GET /v2/user/list` 中的关键词搜索目前采用 SQL `LIKE '%keyword%'` 进行模糊匹配。
+- **业务考量**：前置通配符会导致 MySQL B+Tree 索引失效退化为全表扫描。但在协会现阶段千级数据规模下，全表扫描耗时通常在 2~5ms 以内，性能完全可控。团队已做好演进预案，一旦成员规模迈向百万级，将引入 MySQL 8.0 全文索引（Full-Text Index）或挂载轻量级搜索引擎（如 Meilisearch）。
+
+---
+
 ## 技术栈
 
 | 层次 | 核心技术选型 | 说明 |
@@ -561,10 +653,10 @@ Authorization: Bearer <token>
 | **语言与运行时** | Go 1.25+（当前运行 Go 1.26.4） | 高性能并发运行时，采用 `sync.WaitGroup.Go` 协程编排 |
 | **Web 路由框架** | Gin (`github.com/gin-gonic/gin`) | 高性能 HTTP 路由与中间件 |
 | **ORM 框架** | GORM (`gorm.io/gorm` + `gorm.io/driver/mysql`) | 关系型数据库对象关系映射（全逻辑外键） |
-| **缓存中间件** | Redis (`github.com/redis/go-redis/v9`) | 分布式缓存、Session 刷新凭据、防刷锁与频次限流 |
+| **缓存中间件** | Redis (`github.com/redis/go-redis/v9`) | 分布式缓存、Session 刷新凭据、原子防刷标记与频次限流 |
 | **对象存储** | MinIO SDK (`github.com/minio/minio-go/v7`) | 兼容 S3 协议的大文件与图片存储 |
 | **结构化日志** | Go 1.21+ `log/slog` | 标准库轻量级结构化日志 + 全链路 TraceID 注入 |
-| **认证与加密** | JWT (`golang-jwt/jwt/v5`) + Bcrypt | 密码强哈希与无状态 Access Token |
+| **认证与加密** | JWT (`golang-jwt/jwt/v5`) + Bcrypt | 密码强哈希与 Access + Refresh 双 Token 鉴权体系 |
 | **邮件投递** | Gomail (`gopkg.in/gomail.v2`) | SMTP 邮箱验证码发送服务 |
 | **配置解析** | Viper (`github.com/spf13/viper`) | YAML 配置文件读取与环境注入 |
 | **持续集成与交付** | GitHub Actions + Self-Hosted Runner | 自动化代码门禁、Release 制品打包与实体机持续部署 |

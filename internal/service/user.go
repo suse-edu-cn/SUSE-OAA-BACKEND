@@ -281,7 +281,11 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 			return errors.New("账号已处于注销冷静期")
 		}
 	}
-	acquired, err := u.Repo.SetCooldownNX(ctx, user.ID, u.Email.Cooldown)
+	token, err := utils.GetUUID()
+	if err != nil {
+		token = fmt.Sprintf("%d-%d", user.ID, time.Now().UnixNano())
+	}
+	acquired, err := u.Repo.SetCooldownNX(ctx, user.ID, token, u.Email.Cooldown)
 	if err != nil {
 		return err
 	}
@@ -292,11 +296,11 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 	code := u.Email.NewVerificationCode(6)
 	expire := u.Email.GetExpireTime()
 	if err := u.Repo.SaveVerificationCode(ctx, user.ID, code, types, expire); err != nil {
-		_ = u.Repo.DeleteCooldown(ctx, user.ID)
+		_ = u.Repo.DeleteCooldown(ctx, token, user.ID)
 		return err
 	}
 	if err := u.Email.SendVerificationCode(user.Email, code); err != nil {
-		_ = u.Repo.DeleteCooldown(ctx, user.ID)
+		_ = u.Repo.DeleteCooldown(ctx, token, user.ID)
 		_ = u.Repo.DeleteVerificationCode(ctx, user.ID, types)
 		return err
 	}
