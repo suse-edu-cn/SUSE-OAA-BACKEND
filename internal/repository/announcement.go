@@ -63,7 +63,7 @@ func (a *AnnouncementRepository) GetAnnouncementInfo(ctx context.Context, id uin
 		Where("is_active = ? OR created_id = ?", true, userID).
 		First(&announcement).Error
 	if err != nil {
-		return model.AnnouncementInfo{}, errors.New("获取失败")
+		return model.AnnouncementInfo{}, err
 	}
 	return announcement.ToInfo(), nil
 }

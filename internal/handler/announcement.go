@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
 	"suseoaa/pkg/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AnnouncementHandler struct {
@@ -126,6 +128,10 @@ func (a *AnnouncementHandler) GetAnnouncement(c *gin.Context) {
 	ctx := c.Request.Context()
 	announcement, err := a.AnnouncementService.GetAnnouncementInfo(ctx, userID, req.AnnouncementID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.NotFound(c, "公告不存在")
+			return
+		}
 		response.ServerError(c, "获取公告详情", err)
 		return
 	}
@@ -145,6 +151,10 @@ func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "权限不够" {
 			response.Forbidden(c, "权限不足")
+			return
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.NotFound(c, "公告不存在")
 			return
 		}
 		response.ServerError(c, "删除公告", err)

@@ -52,6 +52,14 @@ func Forbidden(c *gin.Context, message string) {
 	})
 }
 
+func NotFound(c *gin.Context, message string) {
+	c.JSON(404, Response{
+		Code:    404,
+		Message: message,
+		Data:    nil,
+	})
+}
+
 func TooManyRequests(c *gin.Context) {
 	c.JSON(429, Response{
 		Code:    429,
