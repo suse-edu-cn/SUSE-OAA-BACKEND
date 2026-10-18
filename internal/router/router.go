@@ -17,14 +17,17 @@ type Router struct {
 }
 
 func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies []string) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
 
 	if len(trustedProxies) > 0 {
 		_ = r.SetTrustedProxies(trustedProxies)
 	} else {
 		_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 	}
+
 	r.Use(middleware.Trace())
+	r.Use(middleware.AccessLog())
+	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
 	loginLimiter := middleware.RateLimit(rdb, "login", 10, time.Minute)
 	sendLimiter := middleware.RateLimit(rdb, "send_code", 5, time.Minute)
