@@ -710,6 +710,10 @@ Authorization: Bearer <token>
 cp configs/config_example.yaml configs/config.yaml
 ```
 
+> [!TIP]
+> **云原生环境变量覆盖（12-Factor App）**：
+> 系统支持通过环境变量动态覆盖 YAML 配置，采用前缀 `OAA_` 并用下划线 `_` 代替层级点号（例如 `OAA_MYSQL_PASSWORD="xxx"` 覆盖 `mysql.password`，`OAA_JWT_SECRET="xxx"` 覆盖 `jwt.secret`，`OAA_SERVER_PORT="8080"` 覆盖 `server.port`）。敏感凭据无需明文硬编码保存在代码库中，生产容器部署时可直接通过 Docker/K8s 环境变量或 Secret 注入。
+
 各配置项详细说明如下：
 
 #### `server`

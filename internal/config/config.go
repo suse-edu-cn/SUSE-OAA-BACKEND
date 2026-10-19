@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/spf13/viper"
 )
 
@@ -69,12 +71,22 @@ type MiniO struct {
 
 func ConfigInit() Config {
 	var config Config
-	viper.SetConfigName("config")
-	viper.AddConfigPath("./configs")
-	if err := viper.ReadInConfig(); err != nil {
+	v := viper.New()
+
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath("./configs")
+	v.AddConfigPath("../configs")
+	v.AddConfigPath("../../configs")
+
+	v.SetEnvPrefix("OAA")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
 		panic(err)
 	}
-	if err := viper.Unmarshal(&config); err != nil {
+	if err := v.Unmarshal(&config); err != nil {
 		panic(err)
 	}
 	return config
