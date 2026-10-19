@@ -8,6 +8,7 @@ type TotalHandler struct {
 	Announcement *AnnouncementHandler
 	Term         *TermHandler
 	File         *FileHandler
+	Health       *HealthHandler
 }
 
 func NewTotalHandler(auth *AuthHandler,
@@ -17,6 +18,7 @@ func NewTotalHandler(auth *AuthHandler,
 	announcement *AnnouncementHandler,
 	term *TermHandler,
 	file *FileHandler,
+	health *HealthHandler,
 ) *TotalHandler {
 	return &TotalHandler{
 		Auth:         auth,
@@ -26,5 +28,6 @@ func NewTotalHandler(auth *AuthHandler,
 		Announcement: announcement,
 		Term:         term,
 		File:         file,
+		Health:       health,
 	}
 }

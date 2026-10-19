@@ -13,6 +13,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 - [核心架构亮点](#核心架构亮点)
 - [统一响应与错误分类规范](#统一响应与错误分类规范)
 - [接口一览与详细文档](#接口一览与详细文档)
+  - [Health（云原生健康检查探针）](#health云原生健康检查探针)
   - [Auth（认证与令牌）](#auth认证与令牌)
   - [Password（密码服务）](#password密码服务)
   - [User（用户管理与注销冷静期）](#user用户管理与注销冷静期)
@@ -35,6 +36,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
   - [8. 信号监听与全流程优雅停机（Graceful Shutdown）](#8-信号监听与全流程优雅停机graceful-shutdown)
   - [9. MySQL 生产级连接池调优与逻辑外键演进](#9-mysql-生产级连接池调优与逻辑外键演进)
   - [10. MinIO 双端点隔离与纯本地离线预签名](#10-minio-双端点隔离与纯本地离线预签名)
+  - [11. 云原生多级健康检查探针（Liveness & Readiness Probes）](#11-云原生多级健康检查探针liveness--readiness-probes)
 - [权限与组织架构设计](#权限与组织架构设计)
 - [已知限制与架构取舍](#已知限制与架构取舍)
 - [技术栈](#技术栈)
@@ -69,7 +71,7 @@ SUSE OAA 后端服务，基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构�
 - **2.0 独立重构期（独立主导）**：随着业务复杂度剧增，为支撑复杂状态机与高并发诉求，由核心开发者独立主导了 2.0 版本的全链路重构：
   - **整洁分层架构**：规范推行 `Handler ➔ Service ➔ Repository` 三层解耦标准，隔离数据访问与业务逻辑，提升系统的可维护性与可测试性；
   - **基础设施自主可控与降本增效**：团队将核心系统迁移至实体服务器，并自建私有化 **MinIO 分布式对象存储**集群替代云 OSS，通过内网闭环上传与纯本地离线预签名直链，消除外部带宽成本并大幅降低读写延迟；
-  - **企业级健壮性加固**：落地全链路 `TraceID` 可观测性、基于 Redis Lua 脚本的高性能无锁 IP 限流、软删除联合索引防失效破局、优雅停机与异步执行器冷启动补偿等工程实践。
+  - **企业级健壮性加固**：落地全链路 `TraceID` 可观测性与 slog 结构化访问日志中间件、云原生多级健康检查探针（`/livez` 与 `/healthz`）、基于 Redis Lua 脚本的高性能无锁 IP 限流、软删除联合索引防失效破局、优雅停机与异步执行器冷启动补偿等工程实践。
 
 ---
 
@@ -150,9 +152,14 @@ sequenceDiagram
   - 用户自主注销进入 24 小时冷静期（常量 `UserDeletionGracePeriod = 24h`），期间账号权益完全正常。
   - 支持随时通过 `POST /v2/user/delete` 查询倒计时，支持通过安全邮箱验证码（`scene = "cancel_delete"`）一键撤销冷静期。
   - 结合后台常驻执行器每分钟轮询，倒计时结束自动软删除并级联清理所有关联凭证。
-- **全链路可观测性与 TraceID 日志**：
+- **全链路 TraceID 注入与 slog 结构化访问日志**：
   - 全局中间件自动为每个 HTTP 请求注入唯一 `X-Trace-ID` 响应头与 Request Context，对客户端传入的 TraceID 实施严格长度与字符集白名单校验，防范 CRLF 日志注入与响应头拆分攻击。
-  - 基于 Go 1.21+ 标准库 `log/slog` 构建结构化日志，全链路日志自动附带 TraceID，支持生产环境单次请求的精准端到端问题复现。
+  - 淘汰 Gin 默认的终端彩色控制台日志，采用 `gin.New()` 并自主实现基于标准库 `log/slog` 的结构化 `AccessLog` 中间件，按 `Trace ➔ AccessLog ➔ Recovery ➔ CORS` 严谨洋葱顺序编排。
+  - 请求处理完成后自动记录请求方法、路由、状态码、延时（毫秒）、客户端 IP、数据体积与 User-Agent，按 2xx/4xx/5xx 分级别输出单行标准 JSON，ELK/Loki 可一键索引。
+- **云原生就绪与存活探针（Kubernetes Liveness & Readiness Probes）**：
+  - 暴露标准规范的 `/livez`（存活探针）与 `/healthz`（就绪探针），免鉴权且免限流。
+  - `/livez` 仅验证服务进程正常存活，返回 200，绝不依赖下游组件，防止因组件瞬时抖动引发 K8s 杀死全集群 Pod 的雪崩惨剧。
+  - `/healthz` 设置 2 秒硬超时（`context.WithTimeout`），并发对 MySQL 底层连接池与 Redis 发起 Ping 连通性探测。全正常时返回 200 与极简 `data: null`；任一下游组件故障时返回 `503 Service Unavailable` 并在 `data` 中精准指出故障依赖与具体错误堆栈，供负载均衡将异常实例平滑移出端点列表。
 - **生产级底层健壮性与优雅停机**：
   - **优雅停机（Graceful Shutdown）**：捕获系统中断信号（`SIGINT`/`SIGTERM`），自顶向下先通过 `srv.Shutdown` 缓冲处理存量请求，再级联终止后台常驻协程并等待退出，最后安全关闭 MySQL 与 Redis 连接池，避免事务半写入与连接泄露。
   - **MySQL 连接池全套调优**：最大打开连接（100）、最大空闲连接（25）、单连接存活寿命（60m）、空闲回收时间（10m），配合 Fail-Fast 启动保护与智能默认值兜底。
@@ -168,7 +175,7 @@ sequenceDiagram
 
 ## 统一响应与错误分类规范
 
-所有 HTTP 接口的响应格式统一遵循以下结构，HTTP 状态码与业务 `code` 严格对齐，形成标准的 **5+1 语义化响应体系**：
+所有 HTTP 接口的响应格式统一遵循以下结构，HTTP 状态码与业务 `code` 严格对齐，形成标准的 **语义化响应体系**：
 
 ### 1. 响应结构定义
 
@@ -182,14 +189,16 @@ sequenceDiagram
 
 ### 2. 状态码与语义分类体系
 
-| HTTP 状态码 | 业务方法 | 适用场景 | 前端处理建议 |
+| HTTP 状态码 | 业务方法 / 实现 | 适用场景 | 前端/调用方处理建议 |
 | :--- | :--- | :--- | :--- |
-| **`200 OK`** | `response.Success(c, data)` | 业务正常执行完毕 | 正常消费 `data` 并渲染页面 |
+| **`200 OK`** | `response.Success(c, data)` | 业务正常执行完毕、探针健康 | 正常消费 `data` 并渲染页面 |
 | **`400 Bad Request`** | `response.BadRequest(c, msg)`<br>`response.BadRequestWithData(c, msg, data)` | 业务参数校验失败、账号密码错误、不在填报时间范围内、业务规则受限 | 页面提示错误文案；若携带 `data`（如批量部分失败、冷静期时间）则提取展示 |
 | **`401 Unauthorized`** | `response.Unauthorized(c, msg)` | 请求头未携带 Token、Bearer 格式错误、Token 过期或被篡改 | **清除本地缓存 Token，跳转至登录页面** |
 | **`403 Forbidden`** | `response.Forbidden(c, msg)` | 身份有效但权限不足（如越权修改高职级数据、跨部门非法操作） | 弹窗或浮层提示“无权操作此资源” |
+| **`404 Not Found`** | `response.NotFound(c, msg)` | 目标资源不存在（如查询不存在的公告详情） | 提示“请求的资源不存在”并导向列表页 |
 | **`429 Too Many Requests`** | `response.TooManyRequests(c)` | 触发 IP 频次限制（登录/发信超频） | 按钮倒计时置灰并提示“请求过于频繁，请稍后再试” |
 | **`500 Internal Error`** | `response.ServerError(c, action, err)` | 数据库故障、网络宕机、第三方存储异常等未预期服务器崩溃 | 统一展示脱敏友好提示：`"服务开小差了，请稍后再试"` |
+| **`503 Service Unavailable`** | `c.JSON(503, ...)` | 服务暂时不可用（如 `/healthz` 探测到 MySQL 或 Redis 断连） | 负载均衡器将该实例暂时移出流量路由，报警系统接入 |
 
 ### 3. 底层错误脱敏与转译策略
 
@@ -198,19 +207,28 @@ sequenceDiagram
 2. **MySQL 1062 唯一约束冲突转译**：
    在 Repository 层针对数据插入与更新捕获 `mysqlErr.Number == 1062`，自动转译为业务友好提示（如 `"学号、邮箱或用户名已被占用"`、`"部门名称已存在"`、`"职位名称已存在"`、`"创建失败，该年份类型的数据已存在"`），作为 400 业务错误返回，避免向客户端直接暴露 500 堆栈。
 3. **`gorm.ErrRecordNotFound` 转译**：
-   在 Service 层捕获 GORM 空记录异常并转译为 `"账号不存在"`、`"用户不存在"` 等具体业务语义，避免向客户端输出原生的 `record not found`。
+   在 Service / Handler 层捕获 GORM 空记录异常，对查询类接口转译为标准的 404 语义（如 `"公告不存在"`、`"用户不存在"`），消除模糊的 500 报错。
 
 ---
 
 ## 接口一览与详细文档
 
-所有业务接口前缀统一为 `/v2`。
+业务接口统一前缀为 `/v2`。健康检查探针位于根路径下（`/livez`、`/healthz`）。
 
-除注册、登录、刷新 Token、发送验证码、验证码重置密码等公开接口外，**其余接口均需在 HTTP Header 中携带 Bearer Token**：
+除探针、注册、登录、刷新 Token、发送验证码、验证码重置密码等公开接口外，**其余接口均需在 HTTP Header 中携带 Bearer Token**：
 
 ```http
 Authorization: Bearer <token>
 ```
+
+---
+
+### Health（云原生健康检查探针）
+
+| 方法 | 路径 | 鉴权 | 说明 | 频控限制 | 响应数据说明 |
+|---|---|---|---|---|---|
+| GET | `/livez` | 公开 | K8s 存活探针（Liveness Probe） | 无 | 进程存活返回 200，`data: null` |
+| GET | `/healthz` | 公开 | K8s 就绪探针（Readiness Probe） | 无 | 并发探测 MySQL 和 Redis，全正常返回 200；任一下游故障返回 503 并在 `data` 定位组件错误 |
 
 ---
 
@@ -337,7 +355,7 @@ Authorization: Bearer <token>
 | POST | `/v2/announcement/update` | 登录 | 编辑公告内容 | JSON：`announcement_id`、`title`、`content` |
 | POST | `/v2/announcement/push` | 登录 | 推送发布公告（生效） | JSON：`announcement_id` |
 | GET | `/v2/announcement/list` | 登录 | 获取公告列表 | Query：`status`（`active` / `history` / `draft` 可选）、`content`（布尔值，是否返回正文内容，默认 `false`） |
-| GET | `/v2/announcement/get` | 登录 | 获取指定公告详情 | Query：`announcement_id`（必填） |
+| GET | `/v2/announcement/get` | 登录 | 获取指定公告详情（不存在返回 404） | Query：`announcement_id`（必填） |
 | POST | `/v2/announcement/delete` | 登录 | 删除公告 | JSON：`announcement_id` |
 
 > [!NOTE]
@@ -520,21 +538,23 @@ Authorization: Bearer <token>
 
 - **登录接口保护**：`/v2/auth/login` 限制单个 IP 每分钟最多尝试 10 次，防范密码暴力尝试与枚举，保护 Bcrypt 密文哈希计算资源。
 - **邮件发送保护**：`/v2/auth/send` 限制单个 IP 每分钟最多调用 5 次，与账号维度的 `SetNX` 冷却形成“IP 层 + 用户账号层”双重立体防护，防范恶意刷爆 SMTP 接口。
-- **故障降级保护**：若 Redis 出现偶发性网络抖动，限流逻辑自动捕获错误并执行 `c.Next()` 降级放行，保障核心业务链路可用性。
+- **重置密码保护**：`/v2/auth/password/reset` 限制单个 IP 每分钟最多尝试 5 次，防范暴力试错。
+- **故障降级保护**：若 Redis 出现偶发性网络抖动，限流逻辑自动捕获错误并执行 `c.Next()` 降级放行，保障核心业务链路可用性。已通过 `miniredis` 单元测试全面验证 100 并发突发拦截率与宕机降级能力。
 
 ### 6. 全链路 TraceID 注入与 slog 结构化日志追溯
 
-为了有效解决并发协程调用中日志关联混乱、问题难以排查的痛点，项目接入了标准库 `log/slog` 与分布式追踪理念：
+为了彻底解决并发协程调用中日志关联混乱、问题难以排查的痛点，项目接入了标准库 `log/slog` 与分布式追踪理念：
 
 - **全局 Trace 中间件**（`internal/middleware/trace.go`）：
   - 拦截每个 HTTP 入口请求，生成全球唯一 UUID 作为 `TraceID`；
-  - 严格校验客户端传入的 `X-Trace-ID` 长度与字符集白名单，防范 CRLF 日志注入与响应拆分；
+  - 严格校验客户端传入的 `X-Trace-ID` 长度与字符集白名单（`[a-zA-Z0-9_-]`），防范 CRLF 日志注入与响应拆分；
   - 写入 HTTP 响应头 `X-Trace-ID`，供前端或外部网关快速关联；
   - 注入 `c.Request.Context()`，实现跨层级透明穿透。
-- **结构化日志包封装**（`pkg/logger/logger.go`）：
-  - 定制 `TraceHandler`，自动从传入的 `context.Context` 中提取 `TraceID` 字段，作为日志固定属性输出；
-  - 支持 `logger.InfoContext`、`logger.WarnContext`、`logger.ErrorContext` 等标准 API；
-  - 开发环境采用人类可读的 Text 格式输出，生产环境无缝切换为 JSON 格式便于接入 ELK / Loki 等日志收集系统。
+- **结构化访问日志中间件（AccessLog）**（`internal/middleware/access_log.go`）：
+  - 放弃 Gin 默认的控制台 ANSI 彩色日志，改用 `gin.New()` 并按照 `Trace ➔ AccessLog ➔ Recovery ➔ CORS` 严谨洋葱顺序编排。
+  - 请求进入时记录起始时间戳，`c.Next()` 执行后续 Handler 链条，返回时自动计算总耗时（毫秒）、捕获状态码 `c.Writer.Status()` 与真实客户端 IP。
+  - 状态码分流记录：2xx/3xx 输出 `INFO` 级，4xx 输出 `WARN` 级并附加 `gin_errors`，5xx 输出 `ERROR` 级供运维报警。
+  - 单测覆盖：通过 `access_log_test.go` 针对 200 正常、400 客户端错误、500 服务端错误以及 Panic 熔断恢复 4 种核心场景实施全面测试覆盖。
 
 ### 7. 全链路 Context 生命周期穿透
 
@@ -582,6 +602,19 @@ Authorization: Bearer <token>
 - **纯本地离线计算预签名（零网络探测耗时）**：
   - 后端针对公网端点在本地纯算 AWS S3 V4 签名算法生成 Presigned URL，不向外网反向代理发送探测请求，从根本上解决 502 Bad Gateway 以及 Region 不匹配错误。
   - **读链路离线预签名解耦**：用户资料读取（如 `GET /v2/user/me`）直接在本地基于密钥生成头像直链，避免每次读操作向内网存储发送 `StatObject` 文件探活网络请求，大幅降低读链路网络时延与对象存储服务波动对主干业务的影响。
+
+### 11. 云原生多级健康检查探针（Liveness & Readiness Probes）
+
+在现代化容器编排平台（如 Kubernetes）中，健康检查是实现高可用自愈与平滑发布的核心纽带：
+
+- **`/livez`（存活探针，Liveness Probe）**：
+  - 核心职责：“容器进程是否存活？”
+  - 设计要点：不挂载任何外部数据库/缓存依赖检测，进程健康直接响应 `200 OK` 与 `data: null`。
+  - **雪崩防护**：坚决避免在 Liveness 探针中检测 MySQL/Redis，防止当底层数据库网络发生几秒瞬时抖动时，K8s 误杀整个集群中所有的应用 Pod 导致雪崩。
+- **`/healthz`（就绪探针，Readiness Probe）**：
+  - 核心职责：“当前实例是否准备好处理真实业务请求？”
+  - 设计要点：引入 2 秒硬超时（`context.WithTimeout`），通过 Goroutine 并发探测底层 MySQL 连接池（`sqlDB.PingContext`）与 Redis 客户端（`rdb.Ping`）。
+  - **流量智能隔离**：当且仅当下游依赖均正常时返回 `200 OK` 与 `data: null`；任一组件断连时返回 `503 Service Unavailable` 并在 `data` 中精确返回故障组件名称与失败原因，通知负载均衡器（Ingress/Kube-Proxy）暂时移出流量路由，避免用户请求落入故障节点。
 
 ---
 
@@ -644,6 +677,10 @@ Authorization: Bearer <token>
 - **现状分析**：`GET /v2/user/list` 中的关键词搜索目前采用 SQL `LIKE '%keyword%'` 进行模糊匹配。
 - **业务考量**：前置通配符会导致 MySQL B+Tree 索引失效退化为全表扫描。但在协会现阶段千级数据规模下，全表扫描耗时通常在 2~5ms 以内，性能完全可控。团队已做好演进预案，一旦成员规模迈向百万级，将引入 MySQL 8.0 全文索引（Full-Text Index）或挂载轻量级搜索引擎（如 Meilisearch）。
 
+### 5. 健康检查探针设计的轻量化取舍（“无事报平安，有事报详情”）
+- **设计权衡**：Kubernetes 探针在生产环境中每 5~10 秒轮询一次，全生命周期内会发起数十万次探测。若每次健康探测均序列化并传输冗长的各个组件状态，会造成不必要的网络带宽与序列化 CPU 损耗。
+- **解决方案**：系统采用“成功零冗余、失败精准定位”机制。探测全部正常时直接返回 `data: null`；仅当下游组件发生断连时，才在 `data` 中动态组装故障组件与其错误原因，兼顾了云原生基础设施对 HTTP 状态码的严格约定与工程运维排错效率。
+
 ---
 
 ## 技术栈
@@ -651,11 +688,11 @@ Authorization: Bearer <token>
 | 层次 | 核心技术选型 | 说明 |
 |---|---|---|
 | **语言与运行时** | Go 1.25+（当前运行 Go 1.26.4） | 高性能并发运行时，采用 `sync.WaitGroup.Go` 协程编排 |
-| **Web 路由框架** | Gin (`github.com/gin-gonic/gin`) | 高性能 HTTP 路由与中间件 |
+| **Web 路由框架** | Gin (`github.com/gin-gonic/gin`) | 高性能 HTTP 路由与中间件（`gin.New()` 纯净实例） |
 | **ORM 框架** | GORM (`gorm.io/gorm` + `gorm.io/driver/mysql`) | 关系型数据库对象关系映射（全逻辑外键） |
 | **缓存中间件** | Redis (`github.com/redis/go-redis/v9`) | 分布式缓存、Session 刷新凭据、原子防刷标记与频次限流 |
 | **对象存储** | MinIO SDK (`github.com/minio/minio-go/v7`) | 兼容 S3 协议的大文件与图片存储 |
-| **结构化日志** | Go 1.21+ `log/slog` | 标准库轻量级结构化日志 + 全链路 TraceID 注入 |
+| **结构化日志** | Go 1.21+ `log/slog` | 标准库轻量级结构化日志 + 全链路 TraceID 注入 + 结构化 AccessLog 中间件 |
 | **认证与加密** | JWT (`golang-jwt/jwt/v5`) + Bcrypt | 密码强哈希与 Access + Refresh 双 Token 鉴权体系 |
 | **邮件投递** | Gomail (`gopkg.in/gomail.v2`) | SMTP 邮箱验证码发送服务 |
 | **配置解析** | Viper (`github.com/spf13/viper`) | YAML 配置文件读取与环境注入 |
@@ -779,4 +816,3 @@ go run ./cmd/main.go
 3. **实体机自动部署（两种方式）**：
    - **模式 A：全自动（GitHub Self-Hosted Runner）**：在高校内网实体服务器上注册 GitHub Runner（由主机主动向 GitHub 建立长连接，零公网 IP/端口暴露风险），发布 Release 后触发就地秒级拉取解压并平滑重启服务；
    - **模式 B：一键脚本（`scripts/deploy.sh`）**：在实体服务器终端直接执行 `./scripts/deploy.sh [版本号]`，自动通过 GitHub API 拉取指定或最新 Release 制品并安全平滑重启服务。
-

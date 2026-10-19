@@ -82,6 +82,7 @@ func main() {
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	termHandler := handler.NewTermHandler(termService)
 	fileHandler := handler.NewFileHandler(fileService)
+	healthHandler := handler.NewHealthHandler(db, rdb)
 
 	totalHandler := handler.NewTotalHandler(
 		authHandler,
@@ -90,7 +91,8 @@ func main() {
 		roleHandler,
 		announcementHandler,
 		termHandler,
-		fileHandler)
+		fileHandler,
+		healthHandler)
 
 	r := router.RouterInit(totalHandler, rdb, Config.Server.TrustedProxies)
 

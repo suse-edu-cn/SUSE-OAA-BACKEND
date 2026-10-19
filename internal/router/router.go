@@ -29,6 +29,11 @@ func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies [
 	r.Use(middleware.AccessLog())
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
+
+	// 云原生健康检查探针（免鉴权、免限流）
+	r.GET("/livez", total.Health.Livez)
+	r.GET("/healthz", total.Health.Healthz)
+
 	loginLimiter := middleware.RateLimit(rdb, "login", 10, time.Minute)
 	sendLimiter := middleware.RateLimit(rdb, "send_code", 5, time.Minute)
 	resetLimiter := middleware.RateLimit(rdb, "reset_password", 5, time.Minute)
