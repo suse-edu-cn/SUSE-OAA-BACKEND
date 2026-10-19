@@ -7,11 +7,11 @@ import (
 func TestConfigInit_Normal(t *testing.T) {
 	cfg := ConfigInit()
 
-	if cfg.Server.Port == "" {
-		t.Fatalf("expected server.port to be non-empty")
+	if cfg.Mysql.MaxOpenConns <= 0 {
+		t.Fatalf("expected mysql.max_open_conns to be positive, got %d", cfg.Mysql.MaxOpenConns)
 	}
-	if cfg.Mysql.Database == "" {
-		t.Fatalf("expected mysql.database to be non-empty")
+	if len(cfg.Server.TrustedProxies) == 0 {
+		t.Fatalf("expected server.trusted_proxies to be parsed")
 	}
 }
 
