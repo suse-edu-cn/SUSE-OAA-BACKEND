@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"suseoaa/internal/request"
 	"suseoaa/internal/service"
 	"suseoaa/pkg/response"
@@ -25,7 +26,9 @@ func (f *FileHandler) UploadImage(c *gin.Context) {
 	ctx := c.Request.Context()
 	res, err := f.FileService.UploadImage(ctx, req.File, req.Scene)
 	if err != nil {
-		if err.Error() == "图片体积过大" || err.Error() == "图片类型错误" {
+		if errors.Is(err, service.ErrInvalidScene) ||
+			errors.Is(err, service.ErrImageTooLarge) ||
+			errors.Is(err, service.ErrInvalidImageType) {
 			response.BadRequest(c, err.Error())
 			return
 		}
@@ -44,7 +47,8 @@ func (f *FileHandler) UploadFile(c *gin.Context) {
 	ctx := c.Request.Context()
 	res, err := f.FileService.UploadFile(ctx, req.File, req.Scene)
 	if err != nil {
-		if err.Error() == "文件体积过大" {
+		if errors.Is(err, service.ErrInvalidScene) ||
+			errors.Is(err, service.ErrFileTooLarge) {
 			response.BadRequest(c, err.Error())
 			return
 		}
@@ -53,3 +57,4 @@ func (f *FileHandler) UploadFile(c *gin.Context) {
 	}
 	response.Success(c, res)
 }
+

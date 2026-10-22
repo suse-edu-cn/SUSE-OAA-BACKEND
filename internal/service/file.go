@@ -12,6 +12,25 @@ import (
 	"suseoaa/pkg/utils"
 )
 
+// 预定义哨兵错误（Sentinel Errors）
+var (
+	ErrInvalidScene     = errors.New("上传场景不合法")
+	ErrImageTooLarge    = errors.New("图片体积过大")
+	ErrInvalidImageType = errors.New("图片类型错误")
+	ErrFileTooLarge     = errors.New("文件体积过大")
+)
+
+// sceneRegexp 校验场景标识，只允许字母、数字、下划线 '_' 和中划线 '-'，禁止 '.'、'/'、'\' 等字符以防目录穿越
+var sceneRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// IsValidScene 检查 scene 是否合法（1-64字符，且不包含 ./ 等特殊字符）
+func IsValidScene(scene string) bool {
+	if len(scene) == 0 || len(scene) > 64 {
+		return false
+	}
+	return sceneRegexp.MatchString(scene)
+}
+
 type FileService struct {
 	ImgStorage  *storage.MinIO
 	FileStorage *storage.MinIO
@@ -35,12 +54,15 @@ var allowedExt = map[string]bool{
 }
 
 func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeader, scene string) (map[string]string, error) {
+	if !IsValidScene(scene) {
+		return nil, ErrInvalidScene
+	}
 	if file.Size > storage.MaxImageSize {
-		return nil, errors.New("图片体积过大")
+		return nil, ErrImageTooLarge
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedExt[ext] {
-		return nil, errors.New("图片类型错误")
+		return nil, ErrInvalidImageType
 	}
 	uuid, err := utils.GetUUID()
 	if err != nil {
@@ -66,8 +88,11 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 	}, nil
 }
 func (f *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader, scene string) (map[string]string, error) {
+	if !IsValidScene(scene) {
+		return nil, ErrInvalidScene
+	}
 	if file.Size > storage.MaxFileSize {
-		return nil, errors.New("文件体积过大")
+		return nil, ErrFileTooLarge
 	}
 	uuid, err := utils.GetUUID()
 	if err != nil {
