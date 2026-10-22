@@ -39,21 +39,49 @@ DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${TAR_NAME}"
 echo "==> 准备部署版本: ${TAG}"
 echo "==> 目标安装目录: ${INSTALL_DIR}"
 
-# 2. 准备制品包 (优先使用 Runner 传入的本地 Artifact，若无则尝试网络下载)
+# 2. 获取制品包 (多镜像智能加速下载)
 mkdir -p "${INSTALL_DIR}"
-if [ -n "${LOCAL_PACKAGE}" ] && [ -f "${LOCAL_PACKAGE}" ]; then
-  echo "==> 检测到本地已传入制品包: ${LOCAL_PACKAGE}，直接使用本地制品..."
-  cp -f "${LOCAL_PACKAGE}" "${TMP_DIR}/${TAR_NAME}"
-else
-  echo "==> 未传入本地制品包，开始从远程下载..."
-  echo "==> 下载地址: ${DOWNLOAD_URL}"
-  # 优先直连，失败自动切换加速镜像
-  if ! curl --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 -fL -o "${TMP_DIR}/${TAR_NAME}" "${DOWNLOAD_URL}"; then
-    echo "⚠️ 直连下载失败，尝试使用加速镜像重试..."
-    MIRROR_URL="https://ghfast.top/${DOWNLOAD_URL}"
-    curl --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 -fL -o "${TMP_DIR}/${TAR_NAME}" "${MIRROR_URL}"
+echo "==> 准备获取制品包..."
+
+download_package() {
+  local target_file="${TMP_DIR}/${TAR_NAME}"
+
+  # 1. 若本地已传入制品文件且存在，直接使用
+  if [ -n "${LOCAL_PACKAGE:-}" ] && [ -f "${LOCAL_PACKAGE}" ]; then
+    echo "==> 检测到本地已存在制品包: ${LOCAL_PACKAGE}，直接使用本地制品..."
+    cp -f "${LOCAL_PACKAGE}" "${target_file}"
+    return 0
   fi
-fi
+
+  # 2. 依次尝试国内高速镜像源（专为国内实体机优化，通常秒级完成）
+  echo "==> 开始通过加速镜像下载制品包..."
+  MIRRORS=(
+    "https://ghfast.top/${DOWNLOAD_URL}"
+    "https://mirror.ghproxy.com/${DOWNLOAD_URL}"
+    "https://gh-proxy.com/${DOWNLOAD_URL}"
+  )
+
+  for mirror in "${MIRRORS[@]}"; do
+    echo "==> 尝试镜像源: ${mirror}"
+    if curl --connect-timeout 8 --max-time 180 --retry 1 -fL -o "${target_file}" "${mirror}"; then
+      echo "✅ 通过加速镜像下载成功！"
+      return 0
+    fi
+    echo "⚠️ 当前镜像源下载失败，尝试下一个..."
+  done
+
+  # 3. 兜底尝试直连 GitHub 官方源
+  echo "==> 加速镜像均不可用，尝试直连 GitHub 官方源: ${DOWNLOAD_URL}"
+  if curl --connect-timeout 10 --max-time 180 --retry 2 -fL -o "${target_file}" "${DOWNLOAD_URL}"; then
+    echo "✅ 官方源直连下载成功！"
+    return 0
+  fi
+
+  echo "❌ 所有下载渠道均已尝试，下载制品包失败！"
+  return 1
+}
+
+download_package
 
 # 3. 解压并校验
 echo "==> 正在解压制品..."
