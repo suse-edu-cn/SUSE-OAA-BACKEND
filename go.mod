@@ -16,7 +16,9 @@ require (
 
 require (
 	github.com/alicebob/miniredis/v2 v2.40.0 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
 )
 
 require (
