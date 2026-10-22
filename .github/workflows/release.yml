@@ -58,6 +58,13 @@ jobs:
           tar -czvf suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz OAAbeta config_example.yaml
           sha256sum suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz > sha256sum.txt
 
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package-${{ github.ref_name }}
+          path: dist/suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz
+          retention-days: 1
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,8 +84,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-${{ github.ref_name }}
+          path: dist
+
       - name: Execute Deploy Script
         run: |
           echo "==> 实体机 Self-Hosted Runner 收到部署指令，执行更新..."
           chmod +x ./scripts/deploy.sh
-          ./scripts/deploy.sh "${{ github.ref_name }}"
+          ./scripts/deploy.sh "${{ github.ref_name }}" "dist/suse-oaa-backend-${{ github.ref_name }}-linux-amd64.tar.gz"

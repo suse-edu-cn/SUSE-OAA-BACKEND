@@ -20,11 +20,13 @@ TMP_DIR=$(mktemp -d)
 
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-# 1. 确定目标版本
+# 1. 确定目标版本与制品来源
 TAG="${1:-}"
+LOCAL_PACKAGE="${2:-}"
+
 if [ -z "${TAG}" ]; then
   echo "==> 未指定版本号，正在查询最新 Release..."
-  TAG=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+  TAG=$(curl -s --connect-timeout 10 "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
   if [ -z "${TAG}" ]; then
     echo "❌ 获取最新 Release 标签失败，请检查网络或传入具体版本号 (例如: ./deploy.sh v2.0.1)"
     exit 1
@@ -36,12 +38,22 @@ DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${TAR_NAME}"
 
 echo "==> 准备部署版本: ${TAG}"
 echo "==> 目标安装目录: ${INSTALL_DIR}"
-echo "==> 下载地址: ${DOWNLOAD_URL}"
 
-# 2. 下载制品包
+# 2. 准备制品包 (优先使用 Runner 传入的本地 Artifact，若无则尝试网络下载)
 mkdir -p "${INSTALL_DIR}"
-echo "==> 开始下载制品包..."
-curl -fL -o "${TMP_DIR}/${TAR_NAME}" "${DOWNLOAD_URL}"
+if [ -n "${LOCAL_PACKAGE}" ] && [ -f "${LOCAL_PACKAGE}" ]; then
+  echo "==> 检测到本地已传入制品包: ${LOCAL_PACKAGE}，直接使用本地制品..."
+  cp -f "${LOCAL_PACKAGE}" "${TMP_DIR}/${TAR_NAME}"
+else
+  echo "==> 未传入本地制品包，开始从远程下载..."
+  echo "==> 下载地址: ${DOWNLOAD_URL}"
+  # 优先直连，失败自动切换加速镜像
+  if ! curl --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 -fL -o "${TMP_DIR}/${TAR_NAME}" "${DOWNLOAD_URL}"; then
+    echo "⚠️ 直连下载失败，尝试使用加速镜像重试..."
+    MIRROR_URL="https://ghfast.top/${DOWNLOAD_URL}"
+    curl --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 -fL -o "${TMP_DIR}/${TAR_NAME}" "${MIRROR_URL}"
+  fi
+fi
 
 # 3. 解压并校验
 echo "==> 正在解压制品..."
