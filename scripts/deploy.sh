@@ -53,18 +53,20 @@ download_package() {
     return 0
   fi
 
-  # 2. 依次尝试下载：优先官方源（通常十几秒），若网络波动则降级至国内加速镜像
-  echo "==> 准备下载制品包..."
+  # 2. 依次尝试下载制品包
+  echo "==> 准备高速下载制品包..."
   MIRRORS=(
     "${DOWNLOAD_URL}"
-    "https://ghfast.top/${DOWNLOAD_URL}"
     "https://gh-proxy.com/${DOWNLOAD_URL}"
+    "https://ghfast.top/${DOWNLOAD_URL}"
   )
 
   for mirror in "${MIRRORS[@]}"; do
     echo "==> 尝试下载源: ${mirror}"
-    # 放宽连接超时至 20s（适应跨国 DNS 与 302 S3 双重 TLS 握手前摇），单源总时限 90s
-    if curl --connect-timeout 20 --max-time 90 -fL -o "${target_file}" "${mirror}"; then
+    # --connect-timeout 10: 10秒连不上立即换源，不干耗
+    # -C -: 支持断点续传
+    # --max-time 300: 传输阶段给足时限，绝不在半路被自身脚本掐断
+    if curl --connect-timeout 10 --max-time 300 -C - -fL -o "${target_file}" "${mirror}"; then
       echo "✅ 下载成功！"
       return 0
     fi

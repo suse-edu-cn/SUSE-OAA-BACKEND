@@ -100,19 +100,21 @@ jobs:
           echo "==> 目标安装目录: ${INSTALL_DIR}"
           mkdir -p "${INSTALL_DIR}"
 
-          # 优先直连官方 Release CDN（AWS S3 全球分发，握手与重定向约 8~10 秒，握手后跑满带宽秒级完成）
-          echo "==> 开始获取制品包..."
+          # 依次尝试下载制品包
+          echo "==> 开始高速获取制品包..."
           MIRRORS=(
             "${DOWNLOAD_URL}"
-            "https://ghfast.top/${DOWNLOAD_URL}"
             "https://gh-proxy.com/${DOWNLOAD_URL}"
+            "https://ghfast.top/${DOWNLOAD_URL}"
           )
 
           DOWNLOADED=false
           for mirror in "${MIRRORS[@]}"; do
             echo "==> 尝试下载源: ${mirror}"
-            # 放宽连接超时至 20s（适应跨国 DNS 与 302 S3 双重 TLS 握手前摇），单源总时限 90s
-            if curl --connect-timeout 20 --max-time 90 -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
+            # --connect-timeout 10: 10秒连不上立即换源，不干耗
+            # -C -: 支持断点续传
+            # --max-time 300: 传输阶段给足时限，绝不在半路被自身脚本掐断
+            if curl --connect-timeout 10 --max-time 300 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
               echo "✅ 下载成功！"
               DOWNLOADED=true
               break
