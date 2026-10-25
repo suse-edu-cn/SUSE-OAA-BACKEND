@@ -10,6 +10,7 @@ import (
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func MysqlInit(cfg config.Mysql) *gorm.DB {
@@ -22,6 +23,7 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 	)
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger:                                   NewGormSlogLogger(200*time.Millisecond, gormlogger.Warn),
 	})
 	if err != nil {
 		panic(err)

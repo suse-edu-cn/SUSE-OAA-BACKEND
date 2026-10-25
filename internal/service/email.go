@@ -17,9 +17,16 @@ type EmailService struct {
 	Pass     string        `json:"pass"`
 	Expire   int           `json:"expire"`
 	Cooldown time.Duration `json:"cooldown"`
+	dialer   *gomail.Dialer
 }
 
 func NewEmailService(host string, port int, user string, pass string, expire int, cooldown int) *EmailService {
+	d := gomail.NewDialer(host, port, user, pass)
+	if host != "" {
+		d.TLSConfig = &tls.Config{
+			ServerName: host, // 绑定邮件域名校验，防御中间人（MITM）攻击
+		}
+	}
 	return &EmailService{
 		Host:     host,
 		Port:     port,
@@ -27,6 +34,7 @@ func NewEmailService(host string, port int, user string, pass string, expire int
 		Pass:     pass,
 		Expire:   expire,
 		Cooldown: time.Duration(cooldown) * time.Minute,
+		dialer:   d,
 	}
 }
 func (e *EmailService) NewVerificationCode(length uint) string {
@@ -64,9 +72,16 @@ func (e *EmailService) SendVerificationCode(email string, code string) error {
 
 	m.SetBody("text/html", body)
 
-	d := gomail.NewDialer(e.Host, e.Port, e.User, e.Pass)
+	d := e.dialer
+	if d == nil {
+		d = gomail.NewDialer(e.Host, e.Port, e.User, e.Pass)
+		if e.Host != "" {
+			d.TLSConfig = &tls.Config{
+				ServerName: e.Host,
+			}
+		}
+	}
 
-	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	if err := d.DialAndSend(m); err != nil {
 		return fmt.Errorf("邮件发送失败: %w", err)
 	}

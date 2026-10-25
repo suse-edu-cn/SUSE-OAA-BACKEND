@@ -25,3 +25,16 @@ func TestNewVerificationCode(t *testing.T) {
 		t.Fatalf("expected code length 6, got %d (%s)", len(code2), code2)
 	}
 }
+
+func TestNewEmailService_DialerConfig(t *testing.T) {
+	svc := NewEmailService("smtp.example.com", 465, "user@example.com", "pass", 5, 1)
+	if svc.dialer == nil {
+		t.Fatal("expected non-nil dialer")
+	}
+	if svc.dialer.TLSConfig == nil || svc.dialer.TLSConfig.ServerName != "smtp.example.com" {
+		t.Errorf("expected TLSConfig with ServerName smtp.example.com, got %v", svc.dialer.TLSConfig)
+	}
+	if svc.dialer.TLSConfig.InsecureSkipVerify {
+		t.Errorf("expected InsecureSkipVerify=false, got %v", svc.dialer.TLSConfig.InsecureSkipVerify)
+	}
+}
