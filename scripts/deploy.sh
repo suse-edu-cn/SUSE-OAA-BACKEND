@@ -55,22 +55,49 @@ download_package() {
 
   # 2. 依次尝试下载制品包
   echo "==> 准备高速下载制品包..."
+  DOWNLOADED=false
+
+  # 1. 方案 A：尝试 GitHub 官方源多 IP 直连优选 (通过 --resolve 避开机房 DNS 污染)
+  OFFICIAL_IPS=(
+    "140.82.112.4"
+    "140.82.114.4"
+    "140.82.113.4"
+    "140.82.112.3"
+    "140.82.114.3"
+    "default"
+  )
+
+  for ip in "${OFFICIAL_IPS[@]}"; do
+    if [ "${ip}" = "default" ]; then
+      echo "==> 尝试官方源 (系统默认解析)..."
+      RESOLVE_ARG=()
+    else
+      echo "==> 尝试官方源直连 (优选 IP: ${ip})..."
+      RESOLVE_ARG=(--resolve "github.com:443:${ip}")
+    fi
+
+    if curl "${RESOLVE_ARG[@]}" --connect-timeout 8 --max-time 180 -C - -fL -o "${target_file}" "${DOWNLOAD_URL}"; then
+      echo "✅ 官方源直连下载成功！"
+      return 0
+    fi
+    echo "⚠️ 当前官方 IP 失败，尝试下一个..."
+  done
+
+  # 2. 备用保障：若机房网络无法直连官方 IP，自动无缝切换国内代理镜像并支持断点续传
+  echo "==> 官方直连受阻，自动无缝切换为高速代理镜像源..."
   MIRRORS=(
-    "${DOWNLOAD_URL}"
     "https://gh-proxy.com/${DOWNLOAD_URL}"
     "https://ghfast.top/${DOWNLOAD_URL}"
+    "https://mirror.ghproxy.com/${DOWNLOAD_URL}"
   )
 
   for mirror in "${MIRRORS[@]}"; do
-    echo "==> 尝试下载源: ${mirror}"
-    # --connect-timeout 10: 10秒连不上立即换源，不干耗
-    # -C -: 支持断点续传
-    # --max-time 300: 传输阶段给足时限，绝不在半路被自身脚本掐断
+    echo "==> 尝试镜像源: ${mirror}"
     if curl --connect-timeout 10 --max-time 300 -C - -fL -o "${target_file}" "${mirror}"; then
-      echo "✅ 下载成功！"
+      echo "✅ 镜像源下载成功！"
       return 0
     fi
-    echo "⚠️ 当前源失败，尝试下一个..."
+    echo "⚠️ 当前镜像源失败，尝试下一个..."
   done
 
   echo "❌ 所有下载渠道均已尝试，下载制品包失败！"
