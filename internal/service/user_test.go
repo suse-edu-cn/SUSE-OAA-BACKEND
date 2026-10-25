@@ -215,3 +215,77 @@ func TestUserService_DeleteUser_ParameterExclusion(t *testing.T) {
 		t.Fatalf("expected self-deletion prevention error, got: %v", err)
 	}
 }
+
+// 5. 测试真实接口：UserService.GetUserInfo 判断账号是否处于注销冷静期
+func TestUserService_GetUserInfo_DeletionCooldown(t *testing.T) {
+	svc, db, _ := setupTestUserService(t)
+	ctx := context.Background()
+
+	future := time.Now().Add(24 * time.Hour).Truncate(time.Second)
+	past := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
+
+	userNormal := model.User{
+		ID:        2001,
+		StudentID: "2024001",
+		Username:  "user2001",
+		Name:      "正常用户",
+	}
+	userDeleting := model.User{
+		ID:                2002,
+		StudentID:         "2024002",
+		Username:  "user2002",
+		Name:              "冷静期用户",
+		ScheduledDeleteAt: &future,
+	}
+	userExpired := model.User{
+		ID:                2003,
+		StudentID:         "2024003",
+		Username:  "user2003",
+		Name:              "过期待清理用户",
+		ScheduledDeleteAt: &past,
+	}
+
+	for _, u := range []model.User{userNormal, userDeleting, userExpired} {
+		if err := db.Create(&u).Error; err != nil {
+			t.Fatalf("failed to insert test user: %v", err)
+		}
+	}
+
+	// 1. 正常用户
+	infoNormal, err := svc.GetUserInfo(ctx, userNormal.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if infoNormal.IsDeleting {
+		t.Fatalf("expected is_deleting=false, got true")
+	}
+	if infoNormal.ScheduledDeleteAt != "" {
+		t.Fatalf("expected scheduled_delete_at=\"\", got %v", infoNormal.ScheduledDeleteAt)
+	}
+
+	// 2. 冷静期用户 (当前时间在 ScheduledDeleteAt 之前)
+	infoDeleting, err := svc.GetUserInfo(ctx, userDeleting.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !infoDeleting.IsDeleting {
+		t.Fatalf("expected is_deleting=true, got false")
+	}
+	expectedFormat := future.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05")
+	if infoDeleting.ScheduledDeleteAt != expectedFormat {
+		t.Fatalf("expected scheduled_delete_at=%s, got %s", expectedFormat, infoDeleting.ScheduledDeleteAt)
+	}
+
+	// 3. 过期用户 (ScheduledDeleteAt 已过去，不再属于有效冷静期)
+	infoExpired, err := svc.GetUserInfo(ctx, userExpired.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if infoExpired.IsDeleting {
+		t.Fatalf("expected is_deleting=false for expired delete, got true")
+	}
+	if infoExpired.ScheduledDeleteAt != "" {
+		t.Fatalf("expected scheduled_delete_at=\"\" for expired delete, got %v", infoExpired.ScheduledDeleteAt)
+	}
+}
+

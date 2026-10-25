@@ -104,6 +104,7 @@ func (u *UserRepository) GetUserInfoById(ctx context.Context, id uint64) (model.
 	}
 	if user.Role != nil {
 		info.Role = user.Role.Name
+		info.RoleLevel = user.Role.Level
 	}
 	if user.Department != nil {
 		info.Department = user.Department.Name
@@ -114,8 +115,11 @@ func (u *UserRepository) GetUserInfoById(ctx context.Context, id uint64) (model.
 	info.Name = user.Name
 	info.StudentID = user.StudentID
 	info.Avatar.URI = user.Avatar
-	info.RoleLevel = user.Role.Level
-	info.ScheduledDeleteAt = user.ScheduledDeleteAt
+	now := time.Now()
+	if user.ScheduledDeleteAt != nil && now.Before(*user.ScheduledDeleteAt) {
+		info.ScheduledDeleteAt = user.ScheduledDeleteAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05")
+		info.IsDeleting = true
+	}
 	return info, nil
 }
 
@@ -305,6 +309,7 @@ func (u *UserRepository) GetUserList(ctx context.Context, keyword string, depart
 	}
 
 	userList = make([]model.UserInfo, 0, len(users))
+	now := time.Now()
 	for _, user := range users {
 		userInfo := model.UserInfo{
 			UserID:    user.ID,
@@ -320,6 +325,10 @@ func (u *UserRepository) GetUserList(ctx context.Context, keyword string, depart
 		}
 		if user.Department != nil {
 			userInfo.Department = user.Department.Name
+		}
+		if user.ScheduledDeleteAt != nil && now.Before(*user.ScheduledDeleteAt) {
+			userInfo.ScheduledDeleteAt = user.ScheduledDeleteAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05")
+			userInfo.IsDeleting = true
 		}
 		userList = append(userList, userInfo)
 	}

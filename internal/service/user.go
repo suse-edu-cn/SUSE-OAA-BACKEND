@@ -129,6 +129,10 @@ func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, 
 		targetAvatar = defaultAvatar
 	}
 
+	if u.File == nil || u.File.ImgStorage == nil {
+		return targetAvatar, nil
+	}
+
 	url, err := u.File.ImgStorage.GeneratePresignedURL(ctx, targetAvatar)
 	if err != nil {
 		if targetAvatar != defaultAvatar {

@@ -32,9 +32,10 @@ type UserInfo struct {
 	Avatar            Avatar     `json:"avatar"`
 	Email             string     `json:"email"`
 	Department        string     `json:"department"`
-	Role              string     `json:"role"`
-	RoleLevel         uint64     `json:"role_level"`
-	ScheduledDeleteAt *time.Time `json:"scheduled_delete_at,omitempty"`
+	Role              string `json:"role"`
+	RoleLevel         uint64 `json:"role_level"`
+	ScheduledDeleteAt string `json:"scheduled_delete_at,omitempty"`
+	IsDeleting        bool   `json:"is_deleting"`
 }
 
 type BatchUserInfo struct {
