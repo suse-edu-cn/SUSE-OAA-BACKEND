@@ -100,7 +100,7 @@ jobs:
           echo "==> 目标安装目录: ${INSTALL_DIR}"
           mkdir -p "${INSTALL_DIR}"
 
-          # 优先直连官方 Release CDN（v2.1.2 实测仅需十几秒），若网络偶发波动则降级至国内加速镜像
+          # 优先直连官方 Release CDN（AWS S3 全球分发，握手与重定向约 8~10 秒，握手后跑满带宽秒级完成）
           echo "==> 开始获取制品包..."
           MIRRORS=(
             "${DOWNLOAD_URL}"
@@ -111,13 +111,13 @@ jobs:
           DOWNLOADED=false
           for mirror in "${MIRRORS[@]}"; do
             echo "==> 尝试下载源: ${mirror}"
-            # --speed-limit 102400 --speed-time 5: 若速率低于 100KB/s 持续 5 秒则主动熔断，避免卡在慢速代理上
-            if curl --connect-timeout 6 --speed-limit 102400 --speed-time 5 --max-time 120 -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
+            # 放宽连接超时至 20s（适应跨国 DNS 与 302 S3 双重 TLS 握手前摇），单源总时限 90s
+            if curl --connect-timeout 20 --max-time 90 -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
               echo "✅ 下载成功！"
               DOWNLOADED=true
               break
             fi
-            echo "⚠️ 当前源失败或过慢，快速尝试下一个..."
+            echo "⚠️ 当前源失败，尝试下一个..."
           done
 
           if [ "${DOWNLOADED}" != "true" ]; then

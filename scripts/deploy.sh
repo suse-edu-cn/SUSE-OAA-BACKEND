@@ -63,12 +63,12 @@ download_package() {
 
   for mirror in "${MIRRORS[@]}"; do
     echo "==> 尝试下载源: ${mirror}"
-    # --speed-limit 102400 --speed-time 5: 若速率低于 100KB/s 持续 5 秒则主动熔断，避免卡在龟速代理上
-    if curl --connect-timeout 6 --speed-limit 102400 --speed-time 5 --max-time 120 -fL -o "${target_file}" "${mirror}"; then
+    # 放宽连接超时至 20s（适应跨国 DNS 与 302 S3 双重 TLS 握手前摇），单源总时限 90s
+    if curl --connect-timeout 20 --max-time 90 -fL -o "${target_file}" "${mirror}"; then
       echo "✅ 下载成功！"
       return 0
     fi
-    echo "⚠️ 当前源失败或过慢，快速尝试下一个..."
+    echo "⚠️ 当前源失败，尝试下一个..."
   done
 
   echo "❌ 所有下载渠道均已尝试，下载制品包失败！"
