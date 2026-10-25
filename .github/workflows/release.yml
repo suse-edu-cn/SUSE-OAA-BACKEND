@@ -100,24 +100,24 @@ jobs:
           echo "==> 目标安装目录: ${INSTALL_DIR}"
           mkdir -p "${INSTALL_DIR}"
 
-          # 依次尝试国内高速镜像源（专为国内实体机优化，秒级完成）
-          echo "==> 开始通过加速镜像下载制品包..."
+          # 优先直连官方 Release CDN（v2.1.2 实测仅需十几秒），若网络偶发波动则降级至国内加速镜像
+          echo "==> 开始获取制品包..."
           MIRRORS=(
-            "https://ghfast.top/${DOWNLOAD_URL}"
-            "https://mirror.ghproxy.com/${DOWNLOAD_URL}"
-            "https://gh-proxy.com/${DOWNLOAD_URL}"
             "${DOWNLOAD_URL}"
+            "https://ghfast.top/${DOWNLOAD_URL}"
+            "https://gh-proxy.com/${DOWNLOAD_URL}"
           )
 
           DOWNLOADED=false
           for mirror in "${MIRRORS[@]}"; do
             echo "==> 尝试下载源: ${mirror}"
-            if curl --connect-timeout 8 --max-time 180 --retry 1 -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
+            # --speed-limit 102400 --speed-time 5: 若速率低于 100KB/s 持续 5 秒则主动熔断，避免卡在慢速代理上
+            if curl --connect-timeout 6 --speed-limit 102400 --speed-time 5 --max-time 120 -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
               echo "✅ 下载成功！"
               DOWNLOADED=true
               break
             fi
-            echo "⚠️ 当前源失败，尝试下一个..."
+            echo "⚠️ 当前源失败或过慢，快速尝试下一个..."
           done
 
           if [ "${DOWNLOADED}" != "true" ]; then
