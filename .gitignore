@@ -6,5 +6,6 @@ tmp/
 .cache
 .DS_Store
 .tmp
-docs
+docs/*
+!docs/benchmark.md
 bin
