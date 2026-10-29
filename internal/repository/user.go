@@ -79,12 +79,16 @@ func (u *UserRepository) ResetPassword(ctx context.Context, id uint64, password 
 	return nil
 }
 
-func (u *UserRepository) UpdateUser(ctx context.Context, id uint64, username string, email string, avatar string) error {
-	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{
+func (u *UserRepository) UpdateUser(ctx context.Context, id uint64, username string, email string, avatar string, grade uint) error {
+	updateData := map[string]any{
 		"username": username,
 		"email":    email,
 		"avatar":   avatar,
-	}).Error
+	}
+	if grade != 0 {
+		updateData["grade"] = grade
+	}
+	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(updateData).Error
 	if err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
@@ -115,6 +119,8 @@ func (u *UserRepository) GetUserInfoById(ctx context.Context, id uint64) (model.
 	info.Name = user.Name
 	info.StudentID = user.StudentID
 	info.Avatar.URI = user.Avatar
+	info.Grade = user.Grade
+	info.IsGraduated = user.IsGraduated
 	now := time.Now()
 	if user.ScheduledDeleteAt != nil && now.Before(*user.ScheduledDeleteAt) {
 		info.ScheduledDeleteAt = user.ScheduledDeleteAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05")
@@ -267,7 +273,7 @@ func (u *UserRepository) GetRefreshTokenByToken(ctx context.Context, token strin
 	return &record, nil
 }
 
-func (u *UserRepository) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
+func (u *UserRepository) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, grade uint, isGraduated *bool, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	var userList []model.UserInfo
 	var users []model.User
 	var total int64
@@ -284,6 +290,12 @@ func (u *UserRepository) GetUserList(ctx context.Context, keyword string, depart
 		query = query.Where("users.role_id = ?", roleID)
 	} else if role != "" {
 		query = query.Where("roles.name LIKE ?", "%"+role+"%")
+	}
+	if grade != 0 {
+		query = query.Where("users.grade = ?", grade)
+	}
+	if isGraduated != nil {
+		query = query.Where("users.is_graduated = ?", *isGraduated)
 	}
 	if keyword != "" {
 		kw := "%" + keyword + "%"
@@ -316,8 +328,10 @@ func (u *UserRepository) GetUserList(ctx context.Context, keyword string, depart
 			StudentID: user.StudentID,
 			Username:  user.Username,
 			Name:      user.Name,
-			Avatar:    model.Avatar{URI: user.Avatar},
-			Email:     user.Email,
+			Avatar:      model.Avatar{URI: user.Avatar},
+			Email:       user.Email,
+			Grade:       user.Grade,
+			IsGraduated: user.IsGraduated,
 		}
 		if user.Role != nil {
 			userInfo.Role = user.Role.Name
@@ -438,15 +452,26 @@ func (u *UserRepository) BatchUserInfoList(ctx context.Context, items []model.Up
 	}
 	return u.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, item := range items {
-			updateData := map[string]any{
-				"department_id": item.DepartmentID,
-				"role_id":       item.RoleID,
+			updateData := make(map[string]any)
+			if item.DepartmentID != nil {
+				updateData["department_id"] = *item.DepartmentID
 			}
-			err := tx.Model(&model.User{}).
-				Where("id = ? ", item.UserID).
-				Updates(updateData).Error
-			if err != nil {
-				return err
+			if item.RoleID != nil {
+				updateData["role_id"] = *item.RoleID
+			}
+			if item.Grade != nil {
+				updateData["grade"] = *item.Grade
+			}
+			if item.IsGraduated != nil {
+				updateData["is_graduated"] = *item.IsGraduated
+			}
+			if len(updateData) > 0 {
+				err := tx.Model(&model.User{}).
+					Where("id = ? ", item.UserID).
+					Updates(updateData).Error
+				if err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -521,6 +546,15 @@ func (u *UserRepository) GetDepartmentByUserIDs(ctx context.Context, userIDs []u
 	return result, nil
 }
 
+func (u *UserRepository) FindUsersByIDs(ctx context.Context, ids []uint64) ([]model.User, error) {
+	if len(ids) == 0 {
+		return []model.User{}, nil
+	}
+	var users []model.User
+	err := u.DB.WithContext(ctx).Where("id IN (?)", ids).Find(&users).Error
+	return users, err
+}
+
 func (u *UserRepository) CheckUserIsHave(ctx context.Context, id uint64) error {
 	var count int64
 	err := u.DB.WithContext(ctx).Model(&model.User{}).Where("id = ? ", id).Count(&count).Error
@@ -576,4 +610,42 @@ func (u *UserRepository) GetDueScheduledDeleteUsers(ctx context.Context, now tim
 		Where("scheduled_delete_at IS NOT NULL AND scheduled_delete_at <= ?", now).
 		Find(&users).Error
 	return users, err
+}
+
+func (u *UserRepository) GetDueGraduationUsers(ctx context.Context, maxGrade uint) ([]model.User, error) {
+	var users []model.User
+	err := u.DB.WithContext(ctx).
+		Preload("Role").
+		Where("is_graduated = ? AND grade > 0 AND grade <= ?", false, maxGrade).
+		Find(&users).Error
+	return users, err
+}
+
+func (u *UserRepository) GraduateUsers(ctx context.Context, nonDevIDs []uint64, devIDs []uint64, memberRoleID uint64, defaultDeptID uint64) error {
+	if len(nonDevIDs) == 0 && len(devIDs) == 0 {
+		return nil
+	}
+	return u.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if len(nonDevIDs) > 0 {
+			if err := tx.Model(&model.User{}).
+				Where("id IN (?) AND is_graduated = ?", nonDevIDs, false).
+				Updates(map[string]any{
+					"is_graduated":  true,
+					"department_id": defaultDeptID,
+					"role_id":       memberRoleID,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		if len(devIDs) > 0 {
+			if err := tx.Model(&model.User{}).
+				Where("id IN (?) AND is_graduated = ?", devIDs, false).
+				Updates(map[string]any{
+					"is_graduated": true,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

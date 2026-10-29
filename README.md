@@ -255,7 +255,7 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 鉴权 | 说明 | 频控限制 | 请求参数 |
 |---|---|---|---|---|---|
-| POST | `/v2/auth/register` | 公开 | 用户注册 | 无 | JSON：`student_id`、`username`、`name`、`email`、`password` |
+| POST | `/v2/auth/register` | 公开 | 用户注册 | 无 | JSON：`student_id`、`username`、`name`、`email`、`password`、`grade`（入学年份，如 2024） |
 | POST | `/v2/auth/login` | 公开 | 用户登录 | **10次/分 (IP)** | JSON：`account`（支持学号/用户名/邮箱）、`password`、`device` |
 | POST | `/v2/auth/refresh` | 公开 | 刷新令牌 | 无 | JSON：`refresh_token` |
 | POST | `/v2/auth/send` | 公开 | 发送邮箱验证码 | **5次/分 (IP)** | JSON：`account`、`scene`（场景名） |
@@ -282,11 +282,17 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
 | GET | `/v2/user/me` | 登录 | 获取当前登录用户资料 | 无 |
-| GET | `/v2/user/list` | 登录 | 分页筛选用户列表 | Query：`keyword`、`department_id`、`role_id`、`page`、`page_size`、`is_all` |
-| POST | `/v2/user/me/update` | 登录 | 修改用户基础资料 | JSON：`username`、`email`、`avatar` |
-| POST | `/v2/user/batch` | 登录 | 批量调整成员部门与职位 | JSON 数组：项包含 `user_id`、`department_id`、`role_id` |
+| GET | `/v2/user/list` | 登录 | 分页筛选用户列表 | Query：`keyword`、`department_id`、`role_id`、`grade`、`is_graduated`、`page`、`page_size`、`is_all` |
+| POST | `/v2/user/me/update` | 登录 | 修改用户基础资料 | JSON：`username`、`email`、`avatar`、`grade`（可选） |
+| POST | `/v2/user/batch` | 登录 | 批量调整成员部门与职位（修改 `grade` 需 `level >= 80`） | JSON 数组：项包含 `user_id`、`department_id`、`role_id`、`grade`（可选） |
 | POST | `/v2/user/delete` | 登录 | 管理员删除 / 注销自己 / 查询冷静期 | JSON：`user_id`、`code`（二者严格互斥） |
 | POST | `/v2/user/delete/cancel` | 登录 | 撤销本人注销冷静期 | JSON：`code`（验证码） |
+
+> **自动毕业说明（Background Worker）：**
+> - 系统后台定时任务每分钟自动轮询已达到毕业年限的用户。
+> - **毕业规则**：当到达用户 **入学年份 + 4 年的 6 月 1 日** 时，自动标记为已毕业（`is_graduated: true`）。
+> - **职务归档**：普通成员职务自动重置为普通“会员”，部门归入“开放原子开源协会”；“开发者”保留其开发者职位与原部门不变。
+> - **数据库索引**：`users` 表针对 `(is_graduated, grade)` 建立了复合索引 `idx_user_graduated_grade`，支撑大数据量下的毫秒级检索。
 
 > **用户信息响应结构（`GET /v2/user/me` / `/v2/user/list`）：**
 > ```json
@@ -303,6 +309,8 @@ Authorization: Bearer <token>
 >     "role": "部长",
 >     "role_level": 80,
 >     "avatar": { "uri": "avatar/202610.png", "url": "http://127.0.0.1:9000/..." },
+>     "grade": 2024,
+>     "is_graduated": false,
 >     "is_deleting": true,
 >     "scheduled_delete_at": "2026-10-26 15:04:05"
 >   }
@@ -360,8 +368,8 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
-| POST | `/v2/application/create` | 登录 | 提交周期申请表 | JSON：申请表各字段 |
-| POST | `/v2/application/update` | 登录 | 修改本人最新申请表 | JSON：申请表各字段（仅限在 edit_period 内） |
+| POST | `/v2/application/create` | 登录 | 提交周期申请表（已毕业成员不可填报） | JSON：申请表各字段 |
+| POST | `/v2/application/update` | 登录 | 修改本人最新申请表（已毕业成员不可修改，仅限在 edit_period 内） | JSON：申请表各字段（仅限在 edit_period 内） |
 | GET | `/v2/application/me` | 登录 | 查看本人最新申请表 | 无 |
 | GET | `/v2/application/department` | 登录 | 联动查询可选部门 | Query：`role_id`（可选） |
 | GET | `/v2/application/role` | 登录 | 联动查询可选职位 | Query：`department_id`（可选） |
@@ -374,7 +382,7 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
-| POST | `/v2/interviewer/create` | 登录 | 委派面试官（`level >= 80`） | JSON：`term_id`、`interviewers`（数组） |
+| POST | `/v2/interviewer/create` | 登录 | 委派面试官（`level >= 80`，不可任命已毕业成员） | JSON：`term_id`、`interviewers`（数组） |
 | POST | `/v2/interviewer/update` | 登录 | 更新面试官备注 | JSON：`interviewer_id`、`remark` |
 | GET | `/v2/interviewer/list` | 登录 | 查询面试官列表 | Query：`term_id` |
 | POST | `/v2/interviewer/delete` | 登录 | 移除面试官 | JSON：`interviewer_id` |

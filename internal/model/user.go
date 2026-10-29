@@ -18,6 +18,8 @@ type User struct {
 	RoleID       uint64                `gorm:"index;column:role_id;not null" json:"role_id,omitempty"`
 	Role         *Role                 `gorm:"foreignKey:RoleID;references:ID" json:"role,omitempty"`
 	Avatar            string                `gorm:"type:varchar(255);default:'avatar/default.png';column:avatar" json:"avatar"`
+	Grade             uint                  `gorm:"not null;default:0;index;index:idx_user_graduated_grade,priority:2;column:grade" json:"grade"`
+	IsGraduated       bool                  `gorm:"not null;default:false;index;index:idx_user_graduated_grade,priority:1;column:is_graduated" json:"is_graduated"`
 	ScheduledDeleteAt *time.Time            `gorm:"column:scheduled_delete_at;index;default:null" json:"scheduled_delete_at,omitempty"`
 	CreatedAt         time.Time             `gorm:"not null;column:created_at" json:"created_at"`
 	UpdatedAt         time.Time             `gorm:"not null;column:updated_at" json:"updated_at"`
@@ -34,6 +36,8 @@ type UserInfo struct {
 	Department        string     `json:"department"`
 	Role              string `json:"role"`
 	RoleLevel         uint64 `json:"role_level"`
+	Grade             uint   `json:"grade"`
+	IsGraduated       bool   `json:"is_graduated"`
 	ScheduledDeleteAt string `json:"scheduled_delete_at,omitempty"`
 	IsDeleting        bool   `json:"is_deleting"`
 }
@@ -49,6 +53,8 @@ type UpdateUserItems struct {
 	UserID       uint64  `json:"user_id"`
 	DepartmentID *uint64 `json:"department_id"`
 	RoleID       *uint64 `json:"role_id"`
+	Grade        *uint   `json:"grade,omitempty"`
+	IsGraduated  *bool   `json:"is_graduated,omitempty"`
 }
 type Avatar struct {
 	URL string `json:"url"`

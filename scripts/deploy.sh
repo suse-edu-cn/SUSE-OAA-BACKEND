@@ -134,8 +134,14 @@ if command -v tmux >/dev/null 2>&1 && tmux has-session -t "${TMUX_SESSION}" 2>/d
   echo "==> 检测到 tmux 会话 [${TMUX_SESSION}]，发送 Ctrl+C 触发优雅停机..."
   tmux send-keys -t "${TMUX_SESSION}" C-c
   sleep 2
-  echo "==> 在 tmux 会话 [${TMUX_SESSION}] 中启动新版 ${APP_NAME}..."
-  tmux send-keys -t "${TMUX_SESSION}" "cd ${INSTALL_DIR} && ./${APP_NAME}" Enter
+
+  if tmux has-session -t "${TMUX_SESSION}" 2>/dev/null; then
+    echo "==> 会话存活，在 tmux [${TMUX_SESSION}] 窗格中发送启动指令..."
+    tmux send-keys -t "${TMUX_SESSION}" "cd ${INSTALL_DIR} && ./${APP_NAME}" Enter
+  else
+    echo "==> 会话随进程退出已关闭，正在后台新建 tmux [${TMUX_SESSION}] 拉起服务..."
+    tmux new-session -d -s "${TMUX_SESSION}" -c "${INSTALL_DIR}" "./${APP_NAME}"
+  fi
   echo "✅ 已在 tmux [${TMUX_SESSION}] 窗口中成功重启最新版本！"
 elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
   echo "==> 通过 systemctl 重启 ${SERVICE_NAME} 服务..."

@@ -63,6 +63,7 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
 				Password:  "123456",
+				Grade:     2024,
 			},
 			wantErr: "注册信息不能为空",
 		},
@@ -74,6 +75,7 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
 				Password:  "123456",
+				Grade:     2024,
 			},
 			wantErr: "注册信息不能为空",
 		},
@@ -85,8 +87,45 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
 				Password:  "",
+				Grade:     2024,
 			},
 			wantErr: "注册信息不能为空",
+		},
+		{
+			name: "入学年份为0",
+			req: request.RegisterReq{
+				StudentID: "20240101",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "123456",
+				Grade:     0,
+			},
+			wantErr: "入学年份不合法",
+		},
+		{
+			name: "入学年份等于2000",
+			req: request.RegisterReq{
+				StudentID: "20240101",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "123456",
+				Grade:     2000,
+			},
+			wantErr: "入学年份不合法",
+		},
+		{
+			name: "入学年份大于9999",
+			req: request.RegisterReq{
+				StudentID: "20240101",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "123456",
+				Grade:     10000,
+			},
+			wantErr: "入学年份不合法",
 		},
 	}
 
@@ -286,6 +325,230 @@ func TestUserService_GetUserInfo_DeletionCooldown(t *testing.T) {
 	}
 	if infoExpired.ScheduledDeleteAt != "" {
 		t.Fatalf("expected scheduled_delete_at=\"\" for expired delete, got %v", infoExpired.ScheduledDeleteAt)
+	}
+}
+
+// 6. 测试真实接口：UserService.BatchUserInfo 毕业标记与毕业人员不可任命在任职务
+func TestUserService_BatchUserInfo_Graduation(t *testing.T) {
+	svc, db, _ := setupTestUserService(t)
+	svc.RoleRepo = repository.NewRoleRepository(db)
+	svc.DepartmentRepo = repository.NewDepartmentRepository(db)
+	ctx := context.Background()
+
+	// 初始化角色与部门
+	roleDev := model.Role{ID: 1, Name: "开发者", Level: 100, Type: "协会", IsActive: true}
+	roleVice := model.Role{ID: 3, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	roleMinister := model.Role{ID: 4, Name: "部长", Level: 60, Type: "部门", IsActive: true}
+	roleClerk := model.Role{ID: 5, Name: "干事", Level: 20, Type: "部门", IsActive: true}
+	roleMember := model.Role{ID: 7, Name: "会员", Level: 10, Type: "协会", IsActive: true}
+	for _, r := range []model.Role{roleDev, roleVice, roleMinister, roleClerk, roleMember} {
+		_ = db.Create(&r).Error
+	}
+
+	deptAssoc := model.Department{ID: 6, Name: "开放原子开源协会", Type: "协会", IsActive: true}
+	deptAlgo := model.Department{ID: 1, Name: "算法竞赛部", Type: "部门", IsActive: true}
+	for _, d := range []model.Department{deptAssoc, deptAlgo} {
+		_ = db.Create(&d).Error
+	}
+
+	// 1. 创建测试用户
+	// 操作者：副会长 (ID: 3000)
+	opUser := model.User{ID: 3000, StudentID: "op001", Username: "op", Name: "操作人", RoleID: roleVice.ID, DepartmentID: deptAssoc.ID}
+	// 在任部长：(ID: 3001)
+	activeMinister := model.User{ID: 3001, StudentID: "stu001", Username: "minister", Name: "在任部长", RoleID: roleMinister.ID, DepartmentID: deptAlgo.ID, Grade: 2022, IsGraduated: false}
+	// 已毕业人员：(ID: 3002)
+	gradUser := model.User{ID: 3002, StudentID: "stu002", Username: "grad", Name: "老学长", RoleID: roleMember.ID, DepartmentID: deptAssoc.ID, Grade: 2020, IsGraduated: true}
+	for _, u := range []model.User{opUser, activeMinister, gradUser} {
+		_ = db.Create(&u).Error
+	}
+
+	// Case A: 尝试将已毕业人员 (ID: 3002) 任命为算法竞赛部部长 -> 必须被拦截！
+	batchReq1 := []request.BatchUserInfoReq{
+		{
+			UserID:       gradUser.ID,
+			DepartmentID: deptAlgo.ID,
+			RoleID:       roleMinister.ID,
+		},
+	}
+	res, err := svc.BatchUserInfo(ctx, batchReq1, opUser.DepartmentID, opUser.RoleID)
+	if err == nil {
+		t.Fatalf("expected error for appointing graduated user, got nil")
+	}
+	if len(res) == 0 || res[0].ErrorMessage != "已毕业成员不可任命在任职务" {
+		t.Fatalf("expected '已毕业成员不可任命在任职务', got: %v", res)
+	}
+
+	// Case B: 普通部长 (Level 60) 尝试修改成员的年级 -> 必须被权限锁拦截！
+	opMinister := model.User{ID: 3005, StudentID: "op_min", Username: "op_min", Name: "操作部长", RoleID: roleMinister.ID, DepartmentID: deptAlgo.ID}
+	targetClerk := model.User{ID: 3006, StudentID: "clerk", Username: "clerk", Name: "干事", RoleID: roleClerk.ID, DepartmentID: deptAlgo.ID}
+	_ = db.Create(&opMinister).Error
+	_ = db.Create(&targetClerk).Error
+
+	newGrade := uint(2023)
+	batchReq2 := []request.BatchUserInfoReq{
+		{
+			UserID:       targetClerk.ID,
+			DepartmentID: deptAlgo.ID,
+			RoleID:       roleClerk.ID,
+			Grade:        &newGrade,
+		},
+	}
+	res2, err := svc.BatchUserInfo(ctx, batchReq2, opMinister.DepartmentID, opMinister.RoleID)
+	if err == nil {
+		t.Fatalf("expected permission error for minister modifying grade, got nil")
+	}
+	if len(res2) == 0 || res2[0].ErrorMessage != "权限不足：只有副会长及以上管理才可修改年级" {
+		t.Fatalf("expected '权限不足：只有副会长及以上管理才可修改年级', got: %v", res2)
+	}
+
+	// Case C: 副会长 (Level 80) 修改年级 -> 成功
+	res3, err := svc.BatchUserInfo(ctx, batchReq2, opUser.DepartmentID, opUser.RoleID)
+	if err != nil {
+		t.Fatalf("unexpected error for VP modifying grade: %v, res: %v", err, res3)
+	}
+	var updatedClerk model.User
+	if err := db.First(&updatedClerk, targetClerk.ID).Error; err != nil {
+		t.Fatalf("failed to query updated clerk: %v", err)
+	}
+	if updatedClerk.Grade != 2023 {
+		t.Fatalf("expected clerk grade to be 2023, got %d", updatedClerk.Grade)
+	}
+}
+
+// 7. 测试自动毕业 Worker：满 4 年的 6 月份自动标记为毕业
+func TestUserService_AutomaticGraduationWorker(t *testing.T) {
+	svc, db, _ := setupTestUserService(t)
+	ctx := context.Background()
+
+	roleRepo := repository.NewRoleRepository(db)
+	deptRepo := repository.NewDepartmentRepository(db)
+	svc.RoleRepo = roleRepo
+	svc.DepartmentRepo = deptRepo
+
+	roleDev := model.Role{ID: 1, Name: "开发者", Level: 100, Type: "理事会", IsActive: true}
+	roleMinister := model.Role{ID: 4, Name: "部长", Level: 60, Type: "部门", IsActive: true}
+	roleMember := model.Role{ID: 7, Name: "会员", Level: 10, Type: "协会", IsActive: true}
+	for _, r := range []model.Role{roleDev, roleMinister, roleMember} {
+		_ = db.Create(&r).Error
+	}
+
+	deptAssoc := model.Department{ID: 6, Name: "开放原子开源协会", Type: "协会", IsActive: true}
+	deptAlgo := model.Department{ID: 1, Name: "算法竞赛部", Type: "部门", IsActive: true}
+	for _, d := range []model.Department{deptAssoc, deptAlgo} {
+		_ = db.Create(&d).Error
+	}
+
+	// A. 测试年份计算算法 CalculateGraduationMaxGrade
+	t.Run("毕业年份临界值算法校验", func(t *testing.T) {
+		loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+		// 2026年10月（>= 6月） -> 2022级毕业
+		t1 := time.Date(2026, 10, 29, 12, 0, 0, 0, loc)
+		if g := svc.CalculateGraduationMaxGrade(t1); g != 2022 {
+			t.Fatalf("expected 2022, got %d", g)
+		}
+		// 2026年6月1日（正好6月） -> 2022级毕业
+		t2 := time.Date(2026, 6, 1, 0, 0, 0, 0, loc)
+		if g := svc.CalculateGraduationMaxGrade(t2); g != 2022 {
+			t.Fatalf("expected 2022, got %d", g)
+		}
+		// 2026年5月31日（< 6月） -> 2021级毕业，2022级尚未毕业
+		t3 := time.Date(2026, 5, 31, 23, 59, 59, 0, loc)
+		if g := svc.CalculateGraduationMaxGrade(t3); g != 2021 {
+			t.Fatalf("expected 2021, got %d", g)
+		}
+		// 2027年1月15日（< 6月） -> 2022级毕业，2023级尚未毕业
+		t4 := time.Date(2027, 1, 15, 0, 0, 0, 0, loc)
+		if g := svc.CalculateGraduationMaxGrade(t4); g != 2022 {
+			t.Fatalf("expected 2022, got %d", g)
+		}
+	})
+
+	// B. 测试批量毕业 Worker 执行
+	t.Run("定时任务批量毕业用户", func(t *testing.T) {
+		// 1. 2022级部长（到期应毕业，职务降为会员，归入协会）
+		u1 := model.User{ID: 5001, StudentID: "5001", Username: "u1", Name: "22级部长", RoleID: roleMinister.ID, DepartmentID: deptAlgo.ID, Grade: 2022, IsGraduated: false}
+		// 2. 2021级开发者（到期应毕业，但保留开发者与原部门）
+		u2 := model.User{ID: 5002, StudentID: "5002", Username: "u2", Name: "21级开发者", RoleID: roleDev.ID, DepartmentID: deptAlgo.ID, Grade: 2021, IsGraduated: false}
+		// 3. 2024级在任部长（尚未毕业，应保持原样）
+		u3 := model.User{ID: 5003, StudentID: "5003", Username: "u3", Name: "24级在任部长", RoleID: roleMinister.ID, DepartmentID: deptAlgo.ID, Grade: 2024, IsGraduated: false}
+		for _, u := range []model.User{u1, u2, u3} {
+			_ = db.Create(&u).Error
+		}
+
+		// 模拟执行：时间为 2026年10月（满 4 年的 2022 级及以前应毕业）
+		loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+		simNow := time.Date(2026, 10, 29, 0, 0, 0, 0, loc)
+		count, err := svc.ExecuteDueUserGraduations(ctx, simNow)
+		if err != nil {
+			t.Fatalf("unexpected error executing graduations: %v", err)
+		}
+		if count != 2 {
+			t.Fatalf("expected 2 users to graduate, got %d", count)
+		}
+
+		// 验证 u1 (2022级部长): is_graduated=true, role=会员, dept=开放原子开源协会
+		var user1 model.User
+		_ = db.First(&user1, u1.ID)
+		if !user1.IsGraduated {
+			t.Fatalf("expected user1 to be graduated")
+		}
+		if user1.RoleID != roleMember.ID {
+			t.Fatalf("expected user1 role to be reset to Member (%d), got %d", roleMember.ID, user1.RoleID)
+		}
+		if user1.DepartmentID != deptAssoc.ID {
+			t.Fatalf("expected user1 dept to be reset to Assoc (%d), got %d", deptAssoc.ID, user1.DepartmentID)
+		}
+
+		// 验证 u2 (2021级开发者): is_graduated=true, role=开发者, dept=算法竞赛部（保持不变）
+		var user2 model.User
+		_ = db.First(&user2, u2.ID)
+		if !user2.IsGraduated {
+			t.Fatalf("expected user2 to be graduated")
+		}
+		if user2.RoleID != roleDev.ID {
+			t.Fatalf("expected developer role to be preserved (%d), got %d", roleDev.ID, user2.RoleID)
+		}
+		if user2.DepartmentID != deptAlgo.ID {
+			t.Fatalf("expected developer dept to be preserved (%d), got %d", deptAlgo.ID, user2.DepartmentID)
+		}
+
+		// 验证 u3 (2024级在校生): is_graduated=false, 职务与部门完全不变
+		var user3 model.User
+		_ = db.First(&user3, u3.ID)
+		if user3.IsGraduated {
+			t.Fatalf("expected user3 to remain active (not graduated)")
+		}
+		if user3.RoleID != roleMinister.ID || user3.DepartmentID != deptAlgo.ID {
+			t.Fatalf("expected user3 role and dept unchanged, got role=%d dept=%d", user3.RoleID, user3.DepartmentID)
+		}
+	})
+}
+
+// 7. 测试真实接口：UserService.UpdateUserInfo 修改个人资料与年级
+func TestUserService_UpdateUserInfo_GradeValidation(t *testing.T) {
+	svc, db, _ := setupTestUserService(t)
+	ctx := context.Background()
+
+	testUser := model.User{
+		ID:        4001,
+		StudentID: "4001",
+		Username:  "update_user",
+		Name:      "测试更新",
+		Email:     "update@test.com",
+		Grade:     2022,
+	}
+	_ = db.Create(&testUser).Error
+
+	// 1. 输入不合法入学年份（<= 2000）
+	err := svc.UpdateUserInfo(ctx, testUser.ID, "update_user", "update@test.com", "avatar/default.png", 2000)
+	if err == nil || err.Error() != "入学年份不合法" {
+		t.Fatalf("expected '入学年份不合法', got: %v", err)
+	}
+
+	// 2. 输入不合法入学年份（> 9999）
+	err = svc.UpdateUserInfo(ctx, testUser.ID, "update_user", "update@test.com", "avatar/default.png", 10000)
+	if err == nil || err.Error() != "入学年份不合法" {
+		t.Fatalf("expected '入学年份不合法', got: %v", err)
 	}
 }
 

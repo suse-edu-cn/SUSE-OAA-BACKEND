@@ -52,6 +52,10 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 		return errors.New("注册信息不能为空")
 	}
 
+	if req.Grade <= 2000 || req.Grade > 9999 {
+		return errors.New("入学年份不合法")
+	}
+
 	if err := u.Repo.CheckExist(ctx, req.StudentID, req.Email, req.Username); err != nil {
 		return err
 	}
@@ -70,13 +74,15 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 		return errors.New("获取默认部门失败" + err.Error())
 	}
 	user := model.User{
-		StudentID:  req.StudentID,
-		Username:   req.Username,
-		Name:       req.Name,
-		Email:      req.Email,
-		Password:   string(hash),
-		Role:       role,
-		Department: department,
+		StudentID:   req.StudentID,
+		Username:    req.Username,
+		Name:        req.Name,
+		Email:       req.Email,
+		Password:    string(hash),
+		Role:        role,
+		Department:  department,
+		Grade:       req.Grade,
+		IsGraduated: false,
 	}
 
 	if err := u.Repo.CreateUser(ctx, user); err != nil {
@@ -176,7 +182,7 @@ func (u *UserService) GetRefreshTokenByToken(ctx context.Context, token string) 
 	return u.Repo.GetRefreshTokenByToken(ctx, token)
 }
 
-func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
+func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, grade uint, isGraduated *bool, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
 	const (
 		defaultPageSize = 20
 		maxPageSize     = 100
@@ -190,7 +196,7 @@ func (u *UserService) GetUserList(ctx context.Context, keyword string, departmen
 	if pageSize > maxPageSize {
 		pageSize = maxPageSize
 	}
-	userList, total, err := u.Repo.GetUserList(ctx, keyword, department, role, departmentID, roleID, page, pageSize, isAll)
+	userList, total, err := u.Repo.GetUserList(ctx, keyword, department, role, departmentID, roleID, grade, isGraduated, page, pageSize, isAll)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -230,7 +236,10 @@ func (u *UserService) UpdatePassword(ctx context.Context, id uint64, oldPassword
 	return nil
 }
 
-func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username string, email string, avatar string) error {
+func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username string, email string, avatar string, grade uint) error {
+	if grade != 0 && (grade <= 2000 || grade > 9999) {
+		return errors.New("入学年份不合法")
+	}
 	size, err := u.File.ImgStorage.GetFileInfo(ctx, avatar)
 	if err != nil {
 		return errors.New("头像不存在" + err.Error())
@@ -246,7 +255,7 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	const defaultAvatar = "avatar/default.png"
 	oldAvatar := user.Avatar
 
-	err = u.Repo.UpdateUser(ctx, id, username, email, avatar)
+	err = u.Repo.UpdateUser(ctx, id, username, email, avatar, grade)
 	if err != nil {
 		return err
 	}
@@ -356,6 +365,7 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 		operatorDepartment == nil || !operatorDepartment.IsActive {
 		return res, errors.New("操作者的部门或职位已停用")
 	}
+
 	var userIdList []uint64
 	//区分出是否能改
 	for i := range req {
@@ -393,6 +403,33 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 			continue
 		}
 
+		// 3. 年级修改权限锁：只有副会长及以上（Level >= 80）可操作
+		if req[i].Grade != nil {
+			if operatorRole.Level < level {
+				userIdList = append(userIdList, req[i].UserID)
+				errorMessage[req[i].UserID] = "权限不足：只有副会长及以上管理才可修改年级"
+				continue
+			}
+		}
+
+		// 4. 入学年份合法性校验（大于 2000 且为四位数）
+		if req[i].Grade != nil && (*req[i].Grade <= 2000 || *req[i].Grade > 9999) {
+			userIdList = append(userIdList, req[i].UserID)
+			errorMessage[req[i].UserID] = "入学年份不合法"
+			continue
+		}
+
+		// 5. 已毕业成员不可任命在任职务
+		if targetUser.IsGraduated {
+			if targetCurrentRole == nil || targetCurrentRole.Name != "开发者" {
+				if roleMap[req[i].RoleID] != nil && roleMap[req[i].RoleID].Name != "会员" {
+					userIdList = append(userIdList, req[i].UserID)
+					errorMessage[req[i].UserID] = "已毕业成员不可任命在任职务"
+					continue
+				}
+			}
+		}
+
 		if roleMap[req[i].RoleID] == nil || departmentMap[req[i].DepartmentID] == nil {
 			userIdList = append(userIdList, req[i].UserID)
 			tempItem := model.UpdateUserItems{}
@@ -425,6 +462,7 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 				UserID:       req[i].UserID,
 				DepartmentID: &req[i].DepartmentID,
 				RoleID:       &req[i].RoleID,
+				Grade:        req[i].Grade,
 			})
 		} else {
 			userIdList = append(userIdList, req[i].UserID)
@@ -628,5 +666,102 @@ func (u *UserService) executeDueUserDeletionsAndLog(ctx context.Context) {
 	}
 	if err != nil {
 		logger.ErrorContext(ctx, "执行到期用户自动注销失败", "err", err)
+	}
+}
+
+// CalculateGraduationMaxGrade 计算给定时间对应的已毕业最大入学年份
+// 规则：每年 6 月份及之后，入学满 4 年（即 grade <= now.Year() - 4）的用户毕业；
+// 6 月份之前，入学满 4 年的为 grade <= now.Year() - 5。
+func (u *UserService) CalculateGraduationMaxGrade(now time.Time) int {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	current := now.In(loc)
+	if current.Month() >= time.June {
+		return current.Year() - 4
+	}
+	return current.Year() - 5
+}
+
+func (u *UserService) StartUserGraduationExecutor(ctx context.Context) {
+	u.executeDueUserGraduationsAndLog(ctx)
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			u.executeDueUserGraduationsAndLog(ctx)
+		}
+	}
+}
+
+func (u *UserService) ExecuteDueUserGraduations(ctx context.Context, now time.Time) (int, error) {
+	maxGrade := u.CalculateGraduationMaxGrade(now)
+	if maxGrade <= 0 {
+		return 0, nil
+	}
+
+	users, err := u.Repo.GetDueGraduationUsers(ctx, uint(maxGrade))
+	if err != nil {
+		return 0, err
+	}
+	if len(users) == 0 {
+		return 0, nil
+	}
+
+	roleMap, err := u.RoleRepo.GetRoleMap(ctx)
+	if err != nil {
+		return 0, errors.New("获取职位列表失败: " + err.Error())
+	}
+	departmentMap, err := u.DepartmentRepo.GetDepartmentMap(ctx)
+	if err != nil {
+		return 0, errors.New("获取部门列表失败: " + err.Error())
+	}
+
+	var defaultMemberRoleID uint64
+	for id, r := range roleMap {
+		if r.Name == "会员" {
+			defaultMemberRoleID = id
+			break
+		}
+	}
+	var defaultDeptID uint64
+	for id, d := range departmentMap {
+		if d.Name == "开放原子开源协会" {
+			defaultDeptID = id
+			break
+		}
+	}
+	if defaultMemberRoleID == 0 || defaultDeptID == 0 {
+		return 0, errors.New("系统默认部门或默认角色未初始化")
+	}
+
+	var devIDs []uint64
+	var nonDevIDs []uint64
+	for _, user := range users {
+		r := roleMap[user.RoleID]
+		if r != nil && r.Name == "开发者" {
+			devIDs = append(devIDs, user.ID)
+		} else {
+			nonDevIDs = append(nonDevIDs, user.ID)
+		}
+	}
+
+	if err := u.Repo.GraduateUsers(ctx, nonDevIDs, devIDs, defaultMemberRoleID, defaultDeptID); err != nil {
+		return 0, err
+	}
+
+	return len(users), nil
+}
+
+func (u *UserService) executeDueUserGraduationsAndLog(ctx context.Context) {
+	graduated, err := u.ExecuteDueUserGraduations(ctx, time.Now())
+	if graduated > 0 {
+		logger.InfoContext(ctx, "已自动执行到期毕业用户数量", "graduated", graduated)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "执行到期毕业用户失败", "err", err)
 	}
 }

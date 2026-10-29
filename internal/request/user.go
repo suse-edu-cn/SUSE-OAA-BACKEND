@@ -4,6 +4,7 @@ type UpdateUserInfoReq struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required"`
 	Avatar   string `json:"avatar" binding:"required"`
+	Grade    uint   `json:"grade"`
 }
 
 type UserListReq struct {
@@ -12,6 +13,8 @@ type UserListReq struct {
 	Role         string `form:"role"`
 	DepartmentID uint64 `form:"department_id"`
 	RoleID       uint64 `form:"role_id"`
+	Grade        uint   `form:"grade"`
+	IsGraduated  *bool  `form:"is_graduated"`
 	Page         int    `form:"page,default=1"`
 	PageSize     int    `form:"page_size,default=20"`
 	IsAll        *bool  `form:"is_all"`
@@ -21,6 +24,7 @@ type BatchUserInfoReq struct {
 	UserID       uint64 `json:"user_id" binding:"required"`
 	DepartmentID uint64 `json:"department_id" binding:"required"`
 	RoleID       uint64 `json:"role_id" binding:"required"`
+	Grade        *uint  `json:"grade,omitempty"`
 }
 type DeleteUserReq struct {
 	UserID uint64 `json:"user_id"`

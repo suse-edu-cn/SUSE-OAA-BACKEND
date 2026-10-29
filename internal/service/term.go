@@ -77,6 +77,13 @@ func (t *TermService) executeDueInterviewResultsAndLog(ctx context.Context) {
 // 业务周期
 
 func (t *TermService) CheckLevel(ctx context.Context, userID uint64) error {
+	user, err := t.UserService.Repo.FindUserById(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user.IsGraduated {
+		return errors.New("已毕业成员无操作权限")
+	}
 	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(ctx, userID)
 	if err != nil {
 		return err
@@ -192,6 +199,14 @@ func (t *TermService) DeleteTerm(ctx context.Context, userID uint64, termID uint
 // 申请表
 
 func (t *TermService) CreateApplication(ctx context.Context, application model.Application) error {
+	user, err := t.UserService.Repo.FindUserById(ctx, application.UserID)
+	if err != nil {
+		return err
+	}
+	if user.IsGraduated {
+		return errors.New("已毕业成员不可填报申请表")
+	}
+
 	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
 	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
 		return err
@@ -212,6 +227,14 @@ func (t *TermService) CreateApplication(ctx context.Context, application model.A
 }
 
 func (t *TermService) UpdateApplication(ctx context.Context, application model.Application) error {
+	user, err := t.UserService.Repo.FindUserById(ctx, application.UserID)
+	if err != nil {
+		return err
+	}
+	if user.IsGraduated {
+		return errors.New("已毕业成员不可修改申请表")
+	}
+
 	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
 	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
 		return err
@@ -389,6 +412,14 @@ func (t *TermService) GetDepartmentByRoleID(ctx context.Context, roleID uint64) 
 }
 
 func (t *TermService) resolveApplicationListScope(ctx context.Context, userID uint64, termID uint64, requestedDepartmentID uint64) (uint64, error) {
+	user, err := t.UserService.Repo.FindUserById(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	if user.IsGraduated {
+		return 0, errors.New("已毕业成员无权限查看申请")
+	}
+
 	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(ctx, userID)
 	if err != nil {
 		return 0, err
@@ -444,6 +475,14 @@ func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, dep
 }
 
 func (t *TermService) DeleteApplication(ctx context.Context, applicationID uint64, id uint64) error {
+	user, err := t.UserService.Repo.FindUserById(ctx, id)
+	if err != nil {
+		return err
+	}
+	if user.IsGraduated {
+		return errors.New("已毕业成员无操作权限")
+	}
+
 	application, err := t.TermRepo.GetApplicationByID(ctx, applicationID)
 	if err != nil {
 		return err
@@ -504,9 +543,20 @@ func (t *TermService) CreateInterviewers(ctx context.Context, id uint64, req req
 		userIDs = append(userIDs, item.UserID)
 	}
 
-	departmentIDMap, err := t.UserService.Repo.GetDepartmentByUserIDs(ctx, userIDs)
+	if len(userIDs) == 0 {
+		return errors.New("全部都已经是面试官")
+	}
+
+	users, err := t.UserService.Repo.FindUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return err
+	}
+	userMap := make(map[uint64]model.User, len(users))
+	for _, u := range users {
+		if u.IsGraduated {
+			return errors.New("存在已毕业成员，不可设置为面试官")
+		}
+		userMap[u.ID] = u
 	}
 
 	interviewers := make([]model.Interviewer, 0, len(req.Interviewers))
@@ -514,8 +564,8 @@ func (t *TermService) CreateInterviewers(ctx context.Context, id uint64, req req
 		if status[item.UserID] {
 			continue
 		}
-		departmentID, ok := departmentIDMap[item.UserID]
-		if !ok || departmentID == 0 {
+		u, ok := userMap[item.UserID]
+		if !ok || u.DepartmentID == 0 {
 			return errors.New("存在用户缺少有效部门，不能创建面试官")
 		}
 		status[item.UserID] = true
@@ -523,17 +573,22 @@ func (t *TermService) CreateInterviewers(ctx context.Context, id uint64, req req
 			UserID:       item.UserID,
 			TermID:       req.TermID,
 			Remark:       item.Remark,
-			DepartmentID: departmentID,
+			DepartmentID: u.DepartmentID,
 		})
 	}
 
-	if len(interviewers) == 0 {
-		return errors.New("全部都已经是面试官")
-	}
 	return t.TermRepo.CreateInterviewers(ctx, interviewers)
 }
 
 func (t *TermService) GetInterviewerList(ctx context.Context, userID uint64, termID uint64) ([]model.InterviewerInfo, error) {
+	user, err := t.UserService.Repo.FindUserById(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.IsGraduated {
+		return nil, errors.New("已毕业成员无权限查看面试官列表")
+	}
+
 	departmentID, _, err := t.UserService.Repo.GetDepartmentIDAndRoleIDByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -767,6 +822,14 @@ func (t *TermService) CheckInterviewResult(
 		return err
 	}
 
+	applicant, err := t.UserService.Repo.FindUserById(ctx, application.UserID)
+	if err != nil {
+		return err
+	}
+	if applicant.IsGraduated && isAdmittedDecision(interviewResult.Decision) {
+		return errors.New("该申请人已毕业，不可录取为在任职务")
+	}
+
 	switch interviewResult.Decision {
 	case model.DecisionAdmittedFirst:
 		if interviewResult.ResultDepartmentID != application.FirstChoice.DepartmentID ||
@@ -814,4 +877,10 @@ func (t *TermService) GetInterviewResultDecision() []string {
 		model.DecisionRejected,
 		model.DecisionAdmittedAdjusted,
 	}
+}
+
+func isAdmittedDecision(decision string) bool {
+	return decision == model.DecisionAdmittedFirst ||
+		decision == model.DecisionAdmittedSecond ||
+		decision == model.DecisionAdmittedAdjusted
 }

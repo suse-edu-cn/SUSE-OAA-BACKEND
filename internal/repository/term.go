@@ -399,7 +399,7 @@ func (t *TermRepository) ExecuteTermInterviewResults(ctx context.Context, termID
 func executeInterviewResult(tx *gorm.DB, result model.InterviewResult, now time.Time) error {
 	var user model.User
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Select("id", "department_id", "role_id").
+		Select("id", "department_id", "role_id", "is_graduated").
 		Where("id = ?", result.UserID).
 		First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -432,7 +432,7 @@ func executeInterviewResult(tx *gorm.DB, result model.InterviewResult, now time.
 		return err
 	}
 
-	if isAdmittedDecision(result.Decision) {
+	if isAdmittedDecision(result.Decision) && !user.IsGraduated {
 		if err := tx.Model(&model.User{}).
 			Where("id = ?", result.UserID).
 			Updates(map[string]any{

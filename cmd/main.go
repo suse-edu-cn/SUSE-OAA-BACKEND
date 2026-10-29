@@ -70,6 +70,9 @@ func main() {
 	wg.Go(func() {
 		userService.StartUserDeletionExecutor(workerCtx)
 	})
+	wg.Go(func() {
+		userService.StartUserGraduationExecutor(workerCtx)
+	})
 
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(

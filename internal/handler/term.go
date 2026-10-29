@@ -39,6 +39,7 @@ func handleTermError(c *gin.Context, action string, err error) {
 		strings.Contains(msg, "决定") ||
 		strings.Contains(msg, "存在") ||
 		strings.Contains(msg, "不匹配") ||
+		strings.Contains(msg, "毕业") ||
 		strings.Contains(msg, "类型错误") {
 		response.BadRequest(c, msg)
 		return

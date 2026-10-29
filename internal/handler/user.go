@@ -54,7 +54,7 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 	roleID, roleName := parseUserListIDOrName(req.RoleID, req.Role)
 
 	ctx := c.Request.Context()
-	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, departmentName, roleName, departmentID, roleID, req.Page, req.PageSize, req.IsAll)
+	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, departmentName, roleName, departmentID, roleID, req.Grade, req.IsGraduated, req.Page, req.PageSize, req.IsAll)
 	if err != nil {
 		response.ServerError(c, "获取用户列表", err)
 		return
@@ -74,9 +74,9 @@ func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 	}
 	id := c.GetUint64("user_id")
 	ctx := c.Request.Context()
-	err := u.UserService.UpdateUserInfo(ctx, id, req.Username, req.Email, req.Avatar)
+	err := u.UserService.UpdateUserInfo(ctx, id, req.Username, req.Email, req.Avatar, req.Grade)
 	if err != nil {
-		if strings.Contains(err.Error(), "头像") || strings.Contains(err.Error(), "占用") {
+		if strings.Contains(err.Error(), "头像") || strings.Contains(err.Error(), "占用") || strings.Contains(err.Error(), "入学年份") {
 			response.BadRequest(c, err.Error())
 			return
 		}
