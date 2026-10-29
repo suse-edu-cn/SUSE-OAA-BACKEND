@@ -1,13 +1,16 @@
 package middleware
 
 import (
+	"bytes"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"suseoaa/pkg/logger"
+	"suseoaa/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +35,10 @@ func setupRouter() *gin.Engine {
 	r.GET("/test/bad-request", func(c *gin.Context) {
 		_ = c.Error(errors.New("mock client validation error"))
 		c.String(http.StatusBadRequest, "bad request")
+	})
+
+	r.GET("/test/response-bad-request", func(c *gin.Context) {
+		response.BadRequest(c, "业务参数校验未通过")
 	})
 
 
@@ -106,5 +113,27 @@ func TestAccessLog_PanicRecovery(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500 after panic recovery, got %d", w.Code)
+	}
+}
+
+func TestAccessLog_ResponseError(t *testing.T) {
+	r := setupRouter()
+
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(handler))
+
+	req := httptest.NewRequest(http.MethodGet, "/test/response-bad-request", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", w.Code)
+	}
+
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "error=业务参数校验未通过") && !strings.Contains(logOutput, "业务参数校验未通过") {
+		t.Fatalf("expected log output to contain error message, got: %s", logOutput)
 	}
 }

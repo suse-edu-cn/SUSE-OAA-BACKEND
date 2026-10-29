@@ -1,10 +1,13 @@
 package response
 
 import (
+	"fmt"
 	"suseoaa/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
+
+const ContextErrorKey = "response_error_msg"
 
 type Response struct {
 	Code    int    `json:"code"`
@@ -21,6 +24,7 @@ func Success(c *gin.Context, data any) {
 }
 
 func BadRequest(c *gin.Context, message string) {
+	c.Set(ContextErrorKey, message)
 	c.JSON(400, Response{
 		Code:    400,
 		Message: message,
@@ -29,6 +33,7 @@ func BadRequest(c *gin.Context, message string) {
 }
 
 func BadRequestWithData(c *gin.Context, message string, data any) {
+	c.Set(ContextErrorKey, message)
 	c.JSON(400, Response{
 		Code:    400,
 		Message: message,
@@ -37,6 +42,7 @@ func BadRequestWithData(c *gin.Context, message string, data any) {
 }
 
 func Unauthorized(c *gin.Context, message string) {
+	c.Set(ContextErrorKey, message)
 	c.JSON(401, Response{
 		Code:    401,
 		Message: message,
@@ -45,6 +51,7 @@ func Unauthorized(c *gin.Context, message string) {
 }
 
 func Forbidden(c *gin.Context, message string) {
+	c.Set(ContextErrorKey, message)
 	c.JSON(403, Response{
 		Code:    403,
 		Message: message,
@@ -53,6 +60,7 @@ func Forbidden(c *gin.Context, message string) {
 }
 
 func NotFound(c *gin.Context, message string) {
+	c.Set(ContextErrorKey, message)
 	c.JSON(404, Response{
 		Code:    404,
 		Message: message,
@@ -61,14 +69,30 @@ func NotFound(c *gin.Context, message string) {
 }
 
 func TooManyRequests(c *gin.Context) {
+	msg := "请求过于频繁，请稍后再试"
+	c.Set(ContextErrorKey, msg)
 	c.JSON(429, Response{
 		Code:    429,
-		Message: "请求过于频繁，请稍后再试",
+		Message: msg,
 		Data:    nil,
 	})
 }
 
+func ServiceUnavailable(c *gin.Context, message string, data any) {
+	c.Set(ContextErrorKey, message)
+	c.JSON(503, Response{
+		Code:    503,
+		Message: message,
+		Data:    data,
+	})
+}
+
 func ServerError(c *gin.Context, action string, err error) {
+	errMsg := action + "失败"
+	if err != nil {
+		errMsg = fmt.Sprintf("%s: %v", errMsg, err)
+	}
+	c.Set(ContextErrorKey, errMsg)
 	logger.ErrorContext(c.Request.Context(), action+"失败", "err", err)
 	c.JSON(500, Response{
 		Code:    500,

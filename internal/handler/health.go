@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"time"
 
@@ -75,9 +74,5 @@ func (h *HealthHandler) Healthz(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusServiceUnavailable, response.Response{
-		Code:    http.StatusServiceUnavailable,
-		Message: "service unavailable",
-		Data:    failures,
-	})
+	response.ServiceUnavailable(c, "service unavailable", failures)
 }

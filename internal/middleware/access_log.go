@@ -3,6 +3,7 @@ package middleware
 import (
 	"log/slog"
 	"suseoaa/pkg/logger"
+	"suseoaa/pkg/response"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,21 @@ func AccessLog() gin.HandlerFunc {
 
 		if len(c.Errors) > 0 {
 			attrs = append(attrs, slog.String("gin_errors", c.Errors.String()))
+		}
+
+		if status >= 400 {
+			var errMsg string
+			if v, ok := c.Get(response.ContextErrorKey); ok {
+				if msg, okStr := v.(string); okStr && msg != "" {
+					errMsg = msg
+				}
+			}
+			if errMsg == "" && len(c.Errors) > 0 {
+				errMsg = c.Errors.String()
+			}
+			if errMsg != "" {
+				attrs = append(attrs, slog.String("error", errMsg))
+			}
 		}
 
 		switch {
