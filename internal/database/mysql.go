@@ -77,7 +77,9 @@ func InitData(db *gorm.DB) {
 	roleMap := make(map[string]uint64)
 	for _, r := range roles {
 		role := r
-		if err := db.Where(model.Role{Name: role.Name}).FirstOrCreate(&role).Error; err != nil {
+		if err := db.Where(model.Role{Name: role.Name}).
+			Assign(map[string]any{"type": role.Type, "level": role.Level}).
+			FirstOrCreate(&role).Error; err != nil {
 			logger.Warn("初始化角色失败", "role", role.Name, "err", err)
 		} else {
 			roleMap[role.Name] = role.ID
@@ -88,7 +90,9 @@ func InitData(db *gorm.DB) {
 	deptMap := make(map[string]uint64)
 	for _, d := range departments {
 		dept := d
-		if err := db.Where(model.Department{Name: dept.Name}).FirstOrCreate(&dept).Error; err != nil {
+		if err := db.Where(model.Department{Name: dept.Name}).
+			Assign(map[string]any{"type": dept.Type}).
+			FirstOrCreate(&dept).Error; err != nil {
 			logger.Warn("初始化部门失败", "dept", dept.Name, "err", err)
 		} else {
 			deptMap[dept.Name] = dept.ID

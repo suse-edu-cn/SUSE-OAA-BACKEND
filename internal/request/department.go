@@ -14,13 +14,13 @@ type UpdateDepartmentReq struct {
 }
 
 func (c CreateDepartmentReq) CheckType() error {
-	if c.Type == "部门" || c.Type == "协会" {
+	if c.Type == "部门" || c.Type == "协会" || c.Type == "理事会" {
 		return nil
 	}
 	return errors.New("type 错误")
 }
 func (d UpdateDepartmentReq) CheckType() error {
-	if d.Type == "部门" || d.Type == "协会" {
+	if d.Type == "部门" || d.Type == "协会" || d.Type == "理事会" {
 		return nil
 	}
 	return errors.New("type 错误")

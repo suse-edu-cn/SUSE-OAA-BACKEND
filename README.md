@@ -317,7 +317,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
 | GET | `/v2/department/list` | 登录 | 获取全部部门列表 | 无 |
-| POST | `/v2/department/create` | 登录 | 创建部门（需 `level >= 80`） | JSON：`name`、`type`（`部门` / `协会`） |
+| POST | `/v2/department/create` | 登录 | 创建部门（需 `level >= 80`） | JSON：`name`、`type`（`部门` / `协会` / `理事会`） |
 | POST | `/v2/department/update` | 登录 | 更新部门（需 `level >= 80`） | JSON：`department_id`、`name`、`type`、`is_active` |
 
 ---
@@ -327,7 +327,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
 | GET | `/v2/role/list` | 登录 | 获取全部职位列表 | 无 |
-| POST | `/v2/role/create` | 登录 | 创建职位（需 `level >= 80`） | JSON：`name`、`level`、`type`（`部门` / `协会`） |
+| POST | `/v2/role/create` | 登录 | 创建职位（需 `level >= 80`） | JSON：`name`、`level`、`type`（`部门` / `协会` / `理事会`） |
 | POST | `/v2/role/update` | 登录 | 更新职位（需 `level >= 80`） | JSON：`role_id`、`name`、`level`、`type`、`is_active` |
 
 ---
@@ -467,8 +467,8 @@ Authorization: Bearer <token>
 | 角色名称 | Level | 适用类型 | 职责描述 |
 |:---|:---:|:---|:---|
 | 开发者 | 100 | 协会 | 系统超级管理员 |
-| 会长 | 90 | 协会 | 协会最高负责人 |
-| 副会长 | 80 | 协会 | 分管负责人，拥有审批与管理权限 |
+| 会长 | 90 | 理事会 | 协会最高负责人 |
+| 副会长 | 80 | 理事会 | 分管负责人，拥有审批与管理权限 |
 | 部长 | 60 | 部门 | 部门负责人 |
 | 副部长 | 50 | 部门 | 部门协助负责人 |
 | 干事 | 20 | 部门 | 部门事务执行成员 |
