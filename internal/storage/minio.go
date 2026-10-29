@@ -146,19 +146,6 @@ func (m *MinIO) GeneratePresignedURL(
 	}
 	return url.String(), nil
 }
-func (m *MinIO) GetFileInfo(ctx context.Context, objectName string) (int64, error) {
-	info, err := m.Client.StatObject(
-		ctx,
-		m.Bucket,
-		objectName,
-		minio.StatObjectOptions{},
-	)
-	if err != nil {
-		return 0, fmt.Errorf("get file info: %w", err)
-	}
-
-	return info.Size, nil
-}
 func (m *MinIO) DeleteFile(ctx context.Context, objectName string) error {
 	err := m.Client.RemoveObject(
 		ctx,

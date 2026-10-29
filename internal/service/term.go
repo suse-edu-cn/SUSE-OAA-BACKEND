@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 	"suseoaa/internal/request"
-	"suseoaa/internal/storage"
 	"suseoaa/pkg/logger"
 	"time"
 )
@@ -235,11 +235,6 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 		return errors.New("已毕业成员不可修改申请表")
 	}
 
-	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
-	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
-		return err
-	}
-
 	oldApplication, err := t.TermRepo.GetLatestApplicationByUserID(ctx, application.UserID)
 	if err != nil {
 		return err
@@ -254,6 +249,16 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 	if err := t.checkApplicationChoices(ctx, application); err != nil {
 		return err
 	}
+
+	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
+	if application.AvatarURI == "" {
+		application.AvatarURI = oldApplication.AvatarURI
+	} else if application.AvatarURI != oldApplication.AvatarURI {
+		if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
+			return err
+		}
+	}
+
 	application.TermID = oldApplication.TermID
 	application.UserID = oldApplication.UserID
 	application.Type = oldApplication.Type
@@ -265,24 +270,31 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 }
 
 func (t *TermService) checkApplicationAvatar(ctx context.Context, avatar string) error {
+	avatar = strings.TrimSpace(avatar)
 	if avatar == "" {
 		return nil
 	}
 	if !strings.HasPrefix(avatar, "application/") {
 		return errors.New("申请表照片路径错误")
 	}
-	size, err := t.UserService.File.ImgStorage.GetFileInfo(ctx, avatar)
-	if err != nil {
-		return errors.New("申请表照片不存在" + err.Error())
+	if strings.Contains(avatar, "..") {
+		return errors.New("申请表照片路径不合法")
 	}
-	if size > storage.MaxImageSize {
-		return errors.New("申请表照片体积过大")
+	ext := strings.ToLower(filepath.Ext(avatar))
+	if !allowedExt[ext] {
+		return errors.New("申请表照片类型错误")
 	}
 	return nil
 }
 
 func (t *TermService) deleteOldApplicationAvatar(ctx context.Context, userID uint64, oldAvatar string, newAvatar string) {
-	if oldAvatar == "" || oldAvatar == newAvatar || !strings.HasPrefix(oldAvatar, "application/") {
+	if oldAvatar == "" || oldAvatar == newAvatar {
+		return
+	}
+	if t.UserService == nil || t.UserService.File == nil || t.UserService.File.ImgStorage == nil {
+		return
+	}
+	if !strings.HasPrefix(oldAvatar, "application/") {
 		return
 	}
 	if err := t.UserService.File.ImgStorage.DeleteFile(ctx, oldAvatar); err != nil {
@@ -324,6 +336,9 @@ func (t *TermService) fillApplicationTermTitles(ctx context.Context, application
 }
 
 func (t *TermService) fillApplicationAvatars(ctx context.Context, applications []*model.Application) {
+	if t.UserService == nil || t.UserService.File == nil || t.UserService.File.ImgStorage == nil {
+		return
+	}
 	for _, application := range applications {
 		if application == nil {
 			continue

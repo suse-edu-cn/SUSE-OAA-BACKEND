@@ -269,4 +269,74 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			t.Fatalf("reject decision for graduated user should be allowed, got: %v", err)
 		}
 	})
+
+	t.Run("申请表照片路径规范化与校验", func(t *testing.T) {
+		// 1. 严格区分 scene：不支持 avatar/ 或其他非法前缀，必须为 application/
+		if err := svc.checkApplicationAvatar(ctx, "avatar/user.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径错误") {
+			t.Fatalf("expected 申请表照片路径错误 for avatar/, got: %v", err)
+		}
+		if err := svc.checkApplicationAvatar(ctx, "illegal/path.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径错误") {
+			t.Fatalf("expected 申请表照片路径错误, got: %v", err)
+		}
+
+		// 2. 路径穿越校验与文件类型校验
+		if err := svc.checkApplicationAvatar(ctx, "application/../hack.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径不合法") {
+			t.Fatalf("expected 申请表照片路径不合法, got: %v", err)
+		}
+		if err := svc.checkApplicationAvatar(ctx, "application/hack.exe"); err == nil || !strings.Contains(err.Error(), "申请表照片类型错误") {
+			t.Fatalf("expected 申请表照片类型错误, got: %v", err)
+		}
+
+		// 3. 正常路径与空路径允许通过
+		if err := svc.checkApplicationAvatar(ctx, "application/pic.png"); err != nil {
+			t.Fatalf("valid avatar should be allowed, got: %v", err)
+		}
+		if err := svc.checkApplicationAvatar(ctx, ""); err != nil {
+			t.Fatalf("empty avatar should be allowed, got: %v", err)
+		}
+	})
+
+	t.Run("修改申请表时未传新照片应保留旧照片不被误删", func(t *testing.T) {
+		origApp := model.Application{
+			ID:        200,
+			TermID:    term.ID,
+			UserID:    activeUser.ID,
+			AvatarURI: "application/old_avatar.png",
+			FirstChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+			SecondChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+		}
+		db.Create(&origApp)
+
+		// 提交修改，但 avatar 为空（例如只改了联系方式）
+		updateReq := model.Application{
+			UserID:    activeUser.ID,
+			AvatarURI: "", // 未传新头像
+			FirstChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+			SecondChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+		}
+		if err := svc.UpdateApplication(ctx, updateReq); err != nil {
+			t.Fatalf("unexpected error updating application: %v", err)
+		}
+
+		// 验证数据库中原本的照片依然完整保留，未被清空为 ""
+		var savedApp model.Application
+		if err := db.First(&savedApp, origApp.ID).Error; err != nil {
+			t.Fatalf("failed to query saved app: %v", err)
+		}
+		if savedApp.AvatarURI != "application/old_avatar.png" {
+			t.Fatalf("expected avatar to be preserved as 'application/old_avatar.png', got %q", savedApp.AvatarURI)
+		}
+	})
 }

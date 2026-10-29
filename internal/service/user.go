@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"suseoaa/internal/storage"
 	"suseoaa/pkg/logger"
 	"suseoaa/pkg/utils"
 
@@ -240,19 +240,24 @@ func (u *UserService) UpdateUserInfo(ctx context.Context, id uint64, username st
 	if grade != 0 && (grade <= 2000 || grade > 9999) {
 		return errors.New("入学年份不合法")
 	}
-	size, err := u.File.ImgStorage.GetFileInfo(ctx, avatar)
-	if err != nil {
-		return errors.New("头像不存在" + err.Error())
-	}
-	if size > storage.MaxImageSize {
-		return errors.New("头像体积过大")
+	avatar = strings.TrimSpace(avatar)
+	const defaultAvatar = "avatar/default.png"
+	if avatar != "" && avatar != defaultAvatar {
+		if !strings.HasPrefix(avatar, "avatar/") {
+			return errors.New("头像路径错误")
+		}
+		if strings.Contains(avatar, "..") {
+			return errors.New("头像路径不合法")
+		}
+		ext := strings.ToLower(filepath.Ext(avatar))
+		if !allowedExt[ext] {
+			return errors.New("头像类型错误")
+		}
 	}
 	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
 		return err
 	}
-
-	const defaultAvatar = "avatar/default.png"
 	oldAvatar := user.Avatar
 
 	err = u.Repo.UpdateUser(ctx, id, username, email, avatar, grade)
