@@ -11,7 +11,11 @@ import (
 	"suseoaa/internal/request"
 	"suseoaa/pkg/logger"
 	"time"
+
+	"github.com/xuri/excelize/v2"
 )
+
+var shanghaiLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
 type TermService struct {
 	TermRepo    *repository.TermRepository
@@ -959,4 +963,521 @@ func isAdmittedDecision(decision string) bool {
 	return decision == model.DecisionAdmittedFirst ||
 		decision == model.DecisionAdmittedSecond ||
 		decision == model.DecisionAdmittedAdjusted
+}
+
+func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uint64, req request.ExportInterviewResultReq) ([]byte, string, error) {
+	if err := t.CheckLevel(ctx, operatorID); err != nil {
+		return nil, "", err
+	}
+
+	var termTitle string
+	if req.TermID != 0 {
+		term, err := t.TermRepo.GetTermByID(ctx, req.TermID)
+		if err != nil {
+			return nil, "", err
+		}
+		termTitle = term.Title
+	}
+
+	deptMap, err := t.UserService.DepartmentRepo.GetDepartmentMap(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	if req.DepartmentID != 0 {
+		if _, ok := deptMap[req.DepartmentID]; !ok {
+			return nil, "", errors.New("部门不存在")
+		}
+	}
+
+	roleMap, err := t.UserService.RoleRepo.GetRoleMap(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+
+	termMap, err := t.TermRepo.GetTermMap(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, req.TermID, req.DepartmentID, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	operatorIDs := make([]uint64, 0)
+	seen := make(map[uint64]bool)
+	for _, app := range applications {
+		if app != nil && app.OperatorID > 0 && !seen[app.OperatorID] {
+			seen[app.OperatorID] = true
+			operatorIDs = append(operatorIDs, app.OperatorID)
+		}
+	}
+
+	operatorMap := make(map[uint64]model.UserInfo)
+	if len(operatorIDs) > 0 {
+		if users, err := t.UserService.Repo.GetUserMapByUserIDs(ctx, operatorIDs); err == nil {
+			operatorMap = users
+		}
+	}
+
+	mask := req.Fields
+	if mask == 0 {
+		mask = request.ExportFieldAllMask
+	}
+
+	type exportColumn struct {
+		def         request.ExportFieldDef
+		isLeftAlign bool
+		getValue    func(app *model.Application, index int) string
+	}
+
+	allColumns := []exportColumn{
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitTermTitle],
+			getValue: func(app *model.Application, index int) string {
+				if term, ok := termMap[app.TermID]; ok && term.Title != "" {
+					return term.Title
+				} else if app.TermTitle != "" {
+					return app.TermTitle
+				} else if termTitle != "" {
+					return termTitle
+				}
+				return "-"
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitType],
+			getValue: func(app *model.Application, index int) string {
+				if app.Type != "" {
+					return app.Type
+				}
+				return "-"
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitStudentID],
+			getValue: func(app *model.Application, index int) string {
+				return app.StudentID
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitName],
+			getValue: func(app *model.Application, index int) string {
+				return app.Name
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitGender],
+			getValue: func(app *model.Application, index int) string {
+				return app.Gender
+			},
+		},
+		{
+			def:         exportFieldDefinitions[request.ExportFieldBitCollege],
+			isLeftAlign: true,
+			getValue: func(app *model.Application, index int) string {
+				return app.College
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitMajorClass],
+			getValue: func(app *model.Application, index int) string {
+				return app.MajorClass
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitPoliticalStatus],
+			getValue: func(app *model.Application, index int) string {
+				return app.PoliticalStatus
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitBirthDate],
+			getValue: func(app *model.Application, index int) string {
+				return app.BirthDate
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitPhone],
+			getValue: func(app *model.Application, index int) string {
+				return app.Phone
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitQQ],
+			getValue: func(app *model.Application, index int) string {
+				return app.QQ
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitFirstDepartment],
+			getValue: func(app *model.Application, index int) string {
+				return getDepartmentName(deptMap, app.FirstChoice.DepartmentID)
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitFirstRole],
+			getValue: func(app *model.Application, index int) string {
+				return getRoleName(roleMap, app.FirstChoice.RoleID)
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitSecondDepartment],
+			getValue: func(app *model.Application, index int) string {
+				return getDepartmentName(deptMap, app.SecondChoice.DepartmentID)
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitSecondRole],
+			getValue: func(app *model.Application, index int) string {
+				return getRoleName(roleMap, app.SecondChoice.RoleID)
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitDecision],
+			getValue: func(app *model.Application, index int) string {
+				if app.Decision != "" {
+					return app.Decision
+				}
+				return model.DecisionPending
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitResultDepartment],
+			getValue: func(app *model.Application, index int) string {
+				return getDepartmentName(deptMap, app.Result.DepartmentID)
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitResultRole],
+			getValue: func(app *model.Application, index int) string {
+				return getRoleName(roleMap, app.Result.RoleID)
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitOperatorName],
+			getValue: func(app *model.Application, index int) string {
+				if app.OperatorID > 0 {
+					if op, ok := operatorMap[app.OperatorID]; ok && op.Name != "" {
+						return op.Name
+					}
+					return fmt.Sprintf("ID:%d", app.OperatorID)
+				}
+				return "-"
+			},
+		},
+		{
+			def:         exportFieldDefinitions[request.ExportFieldBitDecisionRemark],
+			isLeftAlign: true,
+			getValue: func(app *model.Application, index int) string {
+				if app.DecisionRemark != "" {
+					return app.DecisionRemark
+				}
+				return "-"
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitCreatedAt],
+			getValue: func(app *model.Application, index int) string {
+				if !app.CreatedAt.IsZero() {
+					return app.CreatedAt.In(shanghaiLocation).Format("2006-01-02 15:04:05")
+				}
+				return "-"
+			},
+		},
+		{
+			def: exportFieldDefinitions[request.ExportFieldBitUpdatedAt],
+			getValue: func(app *model.Application, index int) string {
+				if !app.UpdatedAt.IsZero() {
+					return app.UpdatedAt.In(shanghaiLocation).Format("2006-01-02 15:04:05")
+				}
+				return "-"
+			},
+		},
+	}
+
+	var activeColumns []exportColumn
+	for _, col := range allColumns {
+		if (mask & col.def.Mask) != 0 {
+			activeColumns = append(activeColumns, col)
+		}
+	}
+
+	if len(activeColumns) == 0 {
+		return nil, "", errors.New("未选择任何有效导出字段")
+	}
+
+	headers := make([]string, len(activeColumns))
+	for c, col := range activeColumns {
+		headers[c] = col.def.Label
+	}
+
+	var rows [][]string
+	for i, app := range applications {
+		if app == nil {
+			continue
+		}
+		row := make([]string, len(activeColumns))
+		for c, col := range activeColumns {
+			row[c] = col.getValue(app, i)
+		}
+		rows = append(rows, row)
+	}
+
+	f := excelize.NewFile()
+	defer func() {
+		_ = f.Close()
+	}()
+
+	sheetName := "面试结果"
+	_ = f.SetSheetName("Sheet1", sheetName)
+
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold:   true,
+			Size:   11,
+			Color:  "#FFFFFF",
+			Family: "微软雅黑",
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#2F5597"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+		Border: []excelize.Border{
+			{Type: "top", Color: "#D9D9D9", Style: 1},
+			{Type: "bottom", Color: "#D9D9D9", Style: 1},
+			{Type: "left", Color: "#D9D9D9", Style: 1},
+			{Type: "right", Color: "#D9D9D9", Style: 1},
+		},
+	})
+
+	cellCenterStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Size:   10,
+			Family: "微软雅黑",
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+		Border: []excelize.Border{
+			{Type: "top", Color: "#E0E0E0", Style: 1},
+			{Type: "bottom", Color: "#E0E0E0", Style: 1},
+			{Type: "left", Color: "#E0E0E0", Style: 1},
+			{Type: "right", Color: "#E0E0E0", Style: 1},
+		},
+	})
+
+	cellLeftStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Size:   10,
+			Family: "微软雅黑",
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "left",
+			Vertical:   "center",
+		},
+		Border: []excelize.Border{
+			{Type: "top", Color: "#E0E0E0", Style: 1},
+			{Type: "bottom", Color: "#E0E0E0", Style: 1},
+			{Type: "left", Color: "#E0E0E0", Style: 1},
+			{Type: "right", Color: "#E0E0E0", Style: 1},
+		},
+	})
+
+	cellCenterAltStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Size:   10,
+			Family: "微软雅黑",
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#F2F4F8"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+		Border: []excelize.Border{
+			{Type: "top", Color: "#E0E0E0", Style: 1},
+			{Type: "bottom", Color: "#E0E0E0", Style: 1},
+			{Type: "left", Color: "#E0E0E0", Style: 1},
+			{Type: "right", Color: "#E0E0E0", Style: 1},
+		},
+	})
+
+	cellLeftAltStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Size:   10,
+			Family: "微软雅黑",
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#F2F4F8"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "left",
+			Vertical:   "center",
+		},
+		Border: []excelize.Border{
+			{Type: "top", Color: "#E0E0E0", Style: 1},
+			{Type: "bottom", Color: "#E0E0E0", Style: 1},
+			{Type: "left", Color: "#E0E0E0", Style: 1},
+			{Type: "right", Color: "#E0E0E0", Style: 1},
+		},
+	})
+
+	_ = f.SetRowHeight(sheetName, 1, 26)
+	for c := 0; c < len(headers); c++ {
+		cell, _ := excelize.CoordinatesToCellName(c+1, 1)
+		_ = f.SetCellValue(sheetName, cell, headers[c])
+		_ = f.SetCellStyle(sheetName, cell, cell, headerStyle)
+	}
+
+	for r, row := range rows {
+		rowIdx := r + 2
+		_ = f.SetRowHeight(sheetName, rowIdx, 22)
+		isAlt := (r%2 == 1)
+		for c, val := range row {
+			cell, _ := excelize.CoordinatesToCellName(c+1, rowIdx)
+			_ = f.SetCellValue(sheetName, cell, val)
+			var targetStyle int
+			if activeColumns[c].isLeftAlign {
+				if isAlt {
+					targetStyle = cellLeftAltStyle
+				} else {
+					targetStyle = cellLeftStyle
+				}
+			} else {
+				if isAlt {
+					targetStyle = cellCenterAltStyle
+				} else {
+					targetStyle = cellCenterStyle
+				}
+			}
+			_ = f.SetCellStyle(sheetName, cell, cell, targetStyle)
+		}
+	}
+
+	colWidths := make([]float64, len(headers))
+	for i, h := range headers {
+		colWidths[i] = float64(calculateDisplayWidth(h)) + 4
+	}
+	for _, row := range rows {
+		for i, val := range row {
+			w := float64(calculateDisplayWidth(val)) + 4
+			if w > colWidths[i] {
+				colWidths[i] = w
+			}
+		}
+	}
+	for i, w := range colWidths {
+		if w < 10 {
+			w = 10
+		}
+		if w > 40 {
+			w = 40
+		}
+		colName, _ := excelize.ColumnNumberToName(i + 1)
+		_ = f.SetColWidth(sheetName, colName, colName, w)
+	}
+
+	var filename string
+	if termTitle != "" {
+		filename = fmt.Sprintf("%s_面试结果.xlsx", sanitizeFilename(termTitle))
+	} else {
+		filename = "面试结果.xlsx"
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, "", err
+	}
+	return buf.Bytes(), filename, nil
+}
+
+var exportFieldDefinitions = []request.ExportFieldDef{
+	{Bit: request.ExportFieldBitTermTitle, Mask: 1 << request.ExportFieldBitTermTitle, Key: "term_title", Label: "业务周期"},
+	{Bit: request.ExportFieldBitType, Mask: 1 << request.ExportFieldBitType, Key: "type", Label: "业务类型"},
+	{Bit: request.ExportFieldBitStudentID, Mask: 1 << request.ExportFieldBitStudentID, Key: "student_id", Label: "学号"},
+	{Bit: request.ExportFieldBitName, Mask: 1 << request.ExportFieldBitName, Key: "name", Label: "姓名"},
+	{Bit: request.ExportFieldBitGender, Mask: 1 << request.ExportFieldBitGender, Key: "gender", Label: "性别"},
+	{Bit: request.ExportFieldBitCollege, Mask: 1 << request.ExportFieldBitCollege, Key: "college", Label: "学院"},
+	{Bit: request.ExportFieldBitMajorClass, Mask: 1 << request.ExportFieldBitMajorClass, Key: "major_class", Label: "专业班级"},
+	{Bit: request.ExportFieldBitPoliticalStatus, Mask: 1 << request.ExportFieldBitPoliticalStatus, Key: "political_status", Label: "政治面貌"},
+	{Bit: request.ExportFieldBitBirthDate, Mask: 1 << request.ExportFieldBitBirthDate, Key: "birth_date", Label: "出生年月"},
+	{Bit: request.ExportFieldBitPhone, Mask: 1 << request.ExportFieldBitPhone, Key: "phone", Label: "联系电话"},
+	{Bit: request.ExportFieldBitQQ, Mask: 1 << request.ExportFieldBitQQ, Key: "qq", Label: "QQ"},
+	{Bit: request.ExportFieldBitFirstDepartment, Mask: 1 << request.ExportFieldBitFirstDepartment, Key: "first_department", Label: "第一志愿部门"},
+	{Bit: request.ExportFieldBitFirstRole, Mask: 1 << request.ExportFieldBitFirstRole, Key: "first_role", Label: "第一志愿职位"},
+	{Bit: request.ExportFieldBitSecondDepartment, Mask: 1 << request.ExportFieldBitSecondDepartment, Key: "second_department", Label: "第二志愿部门"},
+	{Bit: request.ExportFieldBitSecondRole, Mask: 1 << request.ExportFieldBitSecondRole, Key: "second_role", Label: "第二志愿职位"},
+	{Bit: request.ExportFieldBitDecision, Mask: 1 << request.ExportFieldBitDecision, Key: "decision", Label: "面试决策"},
+	{Bit: request.ExportFieldBitResultDepartment, Mask: 1 << request.ExportFieldBitResultDepartment, Key: "result_department", Label: "录取部门"},
+	{Bit: request.ExportFieldBitResultRole, Mask: 1 << request.ExportFieldBitResultRole, Key: "result_role", Label: "录取职位"},
+	{Bit: request.ExportFieldBitOperatorName, Mask: 1 << request.ExportFieldBitOperatorName, Key: "operator_name", Label: "审核人"},
+	{Bit: request.ExportFieldBitDecisionRemark, Mask: 1 << request.ExportFieldBitDecisionRemark, Key: "decision_remark", Label: "决策备注"},
+	{Bit: request.ExportFieldBitCreatedAt, Mask: 1 << request.ExportFieldBitCreatedAt, Key: "created_at", Label: "提交时间"},
+	{Bit: request.ExportFieldBitUpdatedAt, Mask: 1 << request.ExportFieldBitUpdatedAt, Key: "updated_at", Label: "更新时间"},
+}
+
+func (t *TermService) GetExportFieldsDefinition() request.ExportFieldsResp {
+	defs := make([]request.ExportFieldDef, len(exportFieldDefinitions))
+	copy(defs, exportFieldDefinitions)
+	return request.ExportFieldsResp{
+		TotalFields: len(defs),
+		AllMask:     request.ExportFieldAllMask,
+		Fields:      defs,
+	}
+}
+
+func calculateDisplayWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		if r > 127 {
+			width += 2
+		} else {
+			width += 1
+		}
+	}
+	return width
+}
+
+func sanitizeFilename(name string) string {
+	invalidChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", "\r", "\n"}
+	for _, char := range invalidChars {
+		name = strings.ReplaceAll(name, char, "_")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "面试结果"
+	}
+	return name
+}
+
+func getDepartmentName(deptMap map[uint64]*model.Department, id uint64) string {
+	if id == 0 {
+		return "-"
+	}
+	if dept, ok := deptMap[id]; ok && dept != nil && dept.Name != "" {
+		return dept.Name
+	}
+	return "-"
+}
+
+func getRoleName(roleMap map[uint64]*model.Role, id uint64) string {
+	if id == 0 {
+		return "-"
+	}
+	if role, ok := roleMap[id]; ok && role != nil && role.Name != "" {
+		return role.Name
+	}
+	return "-"
 }

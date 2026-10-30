@@ -37,6 +37,7 @@ func (a *AuthHandler) Login(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	c.Set("user_id", user.ID)
 	token, err := utils.GenerateToken(user.Name, user.ID, user.StudentID, a.JwtSecret, a.JwtExpire)
 	if err != nil {
 		response.ServerError(c, "生成Token", err)
@@ -60,6 +61,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	c.Set("user_id", record.UserID)
 	user, err := a.UserService.FindUserByID(ctx, record.UserID)
 	if err != nil {
 		response.BadRequest(c, err.Error())

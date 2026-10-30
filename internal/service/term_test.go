@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -512,6 +514,34 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		if checkApp.Decision != model.DecisionPending {
 			t.Fatalf("expected decision %q after delete, got %q", model.DecisionPending, checkApp.Decision)
 		}
+		if checkApp.OperatorID != 0 {
+			t.Fatalf("expected operator_id to be reset to 0 after delete, got %d", checkApp.OperatorID)
+		}
+
+		// 验证删除面试结果后 has_result 筛选恢复：has_result=false 包含该申请，has_result=true 不包含
+		appsAfterDeleteFilled, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &trueVal)
+		if err != nil {
+			t.Fatalf("GetApplicationList filled after delete failed: %v", err)
+		}
+		for _, fa := range appsAfterDeleteFilled {
+			if fa.ID == app.ID {
+				t.Fatalf("deleted interview result should not appear in has_result=true list")
+			}
+		}
+		appsAfterDeleteUnfilled, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &falseVal)
+		if err != nil {
+			t.Fatalf("GetApplicationList unfilled after delete failed: %v", err)
+		}
+		foundAfterDelete := false
+		for _, ufa := range appsAfterDeleteUnfilled {
+			if ufa.ID == app.ID {
+				foundAfterDelete = true
+				break
+			}
+		}
+		if !foundAfterDelete {
+			t.Fatalf("deleted interview result should appear in has_result=false list")
+		}
 
 		var resCount int64
 		db.Model(&model.InterviewResult{}).Where("application_id = ?", app.ID).Count(&resCount)
@@ -621,6 +651,321 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		_, err = svc.GetApplicationList(ctx, operator.ID, 0, outTerm.ID, nil)
 		if err == nil || !strings.Contains(err.Error(), "不在查询时间范围内") {
 			t.Fatalf("expected '不在查询时间范围内' for expired term, got: %v", err)
+		}
+	})
+}
+
+func TestExportInterviewResults(t *testing.T) {
+	svc, db := setupTestTermService(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	// 准备基础部门与角色数据
+	deptDev := model.Department{ID: 10, Name: "开发部", Type: "部门"}
+	deptNet := model.Department{ID: 20, Name: "网络部", Type: "部门"}
+	db.Create(&deptDev)
+	db.Create(&deptNet)
+
+	roleVP := model.Role{ID: 100, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	roleMinister := model.Role{ID: 101, Name: "部长", Level: 50, Type: "部门", IsActive: true}
+	roleOfficer := model.Role{ID: 102, Name: "干事", Level: 10, Type: "部门", IsActive: true}
+	db.Create(&roleVP)
+	db.Create(&roleMinister)
+	db.Create(&roleOfficer)
+
+	// 准备用户：
+	// 1. 副会长 (Level 80, 未毕业)
+	vpUser := model.User{
+		ID:           500,
+		Name:         "副会长张三",
+		StudentID:    "20230000500",
+		Username:     "vp_user",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleVP.ID,
+		IsGraduated:  false,
+	}
+	// 2. 部长 (Level 50, 未毕业，权限不够)
+	ministerUser := model.User{
+		ID:           501,
+		Name:         "部长李四",
+		StudentID:    "20230000501",
+		Username:     "minister_user",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleMinister.ID,
+		IsGraduated:  false,
+	}
+	// 3. 已毕业副会长 (Level 80, 已毕业，无操作权限)
+	graduatedVP := model.User{
+		ID:           502,
+		Name:         "老副会长王五",
+		StudentID:    "20210000502",
+		Username:     "grad_vp",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleVP.ID,
+		IsGraduated:  true,
+	}
+	// 4. 申请人1 (带面试结果)
+	candidate1 := model.User{
+		ID:           503,
+		Name:         "申请人甲",
+		StudentID:    "20240101001",
+		Username:     "cand_1",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleOfficer.ID,
+		IsGraduated:  false,
+	}
+	// 5. 申请人2 (无面试结果，待定)
+	candidate2 := model.User{
+		ID:           504,
+		Name:         "申请人乙",
+		StudentID:    "20240101002",
+		Username:     "cand_2",
+		DepartmentID: deptNet.ID,
+		RoleID:       roleOfficer.ID,
+		IsGraduated:  false,
+	}
+	db.Create(&vpUser)
+	db.Create(&ministerUser)
+	db.Create(&graduatedVP)
+	db.Create(&candidate1)
+	db.Create(&candidate2)
+
+	// 周期：已过期周期 (满足“时间可以不用限制”测试)
+	expiredTerm := model.Term{
+		ID:             50,
+		Title:          "2025年秋季招新",
+		Type:           model.TermTypeRecruit,
+		Year:           2025,
+		EditStartAt:    now.Add(-72 * time.Hour),
+		EditEndAt:      now.Add(-48 * time.Hour),
+		QueryStartAt:   now.Add(-47 * time.Hour),
+		QueryEndAt:     now.Add(-24 * time.Hour),
+		ExecuteAfterAt: now.Add(-12 * time.Hour),
+	}
+	db.Create(&expiredTerm)
+
+	trueVal := true
+	app1 := model.Application{
+		ID:                 5001,
+		TermID:             expiredTerm.ID,
+		Type:               model.TermTypeRecruit,
+		UserID:             candidate1.ID,
+		Name:               candidate1.Name,
+		Gender:             "男",
+		StudentID:          candidate1.StudentID,
+		College:            "计算机科学与工程学院",
+		MajorClass:         "计科241",
+		PoliticalStatus:    "共青团员",
+		BirthDate:          "2005-09",
+		Phone:              "13800000001",
+		QQ:                 "10001",
+		FirstChoice:        model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
+		SecondChoice:       model.OrganizationRole{DepartmentID: deptNet.ID, RoleID: roleOfficer.ID},
+		AllowAdjust:        &trueVal,
+		Decision:           model.DecisionAdmittedFirst,
+		Result:             model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
+		OperatorID:         vpUser.ID,
+		DecisionRemark:     "表现优异，通过第一志愿",
+		CreatedAt:          now.Add(-48 * time.Hour),
+		UpdatedAt:          now.Add(-30 * time.Hour),
+	}
+	app2 := model.Application{
+		ID:              5002,
+		TermID:          expiredTerm.ID,
+		Type:            model.TermTypeRecruit,
+		UserID:          candidate2.ID,
+		Name:            candidate2.Name,
+		Gender:          "女",
+		StudentID:       candidate2.StudentID,
+		College:         "理学院",
+		MajorClass:      "统计241",
+		PoliticalStatus: "共青团员",
+		BirthDate:       "2005-10",
+		Phone:           "13800000002",
+		QQ:              "10002",
+		FirstChoice:     model.OrganizationRole{DepartmentID: deptNet.ID, RoleID: roleOfficer.ID},
+		SecondChoice:    model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
+		AllowAdjust:     &trueVal,
+		Decision:        model.DecisionPending,
+		OperatorID:      0,
+		CreatedAt:       now.Add(-47 * time.Hour),
+		UpdatedAt:       now.Add(-47 * time.Hour),
+	}
+	db.Create(&app1)
+	db.Create(&app2)
+
+	t.Run("权限校验：低于副会长（部长）不能导出", func(t *testing.T) {
+		req := request.ExportInterviewResultReq{TermID: expiredTerm.ID}
+		_, _, err := svc.ExportInterviewResults(ctx, ministerUser.ID, req)
+		if err == nil || !strings.Contains(err.Error(), "权限不够") {
+			t.Fatalf("expected '权限不够' for minister, got: %v", err)
+		}
+	})
+
+	t.Run("权限校验：已毕业副会长不能导出", func(t *testing.T) {
+		req := request.ExportInterviewResultReq{TermID: expiredTerm.ID}
+		_, _, err := svc.ExportInterviewResults(ctx, graduatedVP.ID, req)
+		if err == nil || !strings.Contains(err.Error(), "已毕业成员无操作权限") {
+			t.Fatalf("expected '已毕业成员无操作权限' for graduated VP, got: %v", err)
+		}
+	})
+
+	t.Run("时间不限制：即使周期已过期，在任副会长仍可成功导出Excel", func(t *testing.T) {
+		req := request.ExportInterviewResultReq{TermID: expiredTerm.ID}
+		bytesData, filename, err := svc.ExportInterviewResults(ctx, vpUser.ID, req)
+		if err != nil {
+			t.Fatalf("expected export to succeed, got error: %v", err)
+		}
+		if !strings.Contains(filename, "2025年秋季招新_面试结果.xlsx") {
+			t.Fatalf("expected filename containing '2025年秋季招新_面试结果.xlsx', got: %s", filename)
+		}
+		if len(bytesData) == 0 {
+			t.Fatalf("expected non-empty byte slice")
+		}
+
+		// 使用 excelize 解析导出的 Excel 文件，验证结构与数据
+		excelFile, err := excelize.OpenReader(bytes.NewReader(bytesData))
+		if err != nil {
+			t.Fatalf("failed to open generated excel: %v", err)
+		}
+		defer excelFile.Close()
+
+		sheetName := "面试结果"
+		rows, err := excelFile.GetRows(sheetName)
+		if err != nil {
+			t.Fatalf("failed to get rows from sheet %s: %v", sheetName, err)
+		}
+
+		// 验证表头与数据行数：1 表头 + 2 申请记录 = 3 行
+		if len(rows) != 3 {
+			t.Fatalf("expected 3 rows, got %d", len(rows))
+		}
+
+		// 验证表头各关键列名
+		headers := rows[0]
+		expectedHeaders := []string{"业务周期", "业务类型", "学号", "姓名", "性别", "学院", "专业班级"}
+		for i, expected := range expectedHeaders {
+			if headers[i] != expected {
+				t.Fatalf("header col %d: expected %s, got %s", i, expected, headers[i])
+			}
+		}
+
+		// 验证数据内容：由于按 created_at DESC 排序，app2在前，app1在后
+		row1 := rows[1] // app2
+		if row1[2] != candidate2.StudentID || row1[3] != candidate2.Name || row1[15] != model.DecisionPending {
+			t.Fatalf("row 1 data mismatch: student=%s, name=%s, decision=%s", row1[2], row1[3], row1[15])
+		}
+		if row1[18] != "-" {
+			t.Fatalf("expected operator name '-' for pending app, got %s", row1[18])
+		}
+
+		row2 := rows[2] // app1
+		if row2[2] != candidate1.StudentID || row2[3] != candidate1.Name || row2[15] != model.DecisionAdmittedFirst {
+			t.Fatalf("row 2 data mismatch: student=%s, name=%s, decision=%s", row2[2], row2[3], row2[15])
+		}
+		if row2[18] != vpUser.Name {
+			t.Fatalf("expected operator name %s, got %s", vpUser.Name, row2[18])
+		}
+	})
+
+	t.Run("支持按部门筛选申请表导出", func(t *testing.T) {
+		req := request.ExportInterviewResultReq{
+			TermID:       expiredTerm.ID,
+			DepartmentID: deptDev.ID,
+		}
+		bytesData, _, err := svc.ExportInterviewResults(ctx, vpUser.ID, req)
+		if err != nil {
+			t.Fatalf("export with department filter failed: %v", err)
+		}
+		excelFile, err := excelize.OpenReader(bytes.NewReader(bytesData))
+		if err != nil {
+			t.Fatalf("failed to open generated excel: %v", err)
+		}
+		defer excelFile.Close()
+
+		rows, err := excelFile.GetRows("面试结果")
+		if err != nil {
+			t.Fatalf("failed to get rows: %v", err)
+		}
+		if len(rows) < 2 {
+			t.Fatalf("expected rows with deptDev, got %d", len(rows))
+		}
+	})
+
+	t.Run("位状态压缩字段导出测试", func(t *testing.T) {
+		// 1. 获取字段定义列表元数据
+		meta := svc.GetExportFieldsDefinition()
+		if meta.TotalFields != 22 {
+			t.Fatalf("expected 22 export field definitions, got %d", meta.TotalFields)
+		}
+		if meta.AllMask != request.ExportFieldAllMask {
+			t.Fatalf("expected all_mask %d, got %d", request.ExportFieldAllMask, meta.AllMask)
+		}
+		for _, def := range meta.Fields {
+			if def.Mask != (uint64(1) << def.Bit) {
+				t.Fatalf("def %s: expected mask %d, got %d", def.Key, uint64(1)<<def.Bit, def.Mask)
+			}
+		}
+
+		// 2. 自定义选定字段导出：仅导出 学号 + 姓名 + 面试决策
+		selectedMask := (uint64(1) << request.ExportFieldBitStudentID) |
+			(uint64(1) << request.ExportFieldBitName) |
+			(uint64(1) << request.ExportFieldBitDecision)
+
+		req := request.ExportInterviewResultReq{
+			TermID: expiredTerm.ID,
+			Fields: selectedMask,
+		}
+		bytesData, _, err := svc.ExportInterviewResults(ctx, vpUser.ID, req)
+		if err != nil {
+			t.Fatalf("export with selected fields failed: %v", err)
+		}
+
+		excelFile, err := excelize.OpenReader(bytes.NewReader(bytesData))
+		if err != nil {
+			t.Fatalf("failed to open generated excel: %v", err)
+		}
+		defer excelFile.Close()
+
+		rows, err := excelFile.GetRows("面试结果")
+		if err != nil {
+			t.Fatalf("failed to get rows: %v", err)
+		}
+
+		// 验证列数：恰好只有 3 列
+		if len(rows[0]) != 3 {
+			t.Fatalf("expected 3 header columns, got %d: %v", len(rows[0]), rows[0])
+		}
+		if rows[0][0] != "学号" || rows[0][1] != "姓名" || rows[0][2] != "面试决策" {
+			t.Fatalf("expected headers [学号, 姓名, 面试决策], got %v", rows[0])
+		}
+
+		// 验证数据行只有 3 列
+		if len(rows[1]) != 3 || rows[1][0] != candidate2.StudentID || rows[1][1] != candidate2.Name || rows[1][2] != model.DecisionPending {
+			t.Fatalf("row 1 data mismatch: %v", rows[1])
+		}
+		if len(rows[2]) != 3 || rows[2][0] != candidate1.StudentID || rows[2][1] != candidate1.Name || rows[2][2] != model.DecisionAdmittedFirst {
+			t.Fatalf("row 2 data mismatch: %v", rows[2])
+		}
+
+		// 3. 无效掩码（未选择任何有效字段）测试
+		invalidReq := request.ExportInterviewResultReq{
+			TermID: expiredTerm.ID,
+			Fields: uint64(1) << 60, // 超出已知字段范围的位
+		}
+		_, _, err = svc.ExportInterviewResults(ctx, vpUser.ID, invalidReq)
+		if err == nil || !strings.Contains(err.Error(), "未选择任何有效导出字段") {
+			t.Fatalf("expected '未选择任何有效导出字段' error, got: %v", err)
+		}
+
+		// 4. 不存在的部门ID筛选测试
+		invalidDeptReq := request.ExportInterviewResultReq{
+			TermID:       expiredTerm.ID,
+			DepartmentID: 999999,
+		}
+		_, _, err = svc.ExportInterviewResults(ctx, vpUser.ID, invalidDeptReq)
+		if err == nil || !strings.Contains(err.Error(), "部门不存在") {
+			t.Fatalf("expected '部门不存在' error, got: %v", err)
 		}
 	})
 }

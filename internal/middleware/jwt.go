@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"strings"
+	"suseoaa/pkg/logger"
 	"suseoaa/pkg/response"
 	"suseoaa/pkg/utils"
 
@@ -36,6 +37,10 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		c.Set("user_id", claims.UserID)
 		c.Set("name", claims.Name)
 		c.Set("student_id", claims.StudentID)
+
+		ctx := logger.WithUserID(c.Request.Context(), claims.UserID)
+		c.Request = c.Request.WithContext(ctx)
+
 		c.Next()
 	}
 }

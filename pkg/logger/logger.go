@@ -11,6 +11,7 @@ type contextKey string
 const (
 	TraceIDKey    contextKey = "trace_id"
 	TraceIDHeader            = "X-Request-ID"
+	UserIDKey     contextKey = "user_id"
 )
 
 func WithTraceID(ctx context.Context, traceID string) context.Context {
@@ -27,6 +28,20 @@ func GetTraceID(ctx context.Context) string {
 	return ""
 }
 
+func WithUserID(ctx context.Context, userID uint64) context.Context {
+	return context.WithValue(ctx, UserIDKey, userID)
+}
+
+func GetUserID(ctx context.Context) uint64 {
+	if ctx == nil {
+		return 0
+	}
+	if v, ok := ctx.Value(UserIDKey).(uint64); ok {
+		return v
+	}
+	return 0
+}
+
 type traceHandler struct {
 	slog.Handler
 }
@@ -34,6 +49,9 @@ type traceHandler struct {
 func (h *traceHandler) Handle(ctx context.Context, r slog.Record) error {
 	if traceID := GetTraceID(ctx); traceID != "" {
 		r.AddAttrs(slog.String("trace_id", traceID))
+	}
+	if userID := GetUserID(ctx); userID > 0 {
+		r.AddAttrs(slog.Uint64("user_id", userID))
 	}
 	return h.Handler.Handle(ctx, r)
 }

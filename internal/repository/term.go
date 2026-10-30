@@ -71,16 +71,16 @@ func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Cont
 	var application []*model.Application
 	tx := t.DB.WithContext(ctx)
 	if departmentID != 0 {
-		tx = tx.Where("first_department_id = ? OR second_department_id = ?", departmentID, departmentID)
+		tx = tx.Where("first_department_id = ? OR second_department_id = ? OR result_department_id = ?", departmentID, departmentID, departmentID)
 	}
 	if termID != 0 {
 		tx = tx.Where("term_id = ?", termID)
 	}
 	if hasResult != nil {
 		if *hasResult {
-			tx = tx.Where("decision != ? OR id IN (SELECT application_id FROM interview_results WHERE deleted_at = 0)", model.DecisionPending)
+			tx = tx.Where("operator_id > 0")
 		} else {
-			tx = tx.Where("decision = ? AND id NOT IN (SELECT application_id FROM interview_results WHERE deleted_at = 0)", model.DecisionPending)
+			tx = tx.Where("operator_id = 0 OR operator_id IS NULL")
 		}
 	}
 	err := tx.Order("created_at DESC").Find(&application).Error

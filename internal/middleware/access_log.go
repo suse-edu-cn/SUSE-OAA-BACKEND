@@ -19,6 +19,11 @@ func AccessLog() gin.HandlerFunc {
 		latency := time.Since(start)
 		status := c.Writer.Status()
 		ctx := c.Request.Context()
+		if logger.GetUserID(ctx) == 0 {
+			if uid := c.GetUint64("user_id"); uid > 0 {
+				ctx = logger.WithUserID(ctx, uid)
+			}
+		}
 		if rawQuery != "" {
 			path = path + "?" + rawQuery
 		}

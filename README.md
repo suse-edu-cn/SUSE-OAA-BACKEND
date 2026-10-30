@@ -404,12 +404,51 @@ Authorization: Bearer <token>
 | POST | `/v2/interviewer/result/delete` | 登录 | 删除面试决策结果并重置申请表为“待定” | JSON：`application_id` |
 | GET | `/v2/interviewer/result/list` | 登录 | 查询面试结果列表 | Query：`term_id` |
 | GET | `/v2/interviewer/result/decision` | 登录 | 获取面试决策枚举 | 无 |
+| GET | `/v2/interviewer/result/export` | 登录（副会长及以上） | 导出面试结果与申请表为 Excel 文件（不受周期时间限制） | Query：`term_id`（可选）、`department_id`（可选）、`fields`（可选 uint64，位状态压缩字段掩码） |
+| GET | `/v2/interviewer/result/fields` | 登录 | 查询可导出的字段列表及其位状态压缩定义元数据 | 无 |
 
 - **状态双向联动与重置规则**：
   - **录入/更新**：事务内同时更新 `interview_results` 表与 `applications` 表，使申请表即刻体现“录取第一志愿”、“录取第二志愿”、“已调剂”、“未通过”等最新决策；
   - **删除重置**：调用 `/v2/interviewer/result/delete` 后，关联申请表的 `decision` 字段自动重置为 `"待定"`，清空拟录用部门与职位；
   - **防重复录入**：已录入结果的申请表禁止重复创建，返回 `400 "该申请表的面试结果已存在"`；
   - **级联清理**：删除申请表时同步安全软删除其关联的面试结果。
+- **面试结果导出规则 (`GET /v2/interviewer/result/export`)**：
+  - **权限管控**：仅限在任副会长及以上管理者（`level >= 80` 且 `is_graduated: false`）导出，权限不足返回 `403 Forbidden`；
+  - **时间窗口**：导出操作不受周期的编辑期（`edit_period`）或查询期（`query_period`）的时间限制，任意时间均可导出归档；
+  - **数据基础**：直接基于最新 `applications` 申请表视图导出，包含联动更新后的录取决策、录取部门、录取职位、审核人姓名与决策备注；
+  - **筛选维度**：支持按 `term_id`（周期）、`department_id`（部门）；
+  - **位状态压缩自选字段（Bitmask Compression）**：
+    - 前端通过可选参数 `fields`（无符号 64 位整数）控制导出列，仅选中的字段才会包含在生成的 Excel 中；未传或传 0 时默认全选导出所有字段；
+    - 可调用 `GET /v2/interviewer/result/fields` 获取动态元数据列表；
+    - 掩码计算公式：`fields = (1 << bit_0) | (1 << bit_1) | ...`；
+    - **严格规定的导出字段位状态字典**：
+
+| 位（Bit） | 掩码值（Dec） | 字段标识（Key） | 列标题（Label） | 默认对齐 |
+|:---:|:---:|:---|:---|:---:|
+| 0 | 1 | `term_title` | 业务周期 | 居中 |
+| 1 | 2 | `type` | 业务类型 | 居中 |
+| 2 | 4 | `student_id` | 学号 | 居中 |
+| 3 | 8 | `name` | 姓名 | 居中 |
+| 4 | 16 | `gender` | 性别 | 居中 |
+| 5 | 32 | `college` | 学院 | 居左 |
+| 6 | 64 | `major_class` | 专业班级 | 居中 |
+| 7 | 128 | `political_status` | 政治面貌 | 居中 |
+| 8 | 256 | `birth_date` | 出生年月 | 居中 |
+| 9 | 512 | `phone` | 联系电话 | 居中 |
+| 10 | 1024 | `qq` | QQ | 居中 |
+| 11 | 2048 | `first_department` | 第一志愿部门 | 居中 |
+| 12 | 4096 | `first_role` | 第一志愿职位 | 居中 |
+| 13 | 8192 | `second_department` | 第二志愿部门 | 居中 |
+| 14 | 16384 | `second_role` | 第二志愿职位 | 居中 |
+| 15 | 32768 | `decision` | 面试决策 | 居中 |
+| 16 | 65536 | `result_department` | 录取部门 | 居中 |
+| 17 | 131072 | `result_role` | 录取职位 | 居中 |
+| 18 | 262144 | `operator_name` | 审核人 | 居中 |
+| 19 | 524288 | `decision_remark` | 决策备注 | 居左 |
+| 20 | 1048576 | `created_at` | 提交时间 | 居中 |
+| 21 | 2097152 | `updated_at` | 更新时间 | 居中 |
+
+  - **导出样式**：自动生成带深蓝专业表头、隔行斑马纹、自适应中英文列宽的 `.xlsx` 文件，响应头携带 `Content-Disposition: attachment; filename="<周期标题>_面试结果.xlsx"`。
 
 ---
 

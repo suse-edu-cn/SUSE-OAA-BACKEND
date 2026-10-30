@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/request"
@@ -34,6 +37,7 @@ func handleTermError(c *gin.Context, action string, err error) {
 		strings.Contains(msg, "申请") ||
 		strings.Contains(msg, "面试") ||
 		strings.Contains(msg, "职位") ||
+		strings.Contains(msg, "部门") ||
 		strings.Contains(msg, "志愿") ||
 		strings.Contains(msg, "调剂") ||
 		strings.Contains(msg, "决定") ||
@@ -41,6 +45,8 @@ func handleTermError(c *gin.Context, action string, err error) {
 		strings.Contains(msg, "不匹配") ||
 		strings.Contains(msg, "毕业") ||
 		strings.Contains(msg, "类型错误") ||
+		strings.Contains(msg, "字段") ||
+		strings.Contains(msg, "导出") ||
 		strings.Contains(msg, "record not found") {
 		if strings.Contains(msg, "record not found") {
 			response.BadRequest(c, "数据不存在")
@@ -437,4 +443,33 @@ func (t *TermHandler) GetInterviewResultList(c *gin.Context) {
 func (t *TermHandler) GetInterviewResultDecision(c *gin.Context) {
 	result := t.TermService.GetInterviewResultDecision()
 	response.Success(c, result)
+}
+
+func (t *TermHandler) ExportInterviewResults(c *gin.Context) {
+	var req request.ExportInterviewResultReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.ParamError(c, err)
+		return
+	}
+
+	operatorID := c.GetUint64("user_id")
+	ctx := c.Request.Context()
+
+	fileBytes, filename, err := t.TermService.ExportInterviewResults(ctx, operatorID, req)
+	if err != nil {
+		handleTermError(c, "导出面试结果", err)
+		return
+	}
+
+	escapedFilename := url.PathEscape(filename)
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, escapedFilename, escapedFilename))
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBytes)
+}
+
+func (t *TermHandler) GetExportFields(c *gin.Context) {
+	defs := t.TermService.GetExportFieldsDefinition()
+	response.Success(c, defs)
 }

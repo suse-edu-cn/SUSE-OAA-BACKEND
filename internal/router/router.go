@@ -116,6 +116,8 @@ func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies [
 			result.POST("delete", total.Term.DeleteInterviewResult)
 			result.GET("list", total.Term.GetInterviewResultList)
 			result.GET("decision", total.Term.GetInterviewResultDecision)
+			result.GET("export", total.Term.ExportInterviewResults)
+			result.GET("fields", total.Term.GetExportFields)
 		}
 	}
 	upload := r.Group("v2/upload")

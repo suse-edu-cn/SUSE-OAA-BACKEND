@@ -192,3 +192,49 @@ type DeleteInterviewResultReq struct {
 type GetInterviewResultListReq struct {
 	TermID uint64 `form:"term_id"`
 }
+
+type ExportInterviewResultReq struct {
+	TermID       uint64 `form:"term_id"`
+	DepartmentID uint64 `form:"department_id"`
+	Fields       uint64 `form:"fields"`
+}
+
+type ExportFieldDef struct {
+	Bit   uint8  `json:"bit"`
+	Mask  uint64 `json:"mask"`
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+type ExportFieldsResp struct {
+	TotalFields int              `json:"total_fields"`
+	AllMask     uint64           `json:"all_mask"`
+	Fields      []ExportFieldDef `json:"fields"`
+}
+
+const (
+	ExportFieldBitTermTitle uint8 = iota
+	ExportFieldBitType
+	ExportFieldBitStudentID
+	ExportFieldBitName
+	ExportFieldBitGender
+	ExportFieldBitCollege
+	ExportFieldBitMajorClass
+	ExportFieldBitPoliticalStatus
+	ExportFieldBitBirthDate
+	ExportFieldBitPhone
+	ExportFieldBitQQ
+	ExportFieldBitFirstDepartment
+	ExportFieldBitFirstRole
+	ExportFieldBitSecondDepartment
+	ExportFieldBitSecondRole
+	ExportFieldBitDecision
+	ExportFieldBitResultDepartment
+	ExportFieldBitResultRole
+	ExportFieldBitOperatorName
+	ExportFieldBitDecisionRemark
+	ExportFieldBitCreatedAt
+	ExportFieldBitUpdatedAt
+)
+
+const ExportFieldAllMask uint64 = (uint64(1) << 22) - 1
