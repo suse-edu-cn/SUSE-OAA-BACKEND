@@ -182,7 +182,14 @@ func (u *UserService) GetRefreshTokenByToken(ctx context.Context, token string) 
 	return u.Repo.GetRefreshTokenByToken(ctx, token)
 }
 
-func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, grade uint, isGraduated *bool, page int, pageSize int, isAll *bool) ([]model.UserInfo, int64, error) {
+func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, grade uint, isGraduated *bool, page int, pageSize int, isAll *bool, userID uint64) ([]model.UserInfo, int64, error) {
+	level, _, err := u.Repo.GetRoleLevelAndDepartment(ctx, userID)
+	if err != nil {
+		return nil, 0, errors.New("获取用户职位失败")
+	}
+	if level < 50 {
+		return nil, 0, errors.New("权限不够")
+	}
 	const (
 		defaultPageSize = 20
 		maxPageSize     = 100

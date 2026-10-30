@@ -54,7 +54,8 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 	roleID, roleName := parseUserListIDOrName(req.RoleID, req.Role)
 
 	ctx := c.Request.Context()
-	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, departmentName, roleName, departmentID, roleID, req.Grade, req.IsGraduated, req.Page, req.PageSize, req.IsAll)
+	id := c.GetUint64("user_id")
+	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, departmentName, roleName, departmentID, roleID, req.Grade, req.IsGraduated, req.Page, req.PageSize, req.IsAll, id)
 	if err != nil {
 		response.ServerError(c, "获取用户列表", err)
 		return
@@ -156,4 +157,3 @@ func (u *UserHandler) CancelDeleteUser(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
-
