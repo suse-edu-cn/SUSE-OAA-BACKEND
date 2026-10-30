@@ -67,7 +67,7 @@ func (t *TermRepository) GetApplicationsByUserID(ctx context.Context, userID uin
 	return application, err
 }
 
-func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Context, termID uint64, departmentID uint64) ([]*model.Application, error) {
+func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Context, termID uint64, departmentID uint64, hasResult *bool) ([]*model.Application, error) {
 	var application []*model.Application
 	tx := t.DB.WithContext(ctx)
 	if departmentID != 0 {
@@ -75,6 +75,13 @@ func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Cont
 	}
 	if termID != 0 {
 		tx = tx.Where("term_id = ?", termID)
+	}
+	if hasResult != nil {
+		if *hasResult {
+			tx = tx.Where("decision != ? OR id IN (SELECT application_id FROM interview_results WHERE deleted_at = 0)", model.DecisionPending)
+		} else {
+			tx = tx.Where("decision = ? AND id NOT IN (SELECT application_id FROM interview_results WHERE deleted_at = 0)", model.DecisionPending)
+		}
 	}
 	err := tx.Order("created_at DESC").Find(&application).Error
 	return application, err

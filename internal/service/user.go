@@ -51,7 +51,9 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 	if req.StudentID == "" || req.Username == "" || req.Name == "" || req.Email == "" || req.Password == "" {
 		return errors.New("注册信息不能为空")
 	}
-
+	if !(len(req.StudentID) == 11 || (len(req.StudentID) == 12 && req.StudentID[0] == '3')) {
+		return errors.New("学号格式错误")
+	}
 	if req.Grade <= 2000 || req.Grade > 9999 {
 		return errors.New("入学年份不合法")
 	}

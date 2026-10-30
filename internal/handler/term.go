@@ -273,7 +273,7 @@ func (t *TermHandler) GetApplicationList(c *gin.Context) {
 	}
 	id := c.GetUint64("user_id")
 	ctx := c.Request.Context()
-	applications, err := t.TermService.GetApplicationList(ctx, id, req.DepartmentID, req.TermID)
+	applications, err := t.TermService.GetApplicationList(ctx, id, req.DepartmentID, req.TermID, req.HasResult)
 	if err != nil {
 		handleTermError(c, "获取申请表列表", err)
 		return

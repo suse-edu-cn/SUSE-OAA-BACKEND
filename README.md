@@ -379,7 +379,7 @@ Authorization: Bearer <token>
 | GET | `/v2/application/me` | 登录 | 查看本人最新申请表（query 周期结束前决策状态保密显示为“待定”，结束后展示真实录用状态） | 无 |
 | GET | `/v2/application/department` | 登录 | 联动查询可选部门 | Query：`role_id`（可选） |
 | GET | `/v2/application/role` | 登录 | 联动查询可选职位 | Query：`department_id`（可选） |
-| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（展示面试评审与决策状态实时流转） | Query：`term_id`（必填）、`department_id`（可选） |
+| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（招新换届期间均可查看，填报修改期仅可查阅不可修改面试结果） | Query：`term_id`（必填）、`department_id`（可选）、`has_result`（可选 bool，筛选是否已录入面试结果） |
 | POST | `/v2/application/delete` | 登录 | 删除申请表 | JSON：`application_id` |
 
 ---

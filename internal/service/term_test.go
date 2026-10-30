@@ -398,7 +398,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		}
 
 		// 面试官视角：查看申请表列表，能够看到录用状态改变
-		interviewerApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID)
+		interviewerApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, nil)
 		if err != nil {
 			t.Fatalf("GetApplicationList failed: %v", err)
 		}
@@ -416,6 +416,29 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		}
 		if !foundAppInList {
 			t.Fatalf("expected to find app in interviewer application list")
+		}
+
+		// 筛选 has_result 测试
+		trueVal := true
+		falseVal := false
+		filledApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &trueVal)
+		if err != nil {
+			t.Fatalf("GetApplicationList with has_result=true failed: %v", err)
+		}
+		for _, fa := range filledApps {
+			if fa.Decision == model.DecisionPending {
+				t.Fatalf("expected filled apps to not be pending, got id=%d", fa.ID)
+			}
+		}
+
+		unfilledApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &falseVal)
+		if err != nil {
+			t.Fatalf("GetApplicationList with has_result=false failed: %v", err)
+		}
+		for _, ufa := range unfilledApps {
+			if ufa.Decision != model.DecisionPending {
+				t.Fatalf("expected unfilled apps to be pending, got id=%d, decision=%s", ufa.ID, ufa.Decision)
+			}
 		}
 
 		// 个人视角：query 周期未结束时，查看本人的申请表不可以看到状态改变（始终保持为待定，拟录取结果与备注脱敏清空）
@@ -523,6 +546,81 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		// 7. 删除不存在的申请表面试结果应报错
 		if err := svc.DeleteInterviewResult(ctx, operator.ID, 999999); err == nil || !strings.Contains(err.Error(), "不存在") {
 			t.Fatalf("expected non-existent error, got: %v", err)
+		}
+	})
+
+	t.Run("招新换届填报修改期内可以查看申请表但不能修改面试结果", func(t *testing.T) {
+		// 处于填报修改期 (edit_period)
+		editTerm := model.Term{
+			ID:             20,
+			Title:          "2026春招-填报期",
+			Type:           model.TermTypeRecruit,
+			Year:           2027,
+			EditStartAt:    now.Add(-2 * time.Hour),
+			EditEndAt:      now.Add(2 * time.Hour),
+			QueryStartAt:   now.Add(3 * time.Hour),
+			QueryEndAt:     now.Add(24 * time.Hour),
+			ExecuteAfterAt: now.Add(25 * time.Hour),
+		}
+		db.Create(&editTerm)
+
+		editCandidate := model.User{
+			ID:           40,
+			StudentID:    "20230040",
+			Username:     "edit_cand",
+			Grade:        2023,
+			IsGraduated:  false,
+			DepartmentID: 1,
+			RoleID:       1,
+		}
+		db.Create(&editCandidate)
+
+		editApp := model.Application{
+			ID:          400,
+			TermID:      editTerm.ID,
+			UserID:      editCandidate.ID,
+			Decision:    model.DecisionPending,
+			FirstChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 2},
+		}
+		db.Create(&editApp)
+
+		// 1. 修改期内管理员/面试官允许调用 GetApplicationList 查看申请表
+		apps, err := svc.GetApplicationList(ctx, operator.ID, 0, editTerm.ID, nil)
+		if err != nil {
+			t.Fatalf("expected GetApplicationList to succeed during edit period, got: %v", err)
+		}
+		if len(apps) == 0 {
+			t.Fatalf("expected applications returned, got 0")
+		}
+
+		// 2. 修改期内不能录入面试结果 (只能查看不能修改)
+		createReq := request.CreateInterviewResultReq{
+			ApplicationID:      editApp.ID,
+			Decision:           model.DecisionAdmittedFirst,
+			ResultDepartmentID: 1,
+			ResultRoleID:       2,
+		}
+		err = svc.CreateInterviewResult(ctx, operator.ID, createReq)
+		if err == nil || !strings.Contains(err.Error(), "不在时间范围内") {
+			t.Fatalf("expected '不在时间范围内' when creating interview result during edit period, got: %v", err)
+		}
+
+		// 3. 超出周期范围后查看应被拦截
+		outTerm := model.Term{
+			ID:             21,
+			Title:          "已过期周期",
+			Type:           model.TermTypeRecruit,
+			Year:           2025,
+			EditStartAt:    now.Add(-48 * time.Hour),
+			EditEndAt:      now.Add(-24 * time.Hour),
+			QueryStartAt:   now.Add(-23 * time.Hour),
+			QueryEndAt:     now.Add(-1 * time.Hour),
+			ExecuteAfterAt: now.Add(-30 * time.Minute),
+		}
+		db.Create(&outTerm)
+		_, err = svc.GetApplicationList(ctx, operator.ID, 0, outTerm.ID, nil)
+		if err == nil || !strings.Contains(err.Error(), "不在查询时间范围内") {
+			t.Fatalf("expected '不在查询时间范围内' for expired term, got: %v", err)
 		}
 	})
 }

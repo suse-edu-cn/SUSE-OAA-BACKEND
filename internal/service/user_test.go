@@ -82,7 +82,7 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 		{
 			name: "空密码",
 			req: request.RegisterReq{
-				StudentID: "20240101",
+				StudentID: "20240101001",
 				Username:  "zhangsan",
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
@@ -92,9 +92,21 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 			wantErr: "注册信息不能为空",
 		},
 		{
-			name: "入学年份为0",
+			name: "学号长度不合法",
 			req: request.RegisterReq{
 				StudentID: "20240101",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "123456",
+				Grade:     2024,
+			},
+			wantErr: "学号格式错误",
+		},
+		{
+			name: "入学年份为0",
+			req: request.RegisterReq{
+				StudentID: "20240101001",
 				Username:  "zhangsan",
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
@@ -106,7 +118,7 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 		{
 			name: "入学年份等于2000",
 			req: request.RegisterReq{
-				StudentID: "20240101",
+				StudentID: "20240101001",
 				Username:  "zhangsan",
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
@@ -118,7 +130,7 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 		{
 			name: "入学年份大于9999",
 			req: request.RegisterReq{
-				StudentID: "20240101",
+				StudentID: "20240101001",
 				Username:  "zhangsan",
 				Name:      "张三",
 				Email:     "zhangsan@test.com",

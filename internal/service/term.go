@@ -486,12 +486,14 @@ func (t *TermService) resolveApplicationListScope(ctx context.Context, userID ui
 	return 0, errors.New("无权限查看该周期申请")
 }
 
-func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, departmentID uint64, termID uint64) ([]*model.Application, error) {
+func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, departmentID uint64, termID uint64, hasResult *bool) ([]*model.Application, error) {
 	term, err := t.TermRepo.GetTermByID(ctx, termID)
 	if err != nil {
 		return nil, err
 	}
-	if !term.IsInQueryPeriod(time.Now()) {
+	now := time.Now()
+	// 在招新换届时间段内（填报修改期或评审决选期）均可查看申请表
+	if !(term.IsInQueryPeriod(now) || term.IsInEditPeriod(now) || (!now.Before(term.EditStartAt) && !now.After(term.QueryEndAt))) {
 		return nil, errors.New("不在查询时间范围内")
 	}
 
@@ -500,7 +502,7 @@ func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, dep
 		return nil, err
 	}
 
-	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, termID, finalDepartmentID)
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, termID, finalDepartmentID, hasResult)
 	if err != nil {
 		return nil, err
 	}
