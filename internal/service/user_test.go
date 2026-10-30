@@ -552,3 +552,119 @@ func TestUserService_UpdateUserInfo_GradeValidation(t *testing.T) {
 	}
 }
 
+// 8. 测试真实接口：UserService.GetUserList 权限控制
+func TestUserService_GetUserList_Permission(t *testing.T) {
+	svc, db, _ := setupTestUserService(t)
+	ctx := context.Background()
+
+	deptDev := model.Department{ID: 10, Name: "开发部", Type: "部门", IsActive: true}
+	_ = db.Create(&deptDev).Error
+
+	roleMember := model.Role{ID: 10, Name: "会员", Level: 10, Type: "部门", IsActive: true}
+	roleViceMinister := model.Role{ID: 20, Name: "副部长", Level: 50, Type: "部门", IsActive: true}
+	roleMinister := model.Role{ID: 30, Name: "部长", Level: 60, Type: "部门", IsActive: true}
+	roleInactive := model.Role{ID: 40, Name: "停用职位", Level: 60, Type: "部门", IsActive: false}
+	_ = db.Create(&roleMember).Error
+	_ = db.Create(&roleViceMinister).Error
+	_ = db.Create(&roleMinister).Error
+	_ = db.Create(&roleInactive).Error
+	_ = db.Model(&model.Role{}).Where("id = ?", roleInactive.ID).Update("is_active", false).Error
+
+	userMember := model.User{
+		ID:           5001,
+		StudentID:    "5001",
+		Username:     "member",
+		Name:         "普通会员",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleMember.ID,
+		Grade:        2024,
+		IsGraduated:  false,
+	}
+	userViceMinister := model.User{
+		ID:           5002,
+		StudentID:    "5002",
+		Username:     "vice_minister",
+		Name:         "副部长",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleViceMinister.ID,
+		Grade:        2023,
+		IsGraduated:  false,
+	}
+	userMinister := model.User{
+		ID:           5003,
+		StudentID:    "5003",
+		Username:     "minister",
+		Name:         "部长",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleMinister.ID,
+		Grade:        2022,
+		IsGraduated:  false,
+	}
+	userGraduated := model.User{
+		ID:           5004,
+		StudentID:    "5004",
+		Username:     "graduated_vp",
+		Name:         "已毕业高权限",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleMinister.ID,
+		Grade:        2019,
+		IsGraduated:  true,
+	}
+	userInactive := model.User{
+		ID:           5005,
+		StudentID:    "5005",
+		Username:     "inactive_user",
+		Name:         "停用职务用户",
+		DepartmentID: deptDev.ID,
+		RoleID:       roleInactive.ID,
+		Grade:        2023,
+		IsGraduated:  false,
+	}
+	_ = db.Create(&userMember).Error
+	_ = db.Create(&userViceMinister).Error
+	_ = db.Create(&userMinister).Error
+	_ = db.Create(&userGraduated).Error
+	_ = db.Create(&userInactive).Error
+
+	t.Run("普通会员(Level 10)应被拦截", func(t *testing.T) {
+		_, _, err := svc.GetUserList(ctx, "", "", "", 0, 0, 0, nil, 1, 20, nil, userMember.ID)
+		if err == nil || err.Error() != "权限不够" {
+			t.Fatalf("expected '权限不够', got: %v", err)
+		}
+	})
+
+	t.Run("已毕业成员即使曾为部长也应被拦截", func(t *testing.T) {
+		_, _, err := svc.GetUserList(ctx, "", "", "", 0, 0, 0, nil, 1, 20, nil, userGraduated.ID)
+		if err == nil || err.Error() != "已毕业成员无操作权限" {
+			t.Fatalf("expected '已毕业成员无操作权限', got: %v", err)
+		}
+	})
+
+	t.Run("职位被停用的用户应被拦截", func(t *testing.T) {
+		_, _, err := svc.GetUserList(ctx, "", "", "", 0, 0, 0, nil, 1, 20, nil, userInactive.ID)
+		if err == nil || err.Error() != "权限不够" {
+			t.Fatalf("expected '权限不够', got: %v", err)
+		}
+	})
+
+	t.Run("副部长(Level 50)允许获取用户列表", func(t *testing.T) {
+		list, total, err := svc.GetUserList(ctx, "", "", "", 0, 0, 0, nil, 1, 20, nil, userViceMinister.ID)
+		if err != nil {
+			t.Fatalf("unexpected error for vice minister: %v", err)
+		}
+		if total < 5 || len(list) == 0 {
+			t.Fatalf("expected users returned, got total=%d, len=%d", total, len(list))
+		}
+	})
+
+	t.Run("部长(Level 60)允许获取用户列表", func(t *testing.T) {
+		list, total, err := svc.GetUserList(ctx, "", "", "", 0, 0, 0, nil, 1, 20, nil, userMinister.ID)
+		if err != nil {
+			t.Fatalf("unexpected error for minister: %v", err)
+		}
+		if total < 5 || len(list) == 0 {
+			t.Fatalf("expected users returned, got total=%d, len=%d", total, len(list))
+		}
+	})
+}
+

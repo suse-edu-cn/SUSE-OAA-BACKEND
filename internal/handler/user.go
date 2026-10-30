@@ -57,6 +57,10 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	userList, total, err := u.UserService.GetUserList(ctx, req.Keyword, departmentName, roleName, departmentID, roleID, req.Grade, req.IsGraduated, req.Page, req.PageSize, req.IsAll, id)
 	if err != nil {
+		if err.Error() == "权限不够" || strings.Contains(err.Error(), "无操作权限") {
+			response.Forbidden(c, "权限不足")
+			return
+		}
 		response.ServerError(c, "获取用户列表", err)
 		return
 	}

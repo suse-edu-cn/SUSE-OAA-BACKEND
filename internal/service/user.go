@@ -183,9 +183,16 @@ func (u *UserService) GetRefreshTokenByToken(ctx context.Context, token string) 
 }
 
 func (u *UserService) GetUserList(ctx context.Context, keyword string, department string, role string, departmentID uint64, roleID uint64, grade uint, isGraduated *bool, page int, pageSize int, isAll *bool, userID uint64) ([]model.UserInfo, int64, error) {
-	level, _, err := u.Repo.GetRoleLevelAndDepartment(ctx, userID)
+	user, err := u.Repo.FindUserById(ctx, userID)
 	if err != nil {
 		return nil, 0, errors.New("获取用户职位失败")
+	}
+	if user.IsGraduated {
+		return nil, 0, errors.New("已毕业成员无操作权限")
+	}
+	level, _, err := u.Repo.GetActiveRoleLevelAndDepartment(ctx, userID)
+	if err != nil {
+		return nil, 0, errors.New("权限不够")
 	}
 	if level < 50 {
 		return nil, 0, errors.New("权限不够")

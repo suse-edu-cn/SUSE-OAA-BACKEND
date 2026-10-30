@@ -288,7 +288,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
 | GET | `/v2/user/me` | 登录 | 获取当前登录用户资料 | 无 |
-| GET | `/v2/user/list` | 登录 | 分页筛选用户列表 | Query：`keyword`、`department_id`、`role_id`、`grade`、`is_graduated`、`page`、`page_size`、`is_all` |
+| GET | `/v2/user/list` | 副部长及以上 (Level >= 50) | 分页筛选用户列表 | Query：`keyword`、`department_id`、`role_id`、`grade`、`is_graduated`、`page`、`page_size`、`is_all` |
 | POST | `/v2/user/me/update` | 登录 | 修改用户基础资料 | JSON：`username`、`email`、`avatar`、`grade`（可选） |
 | POST | `/v2/user/batch` | 登录 | 批量调整成员部门与职位（修改 `grade` 需 `level >= 80`） | JSON 数组：项包含 `user_id`、`department_id`、`role_id`、`grade`（可选） |
 | POST | `/v2/user/delete` | 登录 | 管理员删除 / 注销自己 / 查询冷静期 | JSON：`user_id`、`code`（二者严格互斥） |
