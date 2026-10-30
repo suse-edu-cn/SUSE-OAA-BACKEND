@@ -56,6 +56,13 @@ func (t Term) IsInQueryPeriod(now time.Time) bool {
 	return !now.Before(t.QueryStartAt) && !now.After(t.QueryEndAt)
 }
 
+func (t Term) IsAfterQueryPeriod(now time.Time) bool {
+	if t.QueryEndAt.IsZero() {
+		return false
+	}
+	return now.After(t.QueryEndAt)
+}
+
 type Interviewer struct {
 	ID           uint64                `gorm:"primaryKey;autoIncrement" json:"id"`
 	TermID       uint64                `gorm:"uniqueIndex:idx_term_user;not null" json:"term_id"`

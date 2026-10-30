@@ -307,9 +307,33 @@ func (t *TermService) GetMyApplications(ctx context.Context, userID uint64) ([]*
 	if err != nil {
 		return nil, err
 	}
-	if err := t.fillApplicationTermTitles(ctx, applications); err != nil {
+	if len(applications) == 0 {
+		return applications, nil
+	}
+
+	termMap, err := t.TermRepo.GetTermMap(ctx)
+	if err != nil {
 		return nil, err
 	}
+
+	now := time.Now()
+	for _, application := range applications {
+		if application == nil {
+			continue
+		}
+		term, ok := termMap[application.TermID]
+		if ok {
+			application.TermTitle = term.Title
+		}
+		// 需等待 query 周期结束（now.After(term.QueryEndAt)），候选人才能看到自己的状态；未结束前对候选人保密，显示为待定
+		if !ok || !term.IsAfterQueryPeriod(now) {
+			application.Decision = model.DecisionPending
+			application.Result = model.OrganizationRole{}
+			application.OperatorID = 0
+			application.DecisionRemark = ""
+		}
+	}
+
 	t.fillApplicationAvatars(ctx, applications)
 	return applications, nil
 }

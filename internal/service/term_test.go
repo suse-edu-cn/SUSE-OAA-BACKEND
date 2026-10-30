@@ -397,6 +397,65 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			t.Fatalf("expected result department 1 role 2, got dept %d role %d", checkApp.Result.DepartmentID, checkApp.Result.RoleID)
 		}
 
+		// 面试官视角：查看申请表列表，能够看到录用状态改变
+		interviewerApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID)
+		if err != nil {
+			t.Fatalf("GetApplicationList failed: %v", err)
+		}
+		foundAppInList := false
+		for _, ia := range interviewerApps {
+			if ia.ID == app.ID {
+				foundAppInList = true
+				if ia.Decision != model.DecisionAdmittedFirst {
+					t.Fatalf("interviewer application list should see %q, got %q", model.DecisionAdmittedFirst, ia.Decision)
+				}
+				if ia.Result.DepartmentID != 1 || ia.Result.RoleID != 2 {
+					t.Fatalf("interviewer application list should see result dept 1 role 2, got %v", ia.Result)
+				}
+			}
+		}
+		if !foundAppInList {
+			t.Fatalf("expected to find app in interviewer application list")
+		}
+
+		// 个人视角：query 周期未结束时，查看本人的申请表不可以看到状态改变（始终保持为待定，拟录取结果与备注脱敏清空）
+		myApps, err := svc.GetMyApplications(ctx, candidateUser.ID)
+		if err != nil {
+			t.Fatalf("GetMyApplications failed: %v", err)
+		}
+		if len(myApps) == 0 {
+			t.Fatalf("expected candidate application, got 0")
+		}
+		if myApps[0].Decision != model.DecisionPending {
+			t.Fatalf("candidate personal application view must remain '待定' before query end, got %q", myApps[0].Decision)
+		}
+		if myApps[0].Result.DepartmentID != 0 || myApps[0].Result.RoleID != 0 {
+			t.Fatalf("candidate personal application result must be masked to 0, got %v", myApps[0].Result)
+		}
+		if myApps[0].OperatorID != 0 || myApps[0].DecisionRemark != "" {
+			t.Fatalf("candidate personal application operator and remark must be masked, got op=%d, remark=%q", myApps[0].OperatorID, myApps[0].DecisionRemark)
+		}
+
+		// 个人视角：query 周期结束后，候选人可以查看到自己的真实录用状态
+		db.Model(&model.Term{}).Where("id = ?", term.ID).Updates(map[string]any{
+			"query_end_at": time.Now().Add(-1 * time.Minute),
+		})
+		myAppsAfterQuery, err := svc.GetMyApplications(ctx, candidateUser.ID)
+		if err != nil {
+			t.Fatalf("GetMyApplications after query end failed: %v", err)
+		}
+		if myAppsAfterQuery[0].Decision != model.DecisionAdmittedFirst {
+			t.Fatalf("candidate personal application should see %q after query period ends, got %q", model.DecisionAdmittedFirst, myAppsAfterQuery[0].Decision)
+		}
+		if myAppsAfterQuery[0].Result.DepartmentID != 1 || myAppsAfterQuery[0].Result.RoleID != 2 {
+			t.Fatalf("candidate personal application should see result dept 1 role 2, got %v", myAppsAfterQuery[0].Result)
+		}
+
+		// 还原 query 周期供后续测试
+		db.Model(&model.Term{}).Where("id = ?", term.ID).Updates(map[string]any{
+			"query_end_at": now.Add(24 * time.Hour),
+		})
+
 		// 2. 更新面试结果 -> 未通过
 		updateReq := request.UpdateInterviewResultReq{
 			ApplicationID:      app.ID,

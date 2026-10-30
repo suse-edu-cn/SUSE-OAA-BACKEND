@@ -376,10 +376,10 @@ Authorization: Bearer <token>
 |---|---|---|---|---|
 | POST | `/v2/application/create` | 登录 | 提交周期申请表（已毕业成员不可填报） | JSON：申请表各字段 |
 | POST | `/v2/application/update` | 登录 | 修改本人最新申请表（已毕业成员不可修改，仅限在 edit_period 内） | JSON：申请表各字段（仅限在 edit_period 内） |
-| GET | `/v2/application/me` | 登录 | 查看本人最新申请表 | 无 |
+| GET | `/v2/application/me` | 登录 | 查看本人最新申请表（query 周期结束前决策状态保密显示为“待定”，结束后展示真实录用状态） | 无 |
 | GET | `/v2/application/department` | 登录 | 联动查询可选部门 | Query：`role_id`（可选） |
 | GET | `/v2/application/role` | 登录 | 联动查询可选职位 | Query：`department_id`（可选） |
-| GET | `/v2/application/list` | 登录 | 查询指定周期申请表 | Query：`term_id`（必填）、`department_id`（可选） |
+| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（展示面试评审与决策状态实时流转） | Query：`term_id`（必填）、`department_id`（可选） |
 | POST | `/v2/application/delete` | 登录 | 删除申请表 | JSON：`application_id` |
 
 ---
@@ -481,8 +481,9 @@ Authorization: Bearer <token>
 - 服务初始化时复用 Dialer 实例，避免高频请求重复创建连接配置。
 
 ### 11. 面试结果与申请表决策状态双向事务联动
-在 [`internal/repository/term.go`](internal/repository/term.go) 中将面试评审与申请表生命周期在数据库事务中强一致绑定：
-- **双写同步**：录入或修改面试结果时，不仅在 `interview_results` 表留痕，同时更新 `applications` 表的 `decision`（录取第一志愿/未通过/已调剂等）及拟录用部门与职位，保证前端申请表列表即时展现最新决策状态；
+在 [`internal/repository/term.go`](internal/repository/term.go) 与 [`internal/service/term.go`](internal/service/term.go) 中将面试评审与申请表生命周期强一致绑定与安全隔离：
+- **双写同步**：录入或修改面试结果时，不仅在 `interview_results` 表留痕，同时更新 `applications` 表的 `decision`（录取第一志愿/未通过/已调剂等）及拟录用部门与职位，保证面试官的申请表列表（`GET /v2/application/list`）即时展现最新决策状态；
+- **个人视角评审期保密与到期公示**：候选人通过 `GET /v2/application/me` 查看本人申请表时，在所属周期的 `query_period`（评审决选期）结束前，`decision` 字段统一脱敏保持为默认的 `"待定"`，拟录用部门、职位、操作人与说明均置空；仅当到达 `query_end_at` 之后（评审期结束公示），候选人方可查看到个人的录取状态与拟录用部门职位；
 - **回退重置**：删除面试结果时，申请表决策状态自动重置回默认的 `"待定"`，清空拟录用部门职位；
 - **防重复创建**：业务层对同一申请表的前置录入校验，避免产生冲突或覆盖已有评审记录；
 - **级联删除**：申请表删除时，关联的面试结果在事务中同步安全软删除。
