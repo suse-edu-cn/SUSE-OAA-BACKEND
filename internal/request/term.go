@@ -184,6 +184,10 @@ type UpdateInterviewResultReq struct {
 	Remark             string `json:"remark"`
 }
 
+type DeleteInterviewResultReq struct {
+	ApplicationID uint64 `json:"application_id" binding:"required"`
+}
+
 type GetInterviewResultListReq struct {
 	TermID uint64 `form:"term_id"`
 }

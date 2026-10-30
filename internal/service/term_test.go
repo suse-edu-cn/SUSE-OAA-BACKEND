@@ -339,4 +339,131 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			t.Fatalf("expected avatar to be preserved as 'application/old_avatar.png', got %q", savedApp.AvatarURI)
 		}
 	})
+
+	t.Run("面试结果增改删同步更新申请表decision状态", func(t *testing.T) {
+		candidateUser := model.User{
+			ID:           30,
+			StudentID:    "20230005",
+			Username:     "candidate_user",
+			Grade:        2023,
+			IsGraduated:  false,
+			DepartmentID: 1,
+			RoleID:       1,
+		}
+		db.Create(&candidateUser)
+
+		app := model.Application{
+			ID:        300,
+			TermID:    term.ID,
+			UserID:    candidateUser.ID,
+			Decision:  model.DecisionPending,
+			FirstChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+			SecondChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       1,
+			},
+		}
+		db.Create(&app)
+
+		// 确保处于 query period
+		db.Model(&model.Term{}).Where("id = ?", term.ID).Updates(map[string]any{
+			"query_start_at": now.Add(-1 * time.Hour),
+			"query_end_at":   now.Add(24 * time.Hour),
+		})
+
+		// 1. 创建面试结果 -> 录取第一志愿
+		createReq := request.CreateInterviewResultReq{
+			ApplicationID:      app.ID,
+			Decision:           model.DecisionAdmittedFirst,
+			ResultDepartmentID: 1,
+			ResultRoleID:       2,
+			Remark:             "表现优异",
+		}
+		if err := svc.CreateInterviewResult(ctx, operator.ID, createReq); err != nil {
+			t.Fatalf("CreateInterviewResult failed: %v", err)
+		}
+
+		var checkApp model.Application
+		if err := db.First(&checkApp, app.ID).Error; err != nil {
+			t.Fatalf("failed to query app: %v", err)
+		}
+		if checkApp.Decision != model.DecisionAdmittedFirst {
+			t.Fatalf("expected decision %q, got %q", model.DecisionAdmittedFirst, checkApp.Decision)
+		}
+		if checkApp.Result.DepartmentID != 1 || checkApp.Result.RoleID != 2 {
+			t.Fatalf("expected result department 1 role 2, got dept %d role %d", checkApp.Result.DepartmentID, checkApp.Result.RoleID)
+		}
+
+		// 2. 更新面试结果 -> 未通过
+		updateReq := request.UpdateInterviewResultReq{
+			ApplicationID:      app.ID,
+			Decision:           model.DecisionRejected,
+			ResultDepartmentID: 0,
+			ResultRoleID:       0,
+			Remark:             "复试未通过",
+		}
+		if err := svc.UpdateInterviewResult(ctx, operator.ID, updateReq); err != nil {
+			t.Fatalf("UpdateInterviewResult failed: %v", err)
+		}
+
+		if err := db.First(&checkApp, app.ID).Error; err != nil {
+			t.Fatalf("failed to query app: %v", err)
+		}
+		if checkApp.Decision != model.DecisionRejected {
+			t.Fatalf("expected decision %q, got %q", model.DecisionRejected, checkApp.Decision)
+		}
+		if checkApp.Result.DepartmentID != 0 || checkApp.Result.RoleID != 0 {
+			t.Fatalf("expected result department 0 role 0, got dept %d role %d", checkApp.Result.DepartmentID, checkApp.Result.RoleID)
+		}
+
+		// 3. 删除面试结果 -> 重置回 待定
+		if err := svc.DeleteInterviewResult(ctx, operator.ID, app.ID); err != nil {
+			t.Fatalf("DeleteInterviewResult failed: %v", err)
+		}
+
+		if err := db.First(&checkApp, app.ID).Error; err != nil {
+			t.Fatalf("failed to query app: %v", err)
+		}
+		if checkApp.Decision != model.DecisionPending {
+			t.Fatalf("expected decision %q after delete, got %q", model.DecisionPending, checkApp.Decision)
+		}
+
+		var resCount int64
+		db.Model(&model.InterviewResult{}).Where("application_id = ?", app.ID).Count(&resCount)
+		if resCount != 0 {
+			t.Fatalf("expected interview result to be deleted, count = %d", resCount)
+		}
+
+		// 4. 重新录入面试结果 -> 再次成功且 decision 再次同步
+		if err := svc.CreateInterviewResult(ctx, operator.ID, createReq); err != nil {
+			t.Fatalf("Re-creating InterviewResult after delete failed: %v", err)
+		}
+		if err := db.First(&checkApp, app.ID).Error; err != nil {
+			t.Fatalf("failed to query app: %v", err)
+		}
+		if checkApp.Decision != model.DecisionAdmittedFirst {
+			t.Fatalf("expected decision %q after recreate, got %q", model.DecisionAdmittedFirst, checkApp.Decision)
+		}
+
+		// 5. 重复创建应被拦截
+		if err := svc.CreateInterviewResult(ctx, operator.ID, createReq); err == nil || !strings.Contains(err.Error(), "已存在") {
+			t.Fatalf("expected duplicate error, got: %v", err)
+		}
+
+		// 6. 权限不足操作人删除应被拦截
+		if err := svc.DeleteInterviewResult(ctx, activeUser.ID, app.ID); err == nil || !strings.Contains(err.Error(), "权限不够") {
+			t.Fatalf("expected permission error for low level operator, got: %v", err)
+		}
+		if err := svc.DeleteInterviewResult(ctx, graduatedOperator.ID, app.ID); err == nil || !strings.Contains(err.Error(), "已毕业成员无操作权限") {
+			t.Fatalf("expected graduated operator error, got: %v", err)
+		}
+
+		// 7. 删除不存在的申请表面试结果应报错
+		if err := svc.DeleteInterviewResult(ctx, operator.ID, 999999); err == nil || !strings.Contains(err.Error(), "不存在") {
+			t.Fatalf("expected non-existent error, got: %v", err)
+		}
+	})
 }

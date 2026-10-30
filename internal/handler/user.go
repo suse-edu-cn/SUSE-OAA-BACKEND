@@ -47,7 +47,7 @@ func parseUserListIDOrName(id uint64, value string) (uint64, string) {
 func (u *UserHandler) GetUserList(c *gin.Context) {
 	var req request.UserListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "获取query失败")
+		response.ParamError(c, err)
 		return
 	}
 	departmentID, departmentName := parseUserListIDOrName(req.DepartmentID, req.Department)
@@ -69,7 +69,7 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 	var req request.UpdateUserInfoReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -88,7 +88,7 @@ func (u *UserHandler) UpdateUserInfo(c *gin.Context) {
 func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 	var req []request.BatchUserInfoReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -114,7 +114,7 @@ func (u *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	var req request.DeleteUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -142,7 +142,7 @@ func (u *UserHandler) CancelDeleteUser(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	var req request.CancelDeleteUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()

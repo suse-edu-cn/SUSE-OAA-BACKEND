@@ -2,6 +2,7 @@ package response
 
 import (
 	"fmt"
+	"strings"
 	"suseoaa/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,39 @@ func Success(c *gin.Context, data any) {
 	})
 }
 
+func cleanErrorMessage(message string) string {
+	if message == "" {
+		return "请求参数错误"
+	}
+	if message == "EOF" || strings.Contains(message, "unexpected EOF") {
+		return "请求体不能为空或内容不完整"
+	}
+	if strings.HasPrefix(message, "Key: '") && strings.Contains(message, "Error:Field validation for '") {
+		return "参数校验失败，请检查必填项与格式规范"
+	}
+	if strings.Contains(message, "cannot unmarshal") {
+		return "参数数据类型不匹配"
+	}
+	if strings.HasPrefix(message, "invalid character") {
+		return "请求数据不符合合法 JSON 规范"
+	}
+	if strings.HasPrefix(message, "json: ") {
+		return "JSON 请求参数解析失败"
+	}
+	if strings.Contains(message, "record not found") {
+		return "数据不存在"
+	}
+	if strings.Contains(message, "strconv.Parse") || strings.Contains(message, "invalid syntax") {
+		return "数值格式不合法"
+	}
+	if strings.Contains(message, "UNIQUE constraint failed") || strings.Contains(message, "Duplicate entry") {
+		return "数据已存在，请勿重复添加"
+	}
+	return message
+}
+
 func BadRequest(c *gin.Context, message string) {
+	message = cleanErrorMessage(message)
 	c.Set(ContextErrorKey, message)
 	c.JSON(400, Response{
 		Code:    400,
@@ -33,6 +66,7 @@ func BadRequest(c *gin.Context, message string) {
 }
 
 func BadRequestWithData(c *gin.Context, message string, data any) {
+	message = cleanErrorMessage(message)
 	c.Set(ContextErrorKey, message)
 	c.JSON(400, Response{
 		Code:    400,

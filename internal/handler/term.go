@@ -40,7 +40,12 @@ func handleTermError(c *gin.Context, action string, err error) {
 		strings.Contains(msg, "存在") ||
 		strings.Contains(msg, "不匹配") ||
 		strings.Contains(msg, "毕业") ||
-		strings.Contains(msg, "类型错误") {
+		strings.Contains(msg, "类型错误") ||
+		strings.Contains(msg, "record not found") {
+		if strings.Contains(msg, "record not found") {
+			response.BadRequest(c, "数据不存在")
+			return
+		}
 		response.BadRequest(c, msg)
 		return
 	}
@@ -52,7 +57,7 @@ func handleTermError(c *gin.Context, action string, err error) {
 func (t *TermHandler) CreateTerm(c *gin.Context) {
 	var req request.CreateTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -81,7 +86,7 @@ func (t *TermHandler) CreateTerm(c *gin.Context) {
 func (t *TermHandler) UpdateTerm(c *gin.Context) {
 	var req request.UpdateTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -109,7 +114,7 @@ func (t *TermHandler) UpdateTerm(c *gin.Context) {
 func (t *TermHandler) GetTermList(c *gin.Context) {
 	var req request.GetTermListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "获取参数失败: "+err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -124,7 +129,7 @@ func (t *TermHandler) GetTermList(c *gin.Context) {
 func (t *TermHandler) DeleteTerm(c *gin.Context) {
 	var req request.DeleteTermReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 
@@ -143,7 +148,7 @@ func (t *TermHandler) DeleteTerm(c *gin.Context) {
 func (t *TermHandler) CreateApplication(c *gin.Context) {
 	var req request.CreateApplicationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败: "+err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -185,7 +190,7 @@ func (t *TermHandler) CreateApplication(c *gin.Context) {
 func (t *TermHandler) UpdateApplication(c *gin.Context) {
 	var req request.UpdateApplicationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -233,7 +238,7 @@ func (t *TermHandler) GetMyApplications(c *gin.Context) {
 func (t *TermHandler) GetApplicationDepartmentList(c *gin.Context) {
 	var req request.GetApplicationDepartmentReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -248,7 +253,7 @@ func (t *TermHandler) GetApplicationDepartmentList(c *gin.Context) {
 func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
 	var req request.GetApplicationRoleReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -263,7 +268,7 @@ func (t *TermHandler) GetApplicationRoleList(c *gin.Context) {
 func (t *TermHandler) GetApplicationList(c *gin.Context) {
 	var req request.GetApplicationListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -280,7 +285,7 @@ func (t *TermHandler) DeleteApplication(c *gin.Context) {
 	id := c.GetUint64("user_id")
 	var req request.DeleteApplicationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -297,7 +302,7 @@ func (t *TermHandler) DeleteApplication(c *gin.Context) {
 func (t *TermHandler) CreateInterviewers(c *gin.Context) {
 	var req request.CreateInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -313,7 +318,7 @@ func (t *TermHandler) CreateInterviewers(c *gin.Context) {
 func (t *TermHandler) GetInterviewerList(c *gin.Context) {
 	var req request.GetInterviewerListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -329,7 +334,7 @@ func (t *TermHandler) GetInterviewerList(c *gin.Context) {
 func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 	var req request.UpdateInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -345,7 +350,7 @@ func (t *TermHandler) UpdateInterviewer(c *gin.Context) {
 func (t *TermHandler) DeleteInterviewer(c *gin.Context) {
 	var req request.DeleteInterviewer
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 
@@ -364,7 +369,7 @@ func (t *TermHandler) DeleteInterviewer(c *gin.Context) {
 func (t *TermHandler) CreateInterviewResult(c *gin.Context) {
 	var req request.CreateInterviewResultReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -380,7 +385,7 @@ func (t *TermHandler) CreateInterviewResult(c *gin.Context) {
 func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
 	var req request.UpdateInterviewResultReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 
@@ -394,10 +399,27 @@ func (t *TermHandler) UpdateInterviewResult(c *gin.Context) {
 	response.Success(c, "更新面试结果成功")
 }
 
+func (t *TermHandler) DeleteInterviewResult(c *gin.Context) {
+	var req request.DeleteInterviewResultReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ParamError(c, err)
+		return
+	}
+
+	operatorID := c.GetUint64("user_id")
+	ctx := c.Request.Context()
+	if err := t.TermService.DeleteInterviewResult(ctx, operatorID, req.ApplicationID); err != nil {
+		handleTermError(c, "删除面试结果", err)
+		return
+	}
+
+	response.Success(c, "删除面试结果成功")
+}
+
 func (t *TermHandler) GetInterviewResultList(c *gin.Context) {
 	var req request.GetInterviewResultListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 

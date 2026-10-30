@@ -33,7 +33,7 @@ func (d *DepartmentHandler) GetAll(c *gin.Context) {
 func (d *DepartmentHandler) Create(c *gin.Context) {
 	var req request.CreateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -65,7 +65,7 @@ func (d *DepartmentHandler) Create(c *gin.Context) {
 func (d *DepartmentHandler) Update(c *gin.Context) {
 	var req request.UpdateDepartmentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")

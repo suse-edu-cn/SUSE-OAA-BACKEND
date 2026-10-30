@@ -113,6 +113,7 @@ func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies [
 		{
 			result.POST("create", total.Term.CreateInterviewResult)
 			result.POST("update", total.Term.UpdateInterviewResult)
+			result.POST("delete", total.Term.DeleteInterviewResult)
 			result.GET("list", total.Term.GetInterviewResultList)
 			result.GET("decision", total.Term.GetInterviewResultDecision)
 		}

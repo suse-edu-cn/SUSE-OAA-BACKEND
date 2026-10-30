@@ -31,7 +31,7 @@ func (r *RoleHandler) FindAll(c *gin.Context) {
 func (r *RoleHandler) Create(c *gin.Context) {
 	var req request.CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -64,7 +64,7 @@ func (r *RoleHandler) Create(c *gin.Context) {
 func (r *RoleHandler) Update(c *gin.Context) {
 	var req request.UpdateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")

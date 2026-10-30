@@ -735,6 +735,10 @@ func (t *TermService) CreateInterviewResult(ctx context.Context, operatorID uint
 		return err
 	}
 
+	if _, err := t.TermRepo.GetInterviewResultByApplicationID(ctx, req.ApplicationID); err == nil {
+		return errors.New("该申请表的面试结果已存在")
+	}
+
 	term, err := t.TermRepo.GetTermByID(ctx, application.TermID)
 	if err != nil {
 		return err
@@ -788,6 +792,37 @@ func (t *TermService) UpdateInterviewResult(ctx context.Context, operatorID uint
 	}
 
 	return t.TermRepo.UpdateInterviewResult(ctx, interviewResult)
+}
+
+func (t *TermService) DeleteInterviewResult(ctx context.Context, operatorID uint64, applicationID uint64) error {
+	if err := t.CheckLevel(ctx, operatorID); err != nil {
+		return err
+	}
+
+	oldResult, err := t.TermRepo.GetInterviewResultByApplicationID(ctx, applicationID)
+	if err != nil {
+		return err
+	}
+
+	application, err := t.TermRepo.GetApplicationByID(ctx, oldResult.ApplicationID)
+	if err != nil {
+		return err
+	}
+
+	term, err := t.TermRepo.GetTermByID(ctx, application.TermID)
+	if err != nil {
+		return err
+	}
+
+	if term.IsExecuted {
+		return errors.New("该周期已经执行，不能再修改面试结果")
+	}
+
+	if !term.IsInQueryPeriod(time.Now()) {
+		return errors.New("不在时间范围内")
+	}
+
+	return t.TermRepo.DeleteInterviewResult(ctx, oldResult.ID, oldResult.ApplicationID)
 }
 
 func (t *TermService) GetInterviewResultList(ctx context.Context, operatorID uint64, termID uint64) ([]model.InterviewResultInfo, error) {

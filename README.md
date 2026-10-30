@@ -39,6 +39,7 @@ SUSE OAA 后端服务基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构建�
   - [8. 上传场景安全校验（防路径穿越）](#8-上传场景安全校验防路径穿越)
   - [9. MinIO 双端点隔离与本地离线预签名](#9-minio-双端点隔离与本地离线预签名)
   - [10. 邮件发送安全加固与连接复用](#10-邮件发送安全加固与连接复用)
+  - [11. 面试结果与申请表决策状态双向事务联动](#11-面试结果与申请表决策状态双向事务联动)
 - [权限与组织架构设计](#权限与组织架构设计)
 - [技术栈](#技术栈)
 - [配置文件与部署运行](#配置文件与部署运行)
@@ -61,7 +62,7 @@ SUSE OAA 后端服务基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构建�
 2. **公告精准分发**：支持面向全员或特定业务部门下发公告、置顶控制以及 Markdown 内部对象存储直链解析；
 3. **招新与换届生命周期管理**：
    - **报名填报期（Edit Period）**：支持申请表并发填写与照片上传；
-   - **评审决选期（Query Period）**：委派面试官协同评审、录入面试结果草稿与候选人公示查询；
+   - **评审决选期（Query Period）**：委派面试官协同评审、录入审批面试结果（实时事务双写同步更新申请表决策状态）与候选人公示查询；
    - **到期自动生效（Execute Period）**：后台定时任务到达指定截止时间后，在数据库事务中批量将结果写入正式用户表，自动变更部门与职位。
 
 ---
@@ -73,7 +74,7 @@ SUSE OAA 后端服务基于 **Go + Gin + GORM + MySQL + Redis + MinIO** 构建�
 ```mermaid
 flowchart TD
     Init["创建周期 (TermCreated)"] --> Edit["报名填报期 (Edit Period)<br/>候选人填报与修改申请表<br/>上传免冠证件照"]
-    Edit -->|"到达 edit_period.end_at"| Query["面试决选与公示期 (Query Period)<br/>委派面试官协同评审<br/>录入审批面试结果 (草稿态)<br/>候选人查询结果与异议缓冲"]
+    Edit -->|"到达 edit_period.end_at"| Query["面试决选与公示期 (Query Period)<br/>委派面试官协同评审<br/>录入审批面试结果 (实时双写同步申请表状态)<br/>候选人查询结果与异议缓冲"]
     Query -->|"到达 execute_after_at"| Executor{"后台执行器轮询探测<br/>(StartInterviewResultExecutor)"}
     Executor -->|"未执行 (is_executed = false)"| Trans["执行数据库事务<br/>批量更新录取者所属部门与职位<br/>记录变动历史快照<br/>标记 is_executed = true"]
     Trans --> Done["周期归档生效 (Executed)"]
@@ -220,13 +221,18 @@ BenchmarkParseToken_Parallel-10    	 1260330	       967.2 ns/op	    2314 B/op	  
 | HTTP 状态码 | 业务方法 | 适用场景 | 前端处理建议 |
 | :--- | :--- | :--- | :--- |
 | **`200 OK`** | `response.Success(c, data)` | 业务正常执行、健康探针正常 | 正常消费 `data` 并渲染页面 |
-| **`400 Bad Request`** | `response.BadRequest(c, msg)` | 参数校验失败、账号密码错误、不在周期内、场景不合法 | 提示用户对应错误文案 |
-| **`401 Unauthorized`** | `response.Unauthorized(c, msg)` | 未携带 Token、Token 已过期或被篡改 | 清除本地 Token 并跳转至登录页 |
+| **`400 Bad Request`** | `response.BadRequest(c, msg)` / `response.ParamError(c, err)` | 参数校验失败、账号密码错误、不在周期内、场景不合法 | 提示用户对应错误文案（已全量汉化并指出具体错误字段） |
+| **`401 Unauthorized`** | `response.Unauthorized(c, msg)` | 未携带 Token、Token 已过期或被篡改 | 清除本地 Token 并跳转至登录页（脱敏中文提示） |
 | **`403 Forbidden`** | `response.Forbidden(c, msg)` | 凭据有效但当前职位等级不足以操作目标资源 | 提示“权限不足” |
 | **`404 Not Found`** | `response.NotFound(c, msg)` | 查询的目标资源不存在（如不存在的公告详情） | 提示“资源不存在”并返回列表页 |
 | **`429 Too Many Requests`** | `response.TooManyRequests(c)` | 触发 IP 频次限制（登录/发信超频） | 提示“请求过于频繁，请稍后再试” |
 | **`500 Internal Error`** | `response.ServerError(c, action, err)` | 未预期系统异常（数据库报错、网络故障等） | 统一脱敏提示：“服务开小差了，请稍后再试” |
-| **`503 Service Unavailable`** | `c.JSON(503, ...)` | 服务暂时不可用（`/healthz` 探测到依赖断连） | 负载均衡将该实例移出健康列表 |
+| **`503 Service Unavailable`** | `response.ServiceUnavailable(c, ...)` | 服务暂时不可用（`/healthz` 探测到依赖断连） | 负载均衡将该实例移出健康列表 |
+
+### 错误全中文转译与参数定位保障
+- **参数绑定与字段校验汉化**：通过 `pkg/response/bind.go` 为 Gin 注册中文翻译器与 `json`/`form` 标签映射。当必填字段缺失时自动提示如 `参数校验失败: [字段名]为必填字段`；类型不匹配时提示如 `参数 [字段名] 数据类型错误，期望为 uint64 类型`；请求体为空或语法错误时提示如 `请求体不能为空`，彻底杜绝 Go 原生英文校验栈泄漏；
+- **JWT 鉴权拦截汉化**：中间件统一拦截 `jwt.ErrTokenExpired` 及签名异常，转化为 `登录状态已过期，请重新登录` 或 `登录凭证无效，请重新登录`；
+- **响应层安全兜底**：`response.BadRequest` 内置英文报错特征清洗过滤器，杜绝未预期的原生英文直接吐给前端。
 
 ---
 
@@ -393,10 +399,17 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
-| POST | `/v2/interviewer/result/create` | 登录 | 录入面试决策结果 | JSON：`application_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
-| POST | `/v2/interviewer/result/update` | 登录 | 更新面试决策结果 | JSON：同上 |
+| POST | `/v2/interviewer/result/create` | 登录 | 录入面试决策结果并同步申请表状态 | JSON：`application_id`、`decision`、`result_department_id`、`result_role_id`、`remark` |
+| POST | `/v2/interviewer/result/update` | 登录 | 更新面试决策结果并同步申请表状态 | JSON：同上 |
+| POST | `/v2/interviewer/result/delete` | 登录 | 删除面试决策结果并重置申请表为“待定” | JSON：`application_id` |
 | GET | `/v2/interviewer/result/list` | 登录 | 查询面试结果列表 | Query：`term_id` |
 | GET | `/v2/interviewer/result/decision` | 登录 | 获取面试决策枚举 | 无 |
+
+- **状态双向联动与重置规则**：
+  - **录入/更新**：事务内同时更新 `interview_results` 表与 `applications` 表，使申请表即刻体现“录取第一志愿”、“录取第二志愿”、“已调剂”、“未通过”等最新决策；
+  - **删除重置**：调用 `/v2/interviewer/result/delete` 后，关联申请表的 `decision` 字段自动重置为 `"待定"`，清空拟录用部门与职位；
+  - **防重复录入**：已录入结果的申请表禁止重复创建，返回 `400 "该申请表的面试结果已存在"`；
+  - **级联清理**：删除申请表时同步安全软删除其关联的面试结果。
 
 ---
 
@@ -439,7 +452,8 @@ Authorization: Bearer <token>
 
 ### 5. 全链路 TraceID 注入与 slog 结构化日志
 - 中间件为每个请求分配唯一 `TraceID`（支持校验客户端传入的合规 ID，防范日志注入），并写入响应头 `X-Trace-ID` 与请求 Context；
-- 采用 `gin.New()` 并自主实现 `AccessLog` 中间件，请求完成后统一以 JSON 结构输出日志，包含方法、路径、状态码、延时（毫秒）、客户端真实 IP 与 TraceID。
+- 采用 `gin.New()` 并自主实现 `AccessLog` 中间件，请求完成后统一以 JSON 结构输出日志，包含方法、路径、状态码、延时（毫秒）、客户端真实 IP 与 TraceID；
+- **4xx/5xx 错误详情实时透传**：统一响应层（`pkg/response`）在返回错误时自动将失败原因写入 Context，`AccessLog` 中间件在响应状态码 `>= 400` 时捕获并在日志中记录 `error` 属性，彻底解决以往排查时“只能看到 400 状态码而无法获知业务错误原因”的痛点。
 
 ### 6. GORM 慢 SQL 结构化告警与日志桥接
 在 [`internal/database/logger.go`](internal/database/logger.go) 中实现 GORM 日志适配器：
@@ -465,6 +479,13 @@ Authorization: Bearer <token>
 ### 10. 邮件发送安全加固与连接复用
 - 废弃 `InsecureSkipVerify: true`，显式配置 `ServerName: host` 开启完整的 TLS 证书域名校验，防范中间人劫持；
 - 服务初始化时复用 Dialer 实例，避免高频请求重复创建连接配置。
+
+### 11. 面试结果与申请表决策状态双向事务联动
+在 [`internal/repository/term.go`](internal/repository/term.go) 中将面试评审与申请表生命周期在数据库事务中强一致绑定：
+- **双写同步**：录入或修改面试结果时，不仅在 `interview_results` 表留痕，同时更新 `applications` 表的 `decision`（录取第一志愿/未通过/已调剂等）及拟录用部门与职位，保证前端申请表列表即时展现最新决策状态；
+- **回退重置**：删除面试结果时，申请表决策状态自动重置回默认的 `"待定"`，清空拟录用部门职位；
+- **防重复创建**：业务层对同一申请表的前置录入校验，避免产生冲突或覆盖已有评审记录；
+- **级联删除**：申请表删除时，关联的面试结果在事务中同步安全软删除。
 
 ---
 

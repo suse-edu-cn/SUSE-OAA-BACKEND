@@ -83,18 +83,26 @@ func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Cont
 func (t *TermRepository) GetApplicationByID(ctx context.Context, applicationID uint64) (*model.Application, error) {
 	var application model.Application
 	err := t.DB.WithContext(ctx).Model(&model.Application{}).Where("id = ?", applicationID).First(&application).Error
-	return &application, err
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("申请表不存在")
+		}
+		return nil, err
+	}
+	return &application, nil
 }
 
 func (t *TermRepository) DeleteApplication(ctx context.Context, applicationID uint64) error {
-	result := t.DB.WithContext(ctx).Delete(&model.Application{}, applicationID)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("数据不存在")
-	}
-	return nil
+	return t.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&model.Application{}, applicationID)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("数据不存在")
+		}
+		return tx.Where("application_id = ?", applicationID).Delete(&model.InterviewResult{}).Error
+	})
 }
 
 // 业务周期
@@ -281,23 +289,76 @@ func (t *TermRepository) GetInterviewerListByScope(ctx context.Context, termID u
 // 招新换届的历史与面试结果
 
 func (t *TermRepository) CreateInterviewResult(ctx context.Context, interviewResult model.InterviewResult) error {
-	return t.DB.WithContext(ctx).Create(&interviewResult).Error
+	return t.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&interviewResult).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.Application{}).
+			Where("id = ?", interviewResult.ApplicationID).
+			Updates(map[string]any{
+				"decision":             interviewResult.Decision,
+				"result_department_id": interviewResult.ResultDepartmentID,
+				"result_role_id":       interviewResult.ResultRoleID,
+				"operator_id":          interviewResult.OperatorID,
+				"decision_remark":      interviewResult.Remark,
+			}).Error
+	})
 }
 
 func (t *TermRepository) UpdateInterviewResult(ctx context.Context, interviewResult model.InterviewResult) error {
-	var existing model.InterviewResult
-	if err := t.DB.WithContext(ctx).Select("id").First(&existing, interviewResult.ID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	return t.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing model.InterviewResult
+		if err := tx.Select("id").First(&existing, interviewResult.ID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("面试结果不存在")
+			}
+			return err
+		}
+
+		if err := tx.Model(&model.InterviewResult{}).
+			Where("id = ?", interviewResult.ID).
+			Updates(map[string]any{
+				"decision":             interviewResult.Decision,
+				"result_department_id": interviewResult.ResultDepartmentID,
+				"result_role_id":       interviewResult.ResultRoleID,
+				"operator_id":          interviewResult.OperatorID,
+				"remark":               interviewResult.Remark,
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Model(&model.Application{}).
+			Where("id = ?", interviewResult.ApplicationID).
+			Updates(map[string]any{
+				"decision":             interviewResult.Decision,
+				"result_department_id": interviewResult.ResultDepartmentID,
+				"result_role_id":       interviewResult.ResultRoleID,
+				"operator_id":          interviewResult.OperatorID,
+				"decision_remark":      interviewResult.Remark,
+			}).Error
+	})
+}
+
+func (t *TermRepository) DeleteInterviewResult(ctx context.Context, resultID uint64, applicationID uint64) error {
+	return t.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Delete(&model.InterviewResult{}, resultID)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
 			return errors.New("面试结果不存在")
 		}
-		return err
-	}
 
-	return t.DB.WithContext(ctx).
-		Model(&model.InterviewResult{}).
-		Where("id = ?", interviewResult.ID).
-		Select("decision", "result_department_id", "result_role_id", "operator_id", "remark").
-		Updates(&interviewResult).Error
+		return tx.Model(&model.Application{}).
+			Where("id = ?", applicationID).
+			Updates(map[string]any{
+				"decision":             model.DecisionPending,
+				"result_department_id": 0,
+				"result_role_id":       0,
+				"operator_id":          0,
+				"decision_remark":      "",
+			}).Error
+	})
 }
 
 func (t *TermRepository) GetInterviewResultByApplicationID(ctx context.Context, applicationID uint64) (model.InterviewResult, error) {

@@ -28,7 +28,7 @@ func NewAuthHandler(userService *service.UserService, JwtSecret string, jwtExpir
 func (a *AuthHandler) Login(c *gin.Context) {
 	var req request.LoginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -51,7 +51,7 @@ func (a *AuthHandler) Login(c *gin.Context) {
 func (a *AuthHandler) Refresh(c *gin.Context) {
 	var req request.RefreshReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -80,7 +80,7 @@ func (a *AuthHandler) Refresh(c *gin.Context) {
 func (a *AuthHandler) Register(c *gin.Context) {
 	var req request.RegisterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -94,7 +94,7 @@ func (a *AuthHandler) Register(c *gin.Context) {
 func (a *AuthHandler) Logout(c *gin.Context) {
 	var req request.LogoutReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -111,7 +111,7 @@ func (a *AuthHandler) Logout(c *gin.Context) {
 func (a *AuthHandler) UpdatePassword(c *gin.Context) {
 	var req request.UpdatePasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -126,7 +126,7 @@ func (a *AuthHandler) UpdatePassword(c *gin.Context) {
 func (a *AuthHandler) SendVerificationCode(c *gin.Context) {
 	var req request.SendVerificationCodeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (a *AuthHandler) SendVerificationCode(c *gin.Context) {
 func (a *AuthHandler) ResetPassword(c *gin.Context) {
 	var req request.ResetPasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "获取json失败")
+		response.ParamError(c, err)
 		return
 	}
 

@@ -25,7 +25,7 @@ func (a *AnnouncementHandler) CreateAnnouncement(c *gin.Context) {
 	var req request.CreateAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	userID := c.GetUint64("user_id")
@@ -53,7 +53,7 @@ func (a *AnnouncementHandler) UpdateAnnouncement(c *gin.Context) {
 	var req request.UpdateAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	userID := c.GetUint64("user_id")
@@ -79,7 +79,7 @@ func (a *AnnouncementHandler) PushAnnouncement(c *gin.Context) {
 	var req request.PushAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	userID := c.GetUint64("user_id")
@@ -100,7 +100,7 @@ func (a *AnnouncementHandler) GetAnnouncementList(c *gin.Context) {
 	var req request.GetAnnouncementListReq
 	err := c.ShouldBindQuery(&req)
 	if err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	id := c.GetUint64("user_id")
@@ -121,7 +121,7 @@ func (a *AnnouncementHandler) GetAnnouncement(c *gin.Context) {
 	var req request.GetAnnouncementReq
 	err := c.ShouldBindQuery(&req)
 	if err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	userID := c.GetUint64("user_id")
@@ -143,7 +143,7 @@ func (a *AnnouncementHandler) DeleteAnnouncement(c *gin.Context) {
 	var req request.DeleteAnnouncementReq
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		response.BadRequest(c, "获取参数失败")
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()

@@ -20,7 +20,7 @@ func NewFileHandler(s *service.FileService) *FileHandler {
 func (f *FileHandler) UploadImage(c *gin.Context) {
 	var req request.UploadImageReq
 	if err := c.ShouldBind(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()
@@ -41,7 +41,7 @@ func (f *FileHandler) UploadImage(c *gin.Context) {
 func (f *FileHandler) UploadFile(c *gin.Context) {
 	var req request.UploadFileReq
 	if err := c.ShouldBind(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ParamError(c, err)
 		return
 	}
 	ctx := c.Request.Context()

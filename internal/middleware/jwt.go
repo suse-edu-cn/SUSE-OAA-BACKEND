@@ -25,7 +25,11 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		}
 		claims, err := utils.ParseToken(parts[1], secret)
 		if err != nil {
-			response.Unauthorized(c, err.Error())
+			msg := "登录凭证无效，请重新登录"
+			if strings.Contains(err.Error(), "expired") {
+				msg = "登录状态已过期，请重新登录"
+			}
+			response.Unauthorized(c, msg)
 			c.Abort()
 			return
 		}
