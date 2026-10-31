@@ -196,10 +196,11 @@ type GetInterviewResultListReq struct {
 type ExportInterviewResultReq struct {
 	TermID       uint64 `form:"term_id"`
 	DepartmentID uint64 `form:"department_id"`
-	Fields       uint64 `form:"fields"`
+	Fields       string `form:"fields"`
 }
 
 type ExportFieldDef struct {
+	Index uint8  `json:"index"`
 	Bit   uint8  `json:"bit"`
 	Mask  uint64 `json:"mask"`
 	Key   string `json:"key"`
@@ -208,6 +209,7 @@ type ExportFieldDef struct {
 
 type ExportFieldsResp struct {
 	TotalFields int              `json:"total_fields"`
+	AllBits     string           `json:"all_bits"`
 	AllMask     uint64           `json:"all_mask"`
 	Fields      []ExportFieldDef `json:"fields"`
 }

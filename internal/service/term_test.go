@@ -185,6 +185,65 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		}
 	})
 
+	t.Run("协会会员第一志愿申请会员应被拦截", func(t *testing.T) {
+		app := model.Application{
+			TermID: term.ID,
+			UserID: activeUser.ID,
+			FirstChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       1,
+			},
+			SecondChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+		}
+		err := svc.CreateApplication(ctx, app)
+		if err == nil || !strings.Contains(err.Error(), "当前已是协会会员，不可申请成为会员") {
+			t.Fatalf("expected '当前已是协会会员，不可申请成为会员', got: %v", err)
+		}
+	})
+
+	t.Run("协会会员第二志愿申请会员应被拦截", func(t *testing.T) {
+		app := model.Application{
+			TermID: term.ID,
+			UserID: activeUser.ID,
+			FirstChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+			SecondChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       1,
+			},
+		}
+		err := svc.CreateApplication(ctx, app)
+		if err == nil || !strings.Contains(err.Error(), "当前已是协会会员，不可申请成为会员") {
+			t.Fatalf("expected '当前已是协会会员，不可申请成为会员', got: %v", err)
+		}
+	})
+
+	t.Run("现任骨干申请会员以卸任应允许通过", func(t *testing.T) {
+		app := model.Application{
+			TermID: term.ID,
+			UserID: operator.ID,
+			FirstChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       1,
+			},
+			SecondChoice: model.OrganizationRole{
+				DepartmentID: 1,
+				RoleID:       2,
+			},
+		}
+		err := svc.CreateApplication(ctx, app)
+		if err != nil {
+			t.Fatalf("officer applying for member should succeed, got: %v", err)
+		}
+		// 清理申请记录避免影响后续子测试
+		_ = db.Where("user_id = ? AND term_id = ?", operator.ID, term.ID).Delete(&model.Application{}).Error
+	})
+
 	t.Run("设置面试官时如果候选人包含已毕业成员应被拦截", func(t *testing.T) {
 		req := request.CreateInterviewer{
 			TermID: term.ID,
@@ -274,26 +333,26 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 
 	t.Run("申请表照片路径规范化与校验", func(t *testing.T) {
 		// 1. 严格区分 scene：不支持 avatar/ 或其他非法前缀，必须为 application/
-		if err := svc.checkApplicationAvatar(ctx, "avatar/user.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径错误") {
+		if err := svc.checkApplicationAvatar("avatar/user.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径错误") {
 			t.Fatalf("expected 申请表照片路径错误 for avatar/, got: %v", err)
 		}
-		if err := svc.checkApplicationAvatar(ctx, "illegal/path.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径错误") {
+		if err := svc.checkApplicationAvatar("illegal/path.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径错误") {
 			t.Fatalf("expected 申请表照片路径错误, got: %v", err)
 		}
 
 		// 2. 路径穿越校验与文件类型校验
-		if err := svc.checkApplicationAvatar(ctx, "application/../hack.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径不合法") {
+		if err := svc.checkApplicationAvatar("application/../hack.png"); err == nil || !strings.Contains(err.Error(), "申请表照片路径不合法") {
 			t.Fatalf("expected 申请表照片路径不合法, got: %v", err)
 		}
-		if err := svc.checkApplicationAvatar(ctx, "application/hack.exe"); err == nil || !strings.Contains(err.Error(), "申请表照片类型错误") {
+		if err := svc.checkApplicationAvatar("application/hack.exe"); err == nil || !strings.Contains(err.Error(), "申请表照片类型错误") {
 			t.Fatalf("expected 申请表照片类型错误, got: %v", err)
 		}
 
 		// 3. 正常路径与空路径允许通过
-		if err := svc.checkApplicationAvatar(ctx, "application/pic.png"); err != nil {
+		if err := svc.checkApplicationAvatar("application/pic.png"); err != nil {
 			t.Fatalf("valid avatar should be allowed, got: %v", err)
 		}
-		if err := svc.checkApplicationAvatar(ctx, ""); err != nil {
+		if err := svc.checkApplicationAvatar(""); err != nil {
 			t.Fatalf("empty avatar should be allowed, got: %v", err)
 		}
 	})
@@ -907,14 +966,14 @@ func TestExportInterviewResults(t *testing.T) {
 			}
 		}
 
-		// 2. 自定义选定字段导出：仅导出 学号 + 姓名 + 面试决策
-		selectedMask := (uint64(1) << request.ExportFieldBitStudentID) |
-			(uint64(1) << request.ExportFieldBitName) |
-			(uint64(1) << request.ExportFieldBitDecision)
+		// 2. 自定义选定字段导出：使用 010101 状态位序列，仅导出 学号 (Index:2) + 姓名 (Index:3) + 面试决策 (Index:15)
+		// 下标：0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21
+		// 状态：0 0 1 1 0 0 0 0 0 0  0  0  0  0  0  1  0  0  0  0  0  0
+		bitSeq := "0011000000000001000000"
 
 		req := request.ExportInterviewResultReq{
 			TermID: expiredTerm.ID,
-			Fields: selectedMask,
+			Fields: bitSeq,
 		}
 		bytesData, _, err := svc.ExportInterviewResults(ctx, vpUser.ID, req)
 		if err != nil {
@@ -948,17 +1007,36 @@ func TestExportInterviewResults(t *testing.T) {
 			t.Fatalf("row 2 data mismatch: %v", rows[2])
 		}
 
-		// 3. 无效掩码（未选择任何有效字段）测试
+		// 3. 兼容数值型字符串掩码 (32780 = (1<<2)|(1<<3)|(1<<15))
+		reqNumeric := request.ExportInterviewResultReq{
+			TermID: expiredTerm.ID,
+			Fields: "32780",
+		}
+		bytesDataNum, _, err := svc.ExportInterviewResults(ctx, vpUser.ID, reqNumeric)
+		if err != nil {
+			t.Fatalf("export with numeric mask string failed: %v", err)
+		}
+		excelFileNum, err := excelize.OpenReader(bytes.NewReader(bytesDataNum))
+		if err != nil {
+			t.Fatalf("failed to open generated excel: %v", err)
+		}
+		defer excelFileNum.Close()
+		rowsNum, _ := excelFileNum.GetRows("面试结果")
+		if len(rowsNum[0]) != 3 {
+			t.Fatalf("expected 3 header columns with numeric mask, got %d", len(rowsNum[0]))
+		}
+
+		// 4. 无效掩码（全0状态序列，未选择任何有效字段）测试
 		invalidReq := request.ExportInterviewResultReq{
 			TermID: expiredTerm.ID,
-			Fields: uint64(1) << 60, // 超出已知字段范围的位
+			Fields: "0000000000000000000000",
 		}
 		_, _, err = svc.ExportInterviewResults(ctx, vpUser.ID, invalidReq)
 		if err == nil || !strings.Contains(err.Error(), "未选择任何有效导出字段") {
 			t.Fatalf("expected '未选择任何有效导出字段' error, got: %v", err)
 		}
 
-		// 4. 不存在的部门ID筛选测试
+		// 5. 不存在的部门ID筛选测试
 		invalidDeptReq := request.ExportInterviewResultReq{
 			TermID:       expiredTerm.ID,
 			DepartmentID: 999999,
@@ -969,3 +1047,4 @@ func TestExportInterviewResults(t *testing.T) {
 		}
 	})
 }
+

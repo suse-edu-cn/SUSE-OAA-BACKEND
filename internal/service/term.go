@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
@@ -210,9 +211,12 @@ func (t *TermService) CreateApplication(ctx context.Context, application model.A
 	if user.IsGraduated {
 		return errors.New("已毕业成员不可填报申请表")
 	}
-
+	userRole, err := t.UserService.RoleRepo.GetRoleByID(ctx, user.RoleID)
+	if err != nil {
+		return err
+	}
 	application.AvatarURI = strings.TrimSpace(application.AvatarURI)
-	if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
+	if err := t.checkApplicationAvatar(application.AvatarURI); err != nil {
 		return err
 	}
 
@@ -223,7 +227,7 @@ func (t *TermService) CreateApplication(ctx context.Context, application model.A
 	if !term.IsInEditPeriod(time.Now()) {
 		return errors.New("不在时间范围内")
 	}
-	if err := t.checkApplicationChoices(ctx, application); err != nil {
+	if err := t.checkApplicationChoices(ctx, userRole, application); err != nil {
 		return err
 	}
 	application.Type = term.Type
@@ -238,6 +242,10 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 	if user.IsGraduated {
 		return errors.New("已毕业成员不可修改申请表")
 	}
+	userRole, err := t.UserService.RoleRepo.GetRoleByID(ctx, user.RoleID)
+	if err != nil {
+		return err
+	}
 
 	oldApplication, err := t.TermRepo.GetLatestApplicationByUserID(ctx, application.UserID)
 	if err != nil {
@@ -250,7 +258,7 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 	if !term.IsInEditPeriod(time.Now()) {
 		return errors.New("不在时间范围内")
 	}
-	if err := t.checkApplicationChoices(ctx, application); err != nil {
+	if err := t.checkApplicationChoices(ctx, userRole, application); err != nil {
 		return err
 	}
 
@@ -258,7 +266,7 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 	if application.AvatarURI == "" {
 		application.AvatarURI = oldApplication.AvatarURI
 	} else if application.AvatarURI != oldApplication.AvatarURI {
-		if err := t.checkApplicationAvatar(ctx, application.AvatarURI); err != nil {
+		if err := t.checkApplicationAvatar(application.AvatarURI); err != nil {
 			return err
 		}
 	}
@@ -273,7 +281,7 @@ func (t *TermService) UpdateApplication(ctx context.Context, application model.A
 	return nil
 }
 
-func (t *TermService) checkApplicationAvatar(ctx context.Context, avatar string) error {
+func (t *TermService) checkApplicationAvatar(avatar string) error {
 	avatar = strings.TrimSpace(avatar)
 	if avatar == "" {
 		return nil
@@ -386,21 +394,33 @@ func (t *TermService) fillApplicationAvatars(ctx context.Context, applications [
 	}
 }
 
-func (t *TermService) checkApplicationChoices(ctx context.Context, application model.Application) error {
-	if err := t.checkApplicationChoice(ctx, application.FirstChoice); err != nil {
+func (t *TermService) checkApplicationChoices(ctx context.Context, currentUserRole *model.Role, application model.Application) error {
+	if err := t.checkApplicationChoice(ctx, currentUserRole, application.FirstChoice); err != nil {
 		return err
 	}
-	if err := t.checkApplicationChoice(ctx, application.SecondChoice); err != nil {
+	if err := t.checkApplicationChoice(ctx, currentUserRole, application.SecondChoice); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (t *TermService) checkApplicationChoice(ctx context.Context, choice model.OrganizationRole) error {
+func (t *TermService) checkApplicationChoice(ctx context.Context, currentUserRole *model.Role, choice model.OrganizationRole) error {
 	if err := t.UserService.VerifyDepartmentPosition(ctx, choice.DepartmentID, choice.RoleID); err != nil {
 		return err
 	}
-	return t.checkApplicationRole(ctx, choice.RoleID)
+	if err := t.checkApplicationRole(ctx, choice.RoleID); err != nil {
+		return err
+	}
+	if currentUserRole != nil && currentUserRole.Name == "会员" {
+		choiceRole, err := t.UserService.RoleRepo.GetRoleByID(ctx, choice.RoleID)
+		if err != nil {
+			return err
+		}
+		if choiceRole != nil && choiceRole.Name == "会员" {
+			return errors.New("当前已是协会会员，不可申请成为会员")
+		}
+	}
+	return nil
 }
 
 func (t *TermService) checkApplicationRole(ctx context.Context, roleID uint64) error {
@@ -1020,9 +1040,12 @@ func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uin
 		}
 	}
 
-	mask := req.Fields
-	if mask == 0 {
-		mask = request.ExportFieldAllMask
+	mask, err := parseExportFieldMask(req.Fields, len(exportFieldDefinitions))
+	if err != nil {
+		return nil, "", err
+	}
+	if mask == 0 || (mask&request.ExportFieldAllMask) == 0 {
+		return nil, "", errors.New("未选择任何有效导出字段")
 	}
 
 	type exportColumn struct {
@@ -1335,7 +1358,7 @@ func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uin
 	})
 
 	_ = f.SetRowHeight(sheetName, 1, 26)
-	for c := 0; c < len(headers); c++ {
+	for c := range headers {
 		cell, _ := excelize.CoordinatesToCellName(c+1, 1)
 		_ = f.SetCellValue(sheetName, cell, headers[c])
 		_ = f.SetCellStyle(sheetName, cell, cell, headerStyle)
@@ -1344,7 +1367,7 @@ func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uin
 	for r, row := range rows {
 		rowIdx := r + 2
 		_ = f.SetRowHeight(sheetName, rowIdx, 22)
-		isAlt := (r%2 == 1)
+		isAlt := r%2 == 1
 		for c, val := range row {
 			cell, _ := excelize.CoordinatesToCellName(c+1, rowIdx)
 			_ = f.SetCellValue(sheetName, cell, val)
@@ -1404,28 +1427,28 @@ func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uin
 }
 
 var exportFieldDefinitions = []request.ExportFieldDef{
-	{Bit: request.ExportFieldBitTermTitle, Mask: 1 << request.ExportFieldBitTermTitle, Key: "term_title", Label: "业务周期"},
-	{Bit: request.ExportFieldBitType, Mask: 1 << request.ExportFieldBitType, Key: "type", Label: "业务类型"},
-	{Bit: request.ExportFieldBitStudentID, Mask: 1 << request.ExportFieldBitStudentID, Key: "student_id", Label: "学号"},
-	{Bit: request.ExportFieldBitName, Mask: 1 << request.ExportFieldBitName, Key: "name", Label: "姓名"},
-	{Bit: request.ExportFieldBitGender, Mask: 1 << request.ExportFieldBitGender, Key: "gender", Label: "性别"},
-	{Bit: request.ExportFieldBitCollege, Mask: 1 << request.ExportFieldBitCollege, Key: "college", Label: "学院"},
-	{Bit: request.ExportFieldBitMajorClass, Mask: 1 << request.ExportFieldBitMajorClass, Key: "major_class", Label: "专业班级"},
-	{Bit: request.ExportFieldBitPoliticalStatus, Mask: 1 << request.ExportFieldBitPoliticalStatus, Key: "political_status", Label: "政治面貌"},
-	{Bit: request.ExportFieldBitBirthDate, Mask: 1 << request.ExportFieldBitBirthDate, Key: "birth_date", Label: "出生年月"},
-	{Bit: request.ExportFieldBitPhone, Mask: 1 << request.ExportFieldBitPhone, Key: "phone", Label: "联系电话"},
-	{Bit: request.ExportFieldBitQQ, Mask: 1 << request.ExportFieldBitQQ, Key: "qq", Label: "QQ"},
-	{Bit: request.ExportFieldBitFirstDepartment, Mask: 1 << request.ExportFieldBitFirstDepartment, Key: "first_department", Label: "第一志愿部门"},
-	{Bit: request.ExportFieldBitFirstRole, Mask: 1 << request.ExportFieldBitFirstRole, Key: "first_role", Label: "第一志愿职位"},
-	{Bit: request.ExportFieldBitSecondDepartment, Mask: 1 << request.ExportFieldBitSecondDepartment, Key: "second_department", Label: "第二志愿部门"},
-	{Bit: request.ExportFieldBitSecondRole, Mask: 1 << request.ExportFieldBitSecondRole, Key: "second_role", Label: "第二志愿职位"},
-	{Bit: request.ExportFieldBitDecision, Mask: 1 << request.ExportFieldBitDecision, Key: "decision", Label: "面试决策"},
-	{Bit: request.ExportFieldBitResultDepartment, Mask: 1 << request.ExportFieldBitResultDepartment, Key: "result_department", Label: "录取部门"},
-	{Bit: request.ExportFieldBitResultRole, Mask: 1 << request.ExportFieldBitResultRole, Key: "result_role", Label: "录取职位"},
-	{Bit: request.ExportFieldBitOperatorName, Mask: 1 << request.ExportFieldBitOperatorName, Key: "operator_name", Label: "审核人"},
-	{Bit: request.ExportFieldBitDecisionRemark, Mask: 1 << request.ExportFieldBitDecisionRemark, Key: "decision_remark", Label: "决策备注"},
-	{Bit: request.ExportFieldBitCreatedAt, Mask: 1 << request.ExportFieldBitCreatedAt, Key: "created_at", Label: "提交时间"},
-	{Bit: request.ExportFieldBitUpdatedAt, Mask: 1 << request.ExportFieldBitUpdatedAt, Key: "updated_at", Label: "更新时间"},
+	{Index: 0, Bit: request.ExportFieldBitTermTitle, Mask: 1 << request.ExportFieldBitTermTitle, Key: "term_title", Label: "业务周期"},
+	{Index: 1, Bit: request.ExportFieldBitType, Mask: 1 << request.ExportFieldBitType, Key: "type", Label: "业务类型"},
+	{Index: 2, Bit: request.ExportFieldBitStudentID, Mask: 1 << request.ExportFieldBitStudentID, Key: "student_id", Label: "学号"},
+	{Index: 3, Bit: request.ExportFieldBitName, Mask: 1 << request.ExportFieldBitName, Key: "name", Label: "姓名"},
+	{Index: 4, Bit: request.ExportFieldBitGender, Mask: 1 << request.ExportFieldBitGender, Key: "gender", Label: "性别"},
+	{Index: 5, Bit: request.ExportFieldBitCollege, Mask: 1 << request.ExportFieldBitCollege, Key: "college", Label: "学院"},
+	{Index: 6, Bit: request.ExportFieldBitMajorClass, Mask: 1 << request.ExportFieldBitMajorClass, Key: "major_class", Label: "专业班级"},
+	{Index: 7, Bit: request.ExportFieldBitPoliticalStatus, Mask: 1 << request.ExportFieldBitPoliticalStatus, Key: "political_status", Label: "政治面貌"},
+	{Index: 8, Bit: request.ExportFieldBitBirthDate, Mask: 1 << request.ExportFieldBitBirthDate, Key: "birth_date", Label: "出生年月"},
+	{Index: 9, Bit: request.ExportFieldBitPhone, Mask: 1 << request.ExportFieldBitPhone, Key: "phone", Label: "联系电话"},
+	{Index: 10, Bit: request.ExportFieldBitQQ, Mask: 1 << request.ExportFieldBitQQ, Key: "qq", Label: "QQ"},
+	{Index: 11, Bit: request.ExportFieldBitFirstDepartment, Mask: 1 << request.ExportFieldBitFirstDepartment, Key: "first_department", Label: "第一志愿部门"},
+	{Index: 12, Bit: request.ExportFieldBitFirstRole, Mask: 1 << request.ExportFieldBitFirstRole, Key: "first_role", Label: "第一志愿职位"},
+	{Index: 13, Bit: request.ExportFieldBitSecondDepartment, Mask: 1 << request.ExportFieldBitSecondDepartment, Key: "second_department", Label: "第二志愿部门"},
+	{Index: 14, Bit: request.ExportFieldBitSecondRole, Mask: 1 << request.ExportFieldBitSecondRole, Key: "second_role", Label: "第二志愿职位"},
+	{Index: 15, Bit: request.ExportFieldBitDecision, Mask: 1 << request.ExportFieldBitDecision, Key: "decision", Label: "面试决策"},
+	{Index: 16, Bit: request.ExportFieldBitResultDepartment, Mask: 1 << request.ExportFieldBitResultDepartment, Key: "result_department", Label: "录取部门"},
+	{Index: 17, Bit: request.ExportFieldBitResultRole, Mask: 1 << request.ExportFieldBitResultRole, Key: "result_role", Label: "录取职位"},
+	{Index: 18, Bit: request.ExportFieldBitOperatorName, Mask: 1 << request.ExportFieldBitOperatorName, Key: "operator_name", Label: "审核人"},
+	{Index: 19, Bit: request.ExportFieldBitDecisionRemark, Mask: 1 << request.ExportFieldBitDecisionRemark, Key: "decision_remark", Label: "决策备注"},
+	{Index: 20, Bit: request.ExportFieldBitCreatedAt, Mask: 1 << request.ExportFieldBitCreatedAt, Key: "created_at", Label: "提交时间"},
+	{Index: 21, Bit: request.ExportFieldBitUpdatedAt, Mask: 1 << request.ExportFieldBitUpdatedAt, Key: "updated_at", Label: "更新时间"},
 }
 
 func (t *TermService) GetExportFieldsDefinition() request.ExportFieldsResp {
@@ -1433,9 +1456,65 @@ func (t *TermService) GetExportFieldsDefinition() request.ExportFieldsResp {
 	copy(defs, exportFieldDefinitions)
 	return request.ExportFieldsResp{
 		TotalFields: len(defs),
+		AllBits:     strings.Repeat("1", len(defs)),
 		AllMask:     request.ExportFieldAllMask,
 		Fields:      defs,
 	}
+}
+
+func parseExportFieldMask(raw string, numFields int) (uint64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "0" || strings.ToLower(raw) == "all" || strings.ToLower(raw) == "null" {
+		return (uint64(1) << numFields) - 1, nil
+	}
+
+	// 1. 二进制前缀 (0b / 0B)
+	if strings.HasPrefix(raw, "0b") || strings.HasPrefix(raw, "0B") {
+		mask, err := strconv.ParseUint(raw[2:], 2, 64)
+		if err != nil {
+			return 0, fmt.Errorf("二进制字段掩码格式不合法: %s", raw)
+		}
+		return mask, nil
+	}
+
+	// 2. 十六进制前缀 (0x / 0X)
+	if strings.HasPrefix(raw, "0x") || strings.HasPrefix(raw, "0X") {
+		mask, err := strconv.ParseUint(raw[2:], 16, 64)
+		if err != nil {
+			return 0, fmt.Errorf("十六进制字段掩码格式不合法: %s", raw)
+		}
+		return mask, nil
+	}
+
+	// 3. 纯 0/1 状态序列字符串（如 "010101..." 或 "1111111111111111111111"）
+	isBinaryStr := true
+	for _, ch := range raw {
+		if ch != '0' && ch != '1' {
+			isBinaryStr = false
+			break
+		}
+	}
+
+	if isBinaryStr {
+		// 从左到右，第 i 个字符对应下标为 i 的字段
+		var mask uint64
+		for i := 0; i < len(raw) && i < numFields; i++ {
+			if raw[i] == '1' {
+				mask |= uint64(1) << i
+			}
+		}
+		if mask == 0 {
+			return 0, errors.New("未选择任何有效导出字段")
+		}
+		return mask, nil
+	}
+
+	// 4. 兼容十进制整型掩码（如 4194303 或 32780）
+	mask, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("字段掩码参数不合法: %s", raw)
+	}
+	return mask, nil
 }
 
 func calculateDisplayWidth(s string) int {
