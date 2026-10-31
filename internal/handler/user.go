@@ -50,6 +50,21 @@ func (u *UserHandler) GetUserList(c *gin.Context) {
 		response.ParamError(c, err)
 		return
 	}
+
+	isGraduated, err := parseQueryBool(c, "is_graduated")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	req.IsGraduated = isGraduated
+
+	isAll, err := parseQueryBool(c, "is_all")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	req.IsAll = isAll
+
 	departmentID, departmentName := parseUserListIDOrName(req.DepartmentID, req.Department)
 	roleID, roleName := parseUserListIDOrName(req.RoleID, req.Role)
 

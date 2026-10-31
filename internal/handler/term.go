@@ -277,6 +277,14 @@ func (t *TermHandler) GetApplicationList(c *gin.Context) {
 		response.ParamError(c, err)
 		return
 	}
+
+	hasResult, err := parseQueryBool(c, "has_result")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	req.HasResult = hasResult
+
 	id := c.GetUint64("user_id")
 	ctx := c.Request.Context()
 	applications, err := t.TermService.GetApplicationList(ctx, id, req.DepartmentID, req.TermID, req.HasResult)

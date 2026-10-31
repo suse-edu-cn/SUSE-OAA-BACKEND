@@ -14,10 +14,10 @@ type UserListReq struct {
 	DepartmentID uint64 `form:"department_id"`
 	RoleID       uint64 `form:"role_id"`
 	Grade        uint   `form:"grade"`
-	IsGraduated  *bool  `form:"is_graduated"`
+	IsGraduated  *bool  `form:"-"`
 	Page         int    `form:"page,default=1"`
 	PageSize     int    `form:"page_size,default=20"`
-	IsAll        *bool  `form:"is_all"`
+	IsAll        *bool  `form:"-"`
 }
 
 type BatchUserInfoReq struct {
