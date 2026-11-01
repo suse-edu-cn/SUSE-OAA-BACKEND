@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -957,13 +958,23 @@ func TestExportInterviewResults(t *testing.T) {
 		if meta.TotalFields != 22 {
 			t.Fatalf("expected 22 export field definitions, got %d", meta.TotalFields)
 		}
-		if meta.AllMask != request.ExportFieldAllMask {
-			t.Fatalf("expected all_mask %d, got %d", request.ExportFieldAllMask, meta.AllMask)
+		if meta.AllBits != "1111111111111111111111" {
+			t.Fatalf("expected all_bits '1111111111111111111111', got %s", meta.AllBits)
 		}
-		for _, def := range meta.Fields {
-			if def.Mask != (uint64(1) << def.Bit) {
-				t.Fatalf("def %s: expected mask %d, got %d", def.Key, uint64(1)<<def.Bit, def.Mask)
+		for i, def := range meta.Fields {
+			if def.Index != uint8(i) {
+				t.Fatalf("def %s: expected index %d, got %d", def.Key, i, def.Index)
 			}
+		}
+
+		// 验证 JSON 序列化不包含 mask, bit, all_mask, key 冗余字段
+		jsonData, err := json.Marshal(meta)
+		if err != nil {
+			t.Fatalf("json marshal failed: %v", err)
+		}
+		jsonStr := string(jsonData)
+		if strings.Contains(jsonStr, `"mask"`) || strings.Contains(jsonStr, `"bit"`) || strings.Contains(jsonStr, `"all_mask"`) || strings.Contains(jsonStr, `"key"`) {
+			t.Fatalf("json should not contain mask/bit/all_mask/key, got: %s", jsonStr)
 		}
 
 		// 2. 自定义选定字段导出：使用 010101 状态位序列，仅导出 学号 (Index:2) + 姓名 (Index:3) + 面试决策 (Index:15)
@@ -1007,23 +1018,14 @@ func TestExportInterviewResults(t *testing.T) {
 			t.Fatalf("row 2 data mismatch: %v", rows[2])
 		}
 
-		// 3. 兼容数值型字符串掩码 (32780 = (1<<2)|(1<<3)|(1<<15))
+		// 3. 不再兼容数值掩码，传非 0/1 字符串直接报错拦截
 		reqNumeric := request.ExportInterviewResultReq{
 			TermID: expiredTerm.ID,
 			Fields: "32780",
 		}
-		bytesDataNum, _, err := svc.ExportInterviewResults(ctx, vpUser.ID, reqNumeric)
-		if err != nil {
-			t.Fatalf("export with numeric mask string failed: %v", err)
-		}
-		excelFileNum, err := excelize.OpenReader(bytes.NewReader(bytesDataNum))
-		if err != nil {
-			t.Fatalf("failed to open generated excel: %v", err)
-		}
-		defer excelFileNum.Close()
-		rowsNum, _ := excelFileNum.GetRows("面试结果")
-		if len(rowsNum[0]) != 3 {
-			t.Fatalf("expected 3 header columns with numeric mask, got %d", len(rowsNum[0]))
+		_, _, err = svc.ExportInterviewResults(ctx, vpUser.ID, reqNumeric)
+		if err == nil || !strings.Contains(err.Error(), "导出字段参数不合法") {
+			t.Fatalf("expected '导出字段参数不合法' error for numeric string, got: %v", err)
 		}
 
 		// 4. 无效掩码（全0状态序列，未选择任何有效字段）测试

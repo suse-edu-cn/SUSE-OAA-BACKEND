@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
@@ -1457,62 +1456,30 @@ func (t *TermService) GetExportFieldsDefinition() request.ExportFieldsResp {
 	return request.ExportFieldsResp{
 		TotalFields: len(defs),
 		AllBits:     strings.Repeat("1", len(defs)),
-		AllMask:     request.ExportFieldAllMask,
 		Fields:      defs,
 	}
 }
 
 func parseExportFieldMask(raw string, numFields int) (uint64, error) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "0" || strings.ToLower(raw) == "all" || strings.ToLower(raw) == "null" {
+	if raw == "" || strings.ToLower(raw) == "all" {
 		return (uint64(1) << numFields) - 1, nil
 	}
 
-	// 1. 二进制前缀 (0b / 0B)
-	if strings.HasPrefix(raw, "0b") || strings.HasPrefix(raw, "0B") {
-		mask, err := strconv.ParseUint(raw[2:], 2, 64)
-		if err != nil {
-			return 0, fmt.Errorf("二进制字段掩码格式不合法: %s", raw)
-		}
-		return mask, nil
-	}
-
-	// 2. 十六进制前缀 (0x / 0X)
-	if strings.HasPrefix(raw, "0x") || strings.HasPrefix(raw, "0X") {
-		mask, err := strconv.ParseUint(raw[2:], 16, 64)
-		if err != nil {
-			return 0, fmt.Errorf("十六进制字段掩码格式不合法: %s", raw)
-		}
-		return mask, nil
-	}
-
-	// 3. 纯 0/1 状态序列字符串（如 "010101..." 或 "1111111111111111111111"）
-	isBinaryStr := true
 	for _, ch := range raw {
 		if ch != '0' && ch != '1' {
-			isBinaryStr = false
-			break
+			return 0, fmt.Errorf("导出字段参数不合法，必须为 0 和 1 组成的状态序列: %s", raw)
 		}
 	}
 
-	if isBinaryStr {
-		// 从左到右，第 i 个字符对应下标为 i 的字段
-		var mask uint64
-		for i := 0; i < len(raw) && i < numFields; i++ {
-			if raw[i] == '1' {
-				mask |= uint64(1) << i
-			}
+	var mask uint64
+	for i := 0; i < len(raw) && i < numFields; i++ {
+		if raw[i] == '1' {
+			mask |= uint64(1) << i
 		}
-		if mask == 0 {
-			return 0, errors.New("未选择任何有效导出字段")
-		}
-		return mask, nil
 	}
-
-	// 4. 兼容十进制整型掩码（如 4194303 或 32780）
-	mask, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("字段掩码参数不合法: %s", raw)
+	if mask == 0 {
+		return 0, errors.New("未选择任何有效导出字段")
 	}
 	return mask, nil
 }

@@ -374,12 +374,12 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 鉴权 | 说明 | 请求参数 |
 |---|---|---|---|---|
-| POST | `/v2/application/create` | 登录 | 提交周期申请表（已毕业成员不可填报） | JSON：申请表各字段 |
-| POST | `/v2/application/update` | 登录 | 修改本人最新申请表（已毕业成员不可修改，仅限在 edit_period 内） | JSON：申请表各字段（仅限在 edit_period 内） |
-| GET | `/v2/application/me` | 登录 | 查看本人最新申请表（query 周期结束前决策状态保密显示为“待定”，结束后展示真实录用状态） | 无 |
+| POST | `/v2/application/create` | 登录 | 提交周期申请表（已毕业成员不可填报；当前为普通会员不可申请成为会员；骨干人员可申请会员以换届卸任） | JSON：申请表各字段 |
+| POST | `/v2/application/update` | 登录 | 修改本人最新申请表（已毕业成员不可修改；仅限在 edit_period 内；已是会员不可申请成为会员） | JSON：申请表各字段（仅限在 edit_period 内） |
+| GET | `/v2/application/me` | 登录 | 查看本人最新申请表（在 query 周期结果公示期前决策状态脱敏显示为“待定”，公示期开始后展示真实录用状态） | 无 |
 | GET | `/v2/application/department` | 登录 | 联动查询可选部门 | Query：`role_id`（可选） |
 | GET | `/v2/application/role` | 登录 | 联动查询可选职位 | Query：`department_id`（可选） |
-| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（招新换届期间均可查看，填报修改期仅可查阅不可修改面试结果） | Query：`term_id`（必填）、`department_id`（可选）、`has_result`（可选 bool，筛选是否已录入面试结果） |
+| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（招新换届期间均可查看，填报修改期仅可查阅不可修改面试结果） | Query：`term_id`（必填）、`department_id`（可选）、`has_result`（可选 bool，防陷阱解析：未传/留空/null 全量查询，true 查已录入，false 查待定） |
 | POST | `/v2/application/delete` | 登录 | 删除申请表 | JSON：`application_id` |
 
 ---
@@ -404,8 +404,8 @@ Authorization: Bearer <token>
 | POST | `/v2/interviewer/result/delete` | 登录 | 删除面试决策结果并重置申请表为“待定” | JSON：`application_id` |
 | GET | `/v2/interviewer/result/list` | 登录 | 查询面试结果列表 | Query：`term_id` |
 | GET | `/v2/interviewer/result/decision` | 登录 | 获取面试决策枚举 | 无 |
-| GET | `/v2/interviewer/result/export` | 登录（副会长及以上） | 导出面试结果与申请表为 Excel 文件（不受周期时间限制） | Query：`term_id`（可选）、`department_id`（可选）、`fields`（可选 uint64，位状态压缩字段掩码） |
-| GET | `/v2/interviewer/result/fields` | 登录 | 查询可导出的字段列表及其位状态压缩定义元数据 | 无 |
+| GET | `/v2/interviewer/result/export` | 登录（副会长及以上） | 导出面试结果与申请表为 Excel 文件（不受周期时间限制） | Query：`term_id`（可选）、`department_id`（可选）、`fields`（可选 string，01 状态位序列） |
+| GET | `/v2/interviewer/result/fields` | 登录 | 查询可导出的字段列表及其位状态定义元数据 | 无 |
 
 - **状态双向联动与重置规则**：
   - **录入/更新**：事务内同时更新 `interview_results` 表与 `applications` 表，使申请表即刻体现“录取第一志愿”、“录取第二志愿”、“已调剂”、“未通过”等最新决策；
@@ -417,36 +417,36 @@ Authorization: Bearer <token>
   - **时间窗口**：导出操作不受周期的编辑期（`edit_period`）或查询期（`query_period`）的时间限制，任意时间均可导出归档；
   - **数据基础**：直接基于最新 `applications` 申请表视图导出，包含联动更新后的录取决策、录取部门、录取职位、审核人姓名与决策备注；
   - **筛选维度**：支持按 `term_id`（周期）、`department_id`（部门）；
-  - **位状态压缩自选字段（Bitmask Compression）**：
-    - 前端通过可选参数 `fields`（无符号 64 位整数）控制导出列，仅选中的字段才会包含在生成的 Excel 中；未传或传 0 时默认全选导出所有字段；
-    - 可调用 `GET /v2/interviewer/result/fields` 获取动态元数据列表；
-    - 掩码计算公式：`fields = (1 << bit_0) | (1 << bit_1) | ...`；
+  - **01 状态位自选字段**：
+    - 前端通过可选参数 `fields` 控制导出列，仅选中的字段才会包含在生成的 Excel 中；未传或传空时默认全选导出所有字段；
+    - 直接传由 `'0'` 和 `'1'` 组成的字符串（如 `"0011000000000001000000"`），从左至右第 `i` 个字符（下标 0~21）对应固定字段字典中的第 `i` 项，`'1'` 导出，`'0'` 不导出。全选为 22 位全 1：`"1111111111111111111111"`；若包含非 0/1 字符将返回 400 错误；
+    - 可调用 `GET /v2/interviewer/result/fields` 动态获取字段字典、下标与全选位状态；
     - **严格规定的导出字段位状态字典**：
 
-| 位（Bit） | 掩码值（Dec） | 字段标识（Key） | 列标题（Label） | 默认对齐 |
-|:---:|:---:|:---|:---|:---:|
-| 0 | 1 | `term_title` | 业务周期 | 居中 |
-| 1 | 2 | `type` | 业务类型 | 居中 |
-| 2 | 4 | `student_id` | 学号 | 居中 |
-| 3 | 8 | `name` | 姓名 | 居中 |
-| 4 | 16 | `gender` | 性别 | 居中 |
-| 5 | 32 | `college` | 学院 | 居左 |
-| 6 | 64 | `major_class` | 专业班级 | 居中 |
-| 7 | 128 | `political_status` | 政治面貌 | 居中 |
-| 8 | 256 | `birth_date` | 出生年月 | 居中 |
-| 9 | 512 | `phone` | 联系电话 | 居中 |
-| 10 | 1024 | `qq` | QQ | 居中 |
-| 11 | 2048 | `first_department` | 第一志愿部门 | 居中 |
-| 12 | 4096 | `first_role` | 第一志愿职位 | 居中 |
-| 13 | 8192 | `second_department` | 第二志愿部门 | 居中 |
-| 14 | 16384 | `second_role` | 第二志愿职位 | 居中 |
-| 15 | 32768 | `decision` | 面试决策 | 居中 |
-| 16 | 65536 | `result_department` | 录取部门 | 居中 |
-| 17 | 131072 | `result_role` | 录取职位 | 居中 |
-| 18 | 262144 | `operator_name` | 审核人 | 居中 |
-| 19 | 524288 | `decision_remark` | 决策备注 | 居左 |
-| 20 | 1048576 | `created_at` | 提交时间 | 居中 |
-| 21 | 2097152 | `updated_at` | 更新时间 | 居中 |
+| 下标（Index） | 对应 01 序列位置 | 列标题（Label） | 默认对齐 |
+|:---:|:---:|:---|:---:|
+| 0 | 第 1 位 | 业务周期 | 居中 |
+| 1 | 第 2 位 | 业务类型 | 居中 |
+| 2 | 第 3 位 | 学号 | 居中 |
+| 3 | 第 4 位 | 姓名 | 居中 |
+| 4 | 第 5 位 | 性别 | 居中 |
+| 5 | 第 6 位 | 学院 | 居左 |
+| 6 | 第 7 位 | 专业班级 | 居中 |
+| 7 | 第 8 位 | 政治面貌 | 居中 |
+| 8 | 第 9 位 | 出生年月 | 居中 |
+| 9 | 第 10 位 | 联系电话 | 居中 |
+| 10 | 第 11 位 | QQ | 居中 |
+| 11 | 第 12 位 | 第一志愿部门 | 居中 |
+| 12 | 第 13 位 | 第一志愿职位 | 居中 |
+| 13 | 第 14 位 | 第二志愿部门 | 居中 |
+| 14 | 第 15 位 | 第二志愿职位 | 居中 |
+| 15 | 第 16 位 | 面试决策 | 居中 |
+| 16 | 第 17 位 | 录取部门 | 居中 |
+| 17 | 第 18 位 | 录取职位 | 居中 |
+| 18 | 第 19 位 | 审核人 | 居中 |
+| 19 | 第 20 位 | 决策备注 | 居左 |
+| 20 | 第 21 位 | 提交时间 | 居中 |
+| 21 | 第 22 位 | 更新时间 | 居中 |
 
   - **导出样式**：自动生成带深蓝专业表头、隔行斑马纹、自适应中英文列宽的 `.xlsx` 文件，响应头携带 `Content-Disposition: attachment; filename="<周期标题>_面试结果.xlsx"`。
 

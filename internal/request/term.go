@@ -201,16 +201,15 @@ type ExportInterviewResultReq struct {
 
 type ExportFieldDef struct {
 	Index uint8  `json:"index"`
-	Bit   uint8  `json:"bit"`
-	Mask  uint64 `json:"mask"`
-	Key   string `json:"key"`
+	Bit   uint8  `json:"-"`
+	Mask  uint64 `json:"-"`
+	Key   string `json:"-"`
 	Label string `json:"label"`
 }
 
 type ExportFieldsResp struct {
 	TotalFields int              `json:"total_fields"`
 	AllBits     string           `json:"all_bits"`
-	AllMask     uint64           `json:"all_mask"`
 	Fields      []ExportFieldDef `json:"fields"`
 }
 
