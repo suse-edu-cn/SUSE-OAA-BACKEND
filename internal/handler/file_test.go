@@ -58,3 +58,27 @@ func TestFileHandler_UploadFile_InvalidScene(t *testing.T) {
 		t.Fatalf("expected status 400 for invalid scene, got %d, body: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestFileHandler_UploadImage_EmptyFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewFileHandler(&service.FileService{})
+	r := gin.New()
+	r.POST("/upload/image", h.UploadImage)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("scene", "avatar")
+	// 创建 0 字节的空文件
+	_, _ = writer.CreateFormFile("file", "empty.png")
+	_ = writer.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, "/upload/image", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for empty file, got %d, body: %s", w.Code, w.Body.String())
+	}
+}

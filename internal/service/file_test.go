@@ -79,6 +79,20 @@ func TestUploadImage_Validation(t *testing.T) {
 	if !errors.Is(err, ErrInvalidImageType) {
 		t.Errorf("expected ErrInvalidImageType, got %v", err)
 	}
+
+	// 4. 测试 0 字节空文件或 nil
+	zeroHeader := &multipart.FileHeader{
+		Filename: "empty.png",
+		Size:     0,
+	}
+	_, err = svc.UploadImage(ctx, zeroHeader, "avatar")
+	if !errors.Is(err, ErrEmptyFile) {
+		t.Errorf("expected ErrEmptyFile for size=0, got %v", err)
+	}
+	_, err = svc.UploadImage(ctx, nil, "avatar")
+	if !errors.Is(err, ErrEmptyFile) {
+		t.Errorf("expected ErrEmptyFile for nil file, got %v", err)
+	}
 }
 
 func TestUploadFile_Validation(t *testing.T) {
@@ -103,5 +117,19 @@ func TestUploadFile_Validation(t *testing.T) {
 	_, err := svc.UploadFile(ctx, largeHeader, "material")
 	if !errors.Is(err, ErrFileTooLarge) {
 		t.Errorf("expected ErrFileTooLarge, got %v", err)
+	}
+
+	// 3. 测试 0 字节空文件或 nil
+	zeroHeader := &multipart.FileHeader{
+		Filename: "empty.pdf",
+		Size:     0,
+	}
+	_, err = svc.UploadFile(ctx, zeroHeader, "material")
+	if !errors.Is(err, ErrEmptyFile) {
+		t.Errorf("expected ErrEmptyFile for size=0, got %v", err)
+	}
+	_, err = svc.UploadFile(ctx, nil, "material")
+	if !errors.Is(err, ErrEmptyFile) {
+		t.Errorf("expected ErrEmptyFile for nil file, got %v", err)
 	}
 }

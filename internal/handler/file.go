@@ -28,7 +28,8 @@ func (f *FileHandler) UploadImage(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidScene) ||
 			errors.Is(err, service.ErrImageTooLarge) ||
-			errors.Is(err, service.ErrInvalidImageType) {
+			errors.Is(err, service.ErrInvalidImageType) ||
+			errors.Is(err, service.ErrEmptyFile) {
 			response.BadRequest(c, err.Error())
 			return
 		}
@@ -48,7 +49,8 @@ func (f *FileHandler) UploadFile(c *gin.Context) {
 	res, err := f.FileService.UploadFile(ctx, req.File, req.Scene)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidScene) ||
-			errors.Is(err, service.ErrFileTooLarge) {
+			errors.Is(err, service.ErrFileTooLarge) ||
+			errors.Is(err, service.ErrEmptyFile) {
 			response.BadRequest(c, err.Error())
 			return
 		}

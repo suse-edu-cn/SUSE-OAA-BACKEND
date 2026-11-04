@@ -18,6 +18,7 @@ var (
 	ErrImageTooLarge    = errors.New("图片体积过大")
 	ErrInvalidImageType = errors.New("图片类型错误")
 	ErrFileTooLarge     = errors.New("文件体积过大")
+	ErrEmptyFile        = errors.New("上传文件不能为空")
 )
 
 // sceneRegexp 校验场景标识，只允许字母、数字、下划线 '_' 和中划线 '-'，禁止 '.'、'/'、'\' 等字符以防目录穿越
@@ -57,6 +58,9 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 	if !IsValidScene(scene) {
 		return nil, ErrInvalidScene
 	}
+	if file == nil || file.Size <= 0 {
+		return nil, ErrEmptyFile
+	}
 	if file.Size > storage.MaxImageSize {
 		return nil, ErrImageTooLarge
 	}
@@ -90,6 +94,9 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 func (f *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader, scene string) (map[string]string, error) {
 	if !IsValidScene(scene) {
 		return nil, ErrInvalidScene
+	}
+	if file == nil || file.Size <= 0 {
+		return nil, ErrEmptyFile
 	}
 	if file.Size > storage.MaxFileSize {
 		return nil, ErrFileTooLarge
