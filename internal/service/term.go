@@ -501,7 +501,10 @@ func (t *TermService) resolveApplicationListScope(ctx context.Context, userID ui
 			continue
 		}
 		if interviewer.DepartmentID == 6 {
-			return 0, nil
+			return requestedDepartmentID, nil
+		}
+		if requestedDepartmentID != 0 && requestedDepartmentID != interviewer.DepartmentID {
+			return 0, errors.New("无权限查看其他部门申请")
 		}
 		return interviewer.DepartmentID, nil
 	}
@@ -509,7 +512,7 @@ func (t *TermService) resolveApplicationListScope(ctx context.Context, userID ui
 	return 0, errors.New("无权限查看该周期申请")
 }
 
-func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, departmentID uint64, termID uint64, hasResult *bool) ([]*model.Application, error) {
+func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, departmentID uint64, termID uint64, hasResult *bool, name string) ([]*model.Application, error) {
 	term, err := t.TermRepo.GetTermByID(ctx, termID)
 	if err != nil {
 		return nil, err
@@ -525,7 +528,7 @@ func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, dep
 		return nil, err
 	}
 
-	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, termID, finalDepartmentID, hasResult)
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, termID, finalDepartmentID, hasResult, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1018,7 +1021,7 @@ func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uin
 		return nil, "", err
 	}
 
-	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, req.TermID, req.DepartmentID, nil)
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, req.TermID, req.DepartmentID, nil, "")
 	if err != nil {
 		return nil, "", err
 	}

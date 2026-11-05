@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"suseoaa/internal/model"
 	"time"
 
@@ -67,7 +68,7 @@ func (t *TermRepository) GetApplicationsByUserID(ctx context.Context, userID uin
 	return application, err
 }
 
-func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Context, termID uint64, departmentID uint64, hasResult *bool) ([]*model.Application, error) {
+func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Context, termID uint64, departmentID uint64, hasResult *bool, name string) ([]*model.Application, error) {
 	var application []*model.Application
 	tx := t.DB.WithContext(ctx)
 	if departmentID != 0 {
@@ -82,6 +83,10 @@ func (t *TermRepository) GetApplicationsByTermIDAndDepartmentID(ctx context.Cont
 		} else {
 			tx = tx.Where("operator_id = 0 OR operator_id IS NULL")
 		}
+	}
+	name = strings.TrimSpace(name)
+	if name != "" {
+		tx = tx.Where("name LIKE ?", name+"%")
 	}
 	err := tx.Order("created_at DESC").Find(&application).Error
 	return application, err

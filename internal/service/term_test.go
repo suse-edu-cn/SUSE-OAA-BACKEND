@@ -415,10 +415,10 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		db.Create(&candidateUser)
 
 		app := model.Application{
-			ID:        300,
-			TermID:    term.ID,
-			UserID:    candidateUser.ID,
-			Decision:  model.DecisionPending,
+			ID:       300,
+			TermID:   term.ID,
+			UserID:   candidateUser.ID,
+			Decision: model.DecisionPending,
 			FirstChoice: model.OrganizationRole{
 				DepartmentID: 1,
 				RoleID:       2,
@@ -460,7 +460,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		}
 
 		// 面试官视角：查看申请表列表，能够看到录用状态改变
-		interviewerApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, nil)
+		interviewerApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, nil, "")
 		if err != nil {
 			t.Fatalf("GetApplicationList failed: %v", err)
 		}
@@ -483,7 +483,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		// 筛选 has_result 测试
 		trueVal := true
 		falseVal := false
-		filledApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &trueVal)
+		filledApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &trueVal, "")
 		if err != nil {
 			t.Fatalf("GetApplicationList with has_result=true failed: %v", err)
 		}
@@ -493,7 +493,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			}
 		}
 
-		unfilledApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &falseVal)
+		unfilledApps, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &falseVal, "")
 		if err != nil {
 			t.Fatalf("GetApplicationList with has_result=false failed: %v", err)
 		}
@@ -579,7 +579,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		}
 
 		// 验证删除面试结果后 has_result 筛选恢复：has_result=false 包含该申请，has_result=true 不包含
-		appsAfterDeleteFilled, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &trueVal)
+		appsAfterDeleteFilled, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &trueVal, "")
 		if err != nil {
 			t.Fatalf("GetApplicationList filled after delete failed: %v", err)
 		}
@@ -588,7 +588,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 				t.Fatalf("deleted interview result should not appear in has_result=true list")
 			}
 		}
-		appsAfterDeleteUnfilled, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &falseVal)
+		appsAfterDeleteUnfilled, err := svc.GetApplicationList(ctx, operator.ID, 0, term.ID, &falseVal, "")
 		if err != nil {
 			t.Fatalf("GetApplicationList unfilled after delete failed: %v", err)
 		}
@@ -675,7 +675,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 		db.Create(&editApp)
 
 		// 1. 修改期内管理员/面试官允许调用 GetApplicationList 查看申请表
-		apps, err := svc.GetApplicationList(ctx, operator.ID, 0, editTerm.ID, nil)
+		apps, err := svc.GetApplicationList(ctx, operator.ID, 0, editTerm.ID, nil, "")
 		if err != nil {
 			t.Fatalf("expected GetApplicationList to succeed during edit period, got: %v", err)
 		}
@@ -708,9 +708,169 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			ExecuteAfterAt: now.Add(-30 * time.Minute),
 		}
 		db.Create(&outTerm)
-		_, err = svc.GetApplicationList(ctx, operator.ID, 0, outTerm.ID, nil)
+		_, err = svc.GetApplicationList(ctx, operator.ID, 0, outTerm.ID, nil, "")
 		if err == nil || !strings.Contains(err.Error(), "不在查询时间范围内") {
 			t.Fatalf("expected '不在查询时间范围内' for expired term, got: %v", err)
+		}
+	})
+
+	t.Run("按姓名右模糊筛选申请表（name%）", func(t *testing.T) {
+		nameTerm := model.Term{
+			ID:             31,
+			Title:          "姓名模糊筛选周期",
+			Type:           model.TermTypeRecruit,
+			Year:           2028,
+			EditStartAt:    now.Add(-24 * time.Hour),
+			EditEndAt:      now.Add(24 * time.Hour),
+			QueryStartAt:   now.Add(25 * time.Hour),
+			QueryEndAt:     now.Add(48 * time.Hour),
+			ExecuteAfterAt: now.Add(50 * time.Hour),
+		}
+		db.Create(&nameTerm)
+
+		u1 := model.User{ID: 501, StudentID: "20230501", Username: "u_wang_wu", Grade: 2023}
+		u2 := model.User{ID: 502, StudentID: "20230502", Username: "u_wang_xiao", Grade: 2023}
+		u3 := model.User{ID: 503, StudentID: "20230503", Username: "u_xiao_wang", Grade: 2023}
+		u4 := model.User{ID: 504, StudentID: "20230504", Username: "u_zhang_san", Grade: 2023}
+		db.Create(&u1)
+		db.Create(&u2)
+		db.Create(&u3)
+		db.Create(&u4)
+
+		a1 := model.Application{ID: 5001, TermID: nameTerm.ID, UserID: u1.ID, Name: "王五", FirstChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 2}}
+		a2 := model.Application{ID: 5002, TermID: nameTerm.ID, UserID: u2.ID, Name: "王小明", FirstChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 2}}
+		a3 := model.Application{ID: 5003, TermID: nameTerm.ID, UserID: u3.ID, Name: "小王", FirstChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 2}}
+		a4 := model.Application{ID: 5004, TermID: nameTerm.ID, UserID: u4.ID, Name: "张三", FirstChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 2}}
+		db.Create(&a1)
+		db.Create(&a2)
+		db.Create(&a3)
+		db.Create(&a4)
+
+		// 1. 筛选 name="王"：前缀右模糊匹配，应仅匹配 "王五" 和 "王小明"，不能匹配 "小王" 或 "张三"
+		wangApps, err := svc.GetApplicationList(ctx, operator.ID, 0, nameTerm.ID, nil, "王")
+		if err != nil {
+			t.Fatalf("GetApplicationList with name='王' failed: %v", err)
+		}
+		if len(wangApps) != 2 {
+			t.Fatalf("expected 2 applications starting with '王', got %d", len(wangApps))
+		}
+		for _, a := range wangApps {
+			if !strings.HasPrefix(a.Name, "王") {
+				t.Fatalf("expected name to start with '王', got %s", a.Name)
+			}
+		}
+
+		// 2. 筛选 name="张"：应仅匹配 "张三"
+		zhangApps, err := svc.GetApplicationList(ctx, operator.ID, 0, nameTerm.ID, nil, "张")
+		if err != nil {
+			t.Fatalf("GetApplicationList with name='张' failed: %v", err)
+		}
+		if len(zhangApps) != 1 || zhangApps[0].Name != "张三" {
+			t.Fatalf("expected 1 application with Name='张三', got %v", zhangApps)
+		}
+
+		// 3. 筛选 name="" 或空格：全量返回
+		allApps, err := svc.GetApplicationList(ctx, operator.ID, 0, nameTerm.ID, nil, "   ")
+		if err != nil {
+			t.Fatalf("GetApplicationList with empty name failed: %v", err)
+		}
+		if len(allApps) != 4 {
+			t.Fatalf("expected 4 applications for empty name, got %d", len(allApps))
+		}
+
+		// 4. 筛选不存在的前缀 name="李"：返回 0 个
+		liApps, err := svc.GetApplicationList(ctx, operator.ID, 0, nameTerm.ID, nil, "李")
+		if err != nil {
+			t.Fatalf("GetApplicationList with name='李' failed: %v", err)
+		}
+		if len(liApps) != 0 {
+			t.Fatalf("expected 0 applications for name='李', got %d", len(liApps))
+		}
+	})
+
+	t.Run("面试官切换到非所属部门申请表时应被拦截报错", func(t *testing.T) {
+		permTerm := model.Term{
+			ID:             32,
+			Title:          "权限测试周期",
+			Type:           model.TermTypeRecruit,
+			Year:           2029,
+			EditStartAt:    now.Add(-2 * time.Hour),
+			EditEndAt:      now.Add(-1 * time.Hour),
+			QueryStartAt:   now.Add(-1 * time.Hour),
+			QueryEndAt:     now.Add(24 * time.Hour),
+			ExecuteAfterAt: now.Add(25 * time.Hour),
+		}
+		db.Create(&permTerm)
+
+		dept2 := model.Department{ID: 2, Name: "宣传部", Type: "部门", IsActive: true}
+		dept6 := model.Department{ID: 6, Name: "开放原子开源协会", Type: "协会", IsActive: true}
+		db.FirstOrCreate(&dept2, model.Department{ID: 2})
+		db.FirstOrCreate(&dept6, model.Department{ID: 6})
+
+		allInterviewerUser := model.User{
+			ID:           99,
+			StudentID:    "20249999",
+			Username:     "all_interviewer",
+			Grade:        2024,
+			IsGraduated:  false,
+			DepartmentID: 6,
+			RoleID:       1,
+		}
+		db.FirstOrCreate(&allInterviewerUser, model.User{ID: 99})
+
+		db.Create(&model.Interviewer{
+			TermID:       permTerm.ID,
+			UserID:       activeUser.ID,
+			DepartmentID: 1,
+			Remark:       "技术部面试官",
+		})
+		db.Create(&model.Interviewer{
+			TermID:       permTerm.ID,
+			UserID:       allInterviewerUser.ID,
+			DepartmentID: 6,
+			Remark:       "全协会面试官",
+		})
+
+		appP1 := model.Application{ID: 6001, TermID: permTerm.ID, UserID: activeUser.ID, Name: "考生1", FirstChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 1}}
+		db.Create(&appP1)
+
+		// 1. 普通面试官查看自己部门(部门1)或者不传部门(0) -> 允许
+		appsSelfDept, err := svc.GetApplicationList(ctx, activeUser.ID, 1, permTerm.ID, nil, "")
+		if err != nil {
+			t.Fatalf("interviewer querying self department should succeed, got: %v", err)
+		}
+		if len(appsSelfDept) != 1 {
+			t.Fatalf("expected 1 application for self department, got %d", len(appsSelfDept))
+		}
+
+		appsDefaultDept, err := svc.GetApplicationList(ctx, activeUser.ID, 0, permTerm.ID, nil, "")
+		if err != nil {
+			t.Fatalf("interviewer querying default department 0 should succeed, got: %v", err)
+		}
+		if len(appsDefaultDept) != 1 {
+			t.Fatalf("expected 1 application for default department, got %d", len(appsDefaultDept))
+		}
+
+		// 2. 普通面试官查看其他部门(部门2) -> 拦截并返回具体错误
+		_, err = svc.GetApplicationList(ctx, activeUser.ID, 2, permTerm.ID, nil, "")
+		if err == nil || !strings.Contains(err.Error(), "无权限查看其他部门申请") {
+			t.Fatalf("expected '无权限查看其他部门申请' error, got: %v", err)
+		}
+
+		// 3. 全协会面试官(部门6)查看其他部门(部门2)或者全部(0) -> 允许
+		_, err = svc.GetApplicationList(ctx, allInterviewerUser.ID, 2, permTerm.ID, nil, "")
+		if err != nil {
+			t.Fatalf("association interviewer querying dept 2 should succeed, got: %v", err)
+		}
+		_, err = svc.GetApplicationList(ctx, allInterviewerUser.ID, 0, permTerm.ID, nil, "")
+		if err != nil {
+			t.Fatalf("association interviewer querying all depts should succeed, got: %v", err)
+		}
+
+		// 4. 会长/副会长(operator level >= 80)查看其他部门(部门2) -> 允许
+		_, err = svc.GetApplicationList(ctx, operator.ID, 2, permTerm.ID, nil, "")
+		if err != nil {
+			t.Fatalf("admin querying dept 2 should succeed, got: %v", err)
 		}
 	})
 }
@@ -806,28 +966,28 @@ func TestExportInterviewResults(t *testing.T) {
 
 	trueVal := true
 	app1 := model.Application{
-		ID:                 5001,
-		TermID:             expiredTerm.ID,
-		Type:               model.TermTypeRecruit,
-		UserID:             candidate1.ID,
-		Name:               candidate1.Name,
-		Gender:             "男",
-		StudentID:          candidate1.StudentID,
-		College:            "计算机科学与工程学院",
-		MajorClass:         "计科241",
-		PoliticalStatus:    "共青团员",
-		BirthDate:          "2005-09",
-		Phone:              "13800000001",
-		QQ:                 "10001",
-		FirstChoice:        model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
-		SecondChoice:       model.OrganizationRole{DepartmentID: deptNet.ID, RoleID: roleOfficer.ID},
-		AllowAdjust:        &trueVal,
-		Decision:           model.DecisionAdmittedFirst,
-		Result:             model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
-		OperatorID:         vpUser.ID,
-		DecisionRemark:     "表现优异，通过第一志愿",
-		CreatedAt:          now.Add(-48 * time.Hour),
-		UpdatedAt:          now.Add(-30 * time.Hour),
+		ID:              5001,
+		TermID:          expiredTerm.ID,
+		Type:            model.TermTypeRecruit,
+		UserID:          candidate1.ID,
+		Name:            candidate1.Name,
+		Gender:          "男",
+		StudentID:       candidate1.StudentID,
+		College:         "计算机科学与工程学院",
+		MajorClass:      "计科241",
+		PoliticalStatus: "共青团员",
+		BirthDate:       "2005-09",
+		Phone:           "13800000001",
+		QQ:              "10001",
+		FirstChoice:     model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
+		SecondChoice:    model.OrganizationRole{DepartmentID: deptNet.ID, RoleID: roleOfficer.ID},
+		AllowAdjust:     &trueVal,
+		Decision:        model.DecisionAdmittedFirst,
+		Result:          model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
+		OperatorID:      vpUser.ID,
+		DecisionRemark:  "表现优异，通过第一志愿",
+		CreatedAt:       now.Add(-48 * time.Hour),
+		UpdatedAt:       now.Add(-30 * time.Hour),
 	}
 	app2 := model.Application{
 		ID:              5002,
@@ -1049,4 +1209,3 @@ func TestExportInterviewResults(t *testing.T) {
 		}
 	})
 }
-

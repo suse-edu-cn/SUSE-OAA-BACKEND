@@ -165,6 +165,7 @@ type GetInterviewerListReq struct {
 type GetApplicationListReq struct {
 	TermID       uint64 `form:"term_id" binding:"required"`
 	DepartmentID uint64 `form:"department_id"`
+	Name         string `form:"name"`
 	HasResult    *bool  `form:"-"`
 }
 

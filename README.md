@@ -379,7 +379,7 @@ Authorization: Bearer <token>
 | GET | `/v2/application/me` | 登录 | 查看本人最新申请表（在 query 周期结果公示期前决策状态脱敏显示为“待定”，公示期开始后展示真实录用状态） | 无 |
 | GET | `/v2/application/department` | 登录 | 联动查询可选部门 | Query：`role_id`（可选） |
 | GET | `/v2/application/role` | 登录 | 联动查询可选职位 | Query：`department_id`（可选） |
-| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（招新换届期间均可查看，填报修改期仅可查阅不可修改面试结果） | Query：`term_id`（必填）、`department_id`（可选）、`has_result`（可选 bool，防陷阱解析：未传/留空/null 全量查询，true 查已录入，false 查待定） |
+| GET | `/v2/application/list` | 登录（面试官/管理员） | 查询指定周期申请表列表（招新换届期间均可查看，填报修改期仅可查阅不可修改面试结果） | Query：`term_id`（必填）、`department_id`（可选；普通面试官仅限查看本部门，传其他部门返回 403 拦截“无权限查看其他部门申请”；会长/副会长/开发者/全协会面试官支持自由切换筛选）、`name`（可选 string，姓名右模糊匹配如"王"匹配"王%"）、`has_result`（可选 bool，防陷阱解析：未传/留空/null 全量查询，true 查已录入，false 查待定） |
 | POST | `/v2/application/delete` | 登录 | 删除申请表 | JSON：`application_id` |
 
 ---

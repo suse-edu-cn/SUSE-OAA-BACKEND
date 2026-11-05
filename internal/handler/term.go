@@ -29,7 +29,7 @@ func handleTermError(c *gin.Context, action string, err error) {
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "权限") || strings.Contains(msg, "无权") {
-		response.Forbidden(c, "权限不足")
+		response.Forbidden(c, msg)
 		return
 	}
 	if strings.Contains(msg, "周期") ||
@@ -288,7 +288,7 @@ func (t *TermHandler) GetApplicationList(c *gin.Context) {
 
 	id := c.GetUint64("user_id")
 	ctx := c.Request.Context()
-	applications, err := t.TermService.GetApplicationList(ctx, id, req.DepartmentID, req.TermID, req.HasResult)
+	applications, err := t.TermService.GetApplicationList(ctx, id, req.DepartmentID, req.TermID, req.HasResult, req.Name)
 	if err != nil {
 		handleTermError(c, "获取申请表列表", err)
 		return
