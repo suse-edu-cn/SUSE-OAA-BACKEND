@@ -34,7 +34,7 @@ func AccessLog() gin.HandlerFunc {
 			slog.Int("status", status),
 			slog.Duration("latency", latency),
 			slog.Int64("latency_ms", latency.Milliseconds()),
-			slog.String("client_ip", c.ClientIP()),
+			slog.String("client_ip", GetRealClientIP(c)),
 			slog.Int("body_size", c.Writer.Size()),
 			slog.String("user_agent", c.Request.UserAgent()),
 		}
