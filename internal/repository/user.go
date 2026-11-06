@@ -126,7 +126,21 @@ func (u *UserRepository) GetUserInfoById(ctx context.Context, id uint64) (model.
 		info.ScheduledDeleteAt = user.ScheduledDeleteAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05")
 		info.IsDeleting = true
 	}
+	if !user.IsGraduated {
+		var interviewerCount int64
+		_ = u.DB.WithContext(ctx).Model(&model.Interviewer{}).Where("user_id = ?", id).Count(&interviewerCount).Error
+		info.IsInterviewer = interviewerCount > 0 || (user.Role != nil && user.Role.Level >= 80)
+	}
 	return info, nil
+}
+
+func (u *UserRepository) IsInterviewer(ctx context.Context, userID uint64) (bool, error) {
+	var count int64
+	err := u.DB.WithContext(ctx).Model(&model.Interviewer{}).Where("user_id = ?", userID).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (u *UserRepository) GetRoleLevelAndDepartment(ctx context.Context, id uint64) (uint64, string, error) {
@@ -320,6 +334,19 @@ func (u *UserRepository) GetUserList(ctx context.Context, keyword string, depart
 		return nil, 0, errors.New("查询数据失败")
 	}
 
+	interviewerMap := make(map[uint64]bool)
+	if len(users) > 0 {
+		userIDs := make([]uint64, 0, len(users))
+		for _, uItem := range users {
+			userIDs = append(userIDs, uItem.ID)
+		}
+		var interviewerUserIDs []uint64
+		_ = u.DB.WithContext(ctx).Model(&model.Interviewer{}).Where("user_id IN ?", userIDs).Pluck("user_id", &interviewerUserIDs).Error
+		for _, uid := range interviewerUserIDs {
+			interviewerMap[uid] = true
+		}
+	}
+
 	userList = make([]model.UserInfo, 0, len(users))
 	now := time.Now()
 	for _, user := range users {
@@ -339,6 +366,9 @@ func (u *UserRepository) GetUserList(ctx context.Context, keyword string, depart
 		}
 		if user.Department != nil {
 			userInfo.Department = user.Department.Name
+		}
+		if !user.IsGraduated {
+			userInfo.IsInterviewer = interviewerMap[user.ID] || (user.Role != nil && user.Role.Level >= 80)
 		}
 		if user.ScheduledDeleteAt != nil && now.Before(*user.ScheduledDeleteAt) {
 			userInfo.ScheduledDeleteAt = user.ScheduledDeleteAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05")

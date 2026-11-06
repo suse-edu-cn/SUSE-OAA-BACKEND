@@ -25,7 +25,7 @@ func setupTestUserHandler(t *testing.T) (*UserHandler, *gorm.DB) {
 		t.Fatalf("failed to open sqlite in-memory db: %v", err)
 	}
 
-	if err := db.AutoMigrate(&model.User{}, &model.Department{}, &model.Role{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Department{}, &model.Role{}, &model.Interviewer{}); err != nil {
 		t.Fatalf("failed to migrate tables: %v", err)
 	}
 
@@ -255,5 +255,50 @@ func TestUserHandler_BatchUserInfo_SuccessForViceMinister(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200 for vice minister calling batch, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUserHandler_GetInfo_IsInterviewer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, db := setupTestUserHandler(t)
+
+	dept := model.Department{ID: 10, Name: "秘书处", Type: "部门", IsActive: true}
+	_ = db.Create(&dept).Error
+	roleMember := model.Role{ID: 30, Name: "干事", Level: 20, Type: "部门", IsActive: true}
+	_ = db.Create(&roleMember).Error
+
+	interviewerUser := model.User{
+		ID:           401,
+		StudentID:    "401",
+		Username:     "interviewer_usr",
+		Name:         "面试官干事",
+		DepartmentID: dept.ID,
+		RoleID:       roleMember.ID,
+		IsGraduated:  false,
+	}
+	_ = db.Create(&interviewerUser).Error
+	_ = db.Create(&model.Interviewer{ID: 10, TermID: 1, UserID: interviewerUser.ID, DepartmentID: dept.ID}).Error
+
+	r := gin.New()
+	r.GET("/user/me", func(c *gin.Context) {
+		c.Set("user_id", interviewerUser.ID)
+		h.GetInfo(c)
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, "/user/me", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Code int            `json:"code"`
+		Data model.UserInfo `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if !resp.Data.IsInterviewer {
+		t.Fatalf("expected data.is_interviewer=true in /user/me response, got false, body: %s", w.Body.String())
 	}
 }

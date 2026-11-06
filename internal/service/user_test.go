@@ -25,7 +25,7 @@ func setupTestUserService(t *testing.T) (*UserService, *gorm.DB, *miniredis.Mini
 		t.Fatalf("failed to open sqlite in-memory db: %v", err)
 	}
 
-	if err := db.AutoMigrate(&model.User{}, &model.Department{}, &model.Role{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Department{}, &model.Role{}, &model.Interviewer{}); err != nil {
 		t.Fatalf("failed to migrate tables: %v", err)
 	}
 
@@ -759,5 +759,70 @@ func TestUserService_GetUserList_Permission(t *testing.T) {
 			t.Fatalf("expected users returned, got total=%d, len=%d", total, len(list))
 		}
 	})
+}
+
+func TestUserService_GetUserInfo_IsInterviewer(t *testing.T) {
+	svc, db, _ := setupTestUserService(t)
+	ctx := context.Background()
+
+	roleMember := model.Role{ID: 101, Name: "会员", Level: 10, Type: "部门", IsActive: true}
+	roleVP := model.Role{ID: 102, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	dept := model.Department{ID: 101, Name: "技术部", Type: "部门", IsActive: true}
+	_ = db.Create(&roleMember).Error
+	_ = db.Create(&roleVP).Error
+	_ = db.Create(&dept).Error
+
+	// 1. 普通会员，未被委派为面试官
+	userPlain := model.User{ID: 5001, StudentID: "5001", Username: "plain", Name: "普通会员", RoleID: roleMember.ID, DepartmentID: dept.ID}
+	// 2. 普通会员，但在 interviewers 表中有委派记录
+	userInterviewer := model.User{ID: 5002, StudentID: "5002", Username: "interviewer", Name: "面试官用户", RoleID: roleMember.ID, DepartmentID: dept.ID}
+	// 3. 高权限副会长（Level 80）
+	userVP := model.User{ID: 5003, StudentID: "5003", Username: "vp", Name: "副会长用户", RoleID: roleVP.ID, DepartmentID: dept.ID}
+	// 4. 已毕业人员，即使在 interviewers 表中有历史记录，也不应享有面试官身份
+	userGrad := model.User{ID: 5004, StudentID: "5004", Username: "grad", Name: "已毕业用户", RoleID: roleMember.ID, DepartmentID: dept.ID, IsGraduated: true}
+
+	for _, u := range []model.User{userPlain, userInterviewer, userVP, userGrad} {
+		_ = db.Create(&u).Error
+	}
+
+	// 插入面试官记录
+	_ = db.Create(&model.Interviewer{ID: 1, TermID: 1, UserID: userInterviewer.ID, DepartmentID: dept.ID}).Error
+	_ = db.Create(&model.Interviewer{ID: 2, TermID: 1, UserID: userGrad.ID, DepartmentID: dept.ID}).Error
+
+	// Case 1: 普通用户 -> is_interviewer 为 false
+	infoPlain, err := svc.GetUserInfo(ctx, userPlain.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if infoPlain.IsInterviewer {
+		t.Fatalf("expected plain user is_interviewer=false, got true")
+	}
+
+	// Case 2: 委派面试官 -> is_interviewer 为 true
+	infoInterviewer, err := svc.GetUserInfo(ctx, userInterviewer.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !infoInterviewer.IsInterviewer {
+		t.Fatalf("expected interviewer user is_interviewer=true, got false")
+	}
+
+	// Case 3: 高权限副会长 (Level 80) -> is_interviewer 为 true
+	infoVP, err := svc.GetUserInfo(ctx, userVP.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !infoVP.IsInterviewer {
+		t.Fatalf("expected VP user is_interviewer=true, got false")
+	}
+
+	// Case 4: 已毕业成员 -> is_interviewer 为 false
+	infoGrad, err := svc.GetUserInfo(ctx, userGrad.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if infoGrad.IsInterviewer {
+		t.Fatalf("expected graduated user is_interviewer=false, got true")
+	}
 }
 

@@ -317,12 +317,13 @@ Authorization: Bearer <token>
 >     "avatar": { "uri": "avatar/202610.png", "url": "http://127.0.0.1:9000/..." },
 >     "grade": 2024,
 >     "is_graduated": false,
+>     "is_interviewer": true,
 >     "is_deleting": true,
 >     "scheduled_delete_at": "2026-10-26 15:04:05"
 >   }
 > }
 > ```
-> *注：时间格式与注销接口统一为 `2006-01-02 15:04:05`（东八区）。若账号未在注销冷静期中，`is_deleting` 为 `false` 且 `scheduled_delete_at` 不输出。*
+> *注：时间格式与注销接口统一为 `2006-01-02 15:04:05`（东八区）。`is_interviewer` 标识当前用户是否为面试官（或具备面试官管理权限），供前端渲染面试相关 UI 菜单及路由守卫拦截。若账号未在注销冷静期中，`is_deleting` 为 `false` 且 `scheduled_delete_at` 不输出。*
 
 ---
 

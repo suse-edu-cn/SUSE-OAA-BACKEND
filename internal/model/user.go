@@ -38,6 +38,7 @@ type UserInfo struct {
 	RoleLevel         uint64 `json:"role_level"`
 	Grade             uint   `json:"grade"`
 	IsGraduated       bool   `json:"is_graduated"`
+	IsInterviewer     bool   `json:"is_interviewer"`
 	ScheduledDeleteAt string `json:"scheduled_delete_at,omitempty"`
 	IsDeleting        bool   `json:"is_deleting"`
 }
