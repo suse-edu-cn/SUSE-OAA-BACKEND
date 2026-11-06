@@ -113,14 +113,13 @@ func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 	}
 	id := c.GetUint64("user_id")
 	ctx := c.Request.Context()
-	departmentID, roleID, err := u.UserService.GetDepartmentIDAndRoleIDByID(ctx, id)
-	if err != nil {
-		response.ServerError(c, "获取用户身份", err)
-		return
-	}
-	res, err := u.UserService.BatchUserInfo(ctx, req, departmentID, roleID)
+	res, err := u.UserService.BatchUserInfo(ctx, id, req)
 	if err != nil {
 		if res == nil {
+			if err.Error() == "权限不够" || strings.Contains(err.Error(), "无操作权限") || strings.Contains(err.Error(), "权限不足") {
+				response.Forbidden(c, "权限不足")
+				return
+			}
 			response.BadRequest(c, err.Error())
 		} else {
 			response.BadRequestWithData(c, "部分错误", res)
@@ -128,7 +127,6 @@ func (u *UserHandler) BatchUserInfo(c *gin.Context) {
 		return
 	}
 	response.Success(c, res)
-
 }
 func (u *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.GetUint64("user_id")

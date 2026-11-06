@@ -363,15 +363,18 @@ func (u *UserService) ResetPassword(ctx context.Context, account string, code st
 	return nil
 }
 
-func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUserInfoReq, departmentID uint64, roleID uint64) ([]model.BatchUserInfo, error) {
+func (u *UserService) BatchUserInfo(ctx context.Context, operatorID uint64, req []request.BatchUserInfoReq) ([]model.BatchUserInfo, error) {
 	var update []model.UpdateUserItems
 	var res []model.BatchUserInfo
-	status := make(map[uint64]bool)
-	level, err := u.RoleRepo.GetLevelByName(ctx, "副会长")
+
+	operator, err := u.Repo.FindUserById(ctx, operatorID)
 	if err != nil {
-		return res, err
+		return res, errors.New("获取操作人信息失败")
 	}
-	errorMessage := make(map[uint64]string)
+	if operator.IsGraduated {
+		return res, errors.New("已毕业成员无操作权限")
+	}
+
 	departmentMap, err := u.DepartmentRepo.GetDepartmentMap(ctx)
 	if err != nil {
 		return res, errors.New("获取部门map失败")
@@ -380,20 +383,42 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 	if err != nil {
 		return res, errors.New("获取职位map失败")
 	}
-	operatorRole := roleMap[roleID]
-	operatorDepartment := departmentMap[departmentID]
+
+	operatorRole := roleMap[operator.RoleID]
+	operatorDepartment := departmentMap[operator.DepartmentID]
 	if operatorRole == nil || !operatorRole.IsActive ||
 		operatorDepartment == nil || !operatorDepartment.IsActive {
 		return res, errors.New("操作者的部门或职位已停用")
 	}
 
+	// 垂直越权防御：副部长及以上（Level >= 50）才允许调用批量调整接口
+	if operatorRole.Level < 50 {
+		return res, errors.New("权限不够")
+	}
+
+	level, err := u.RoleRepo.GetLevelByName(ctx, "副会长")
+	if err != nil {
+		return res, err
+	}
+
+	status := make(map[uint64]bool)
+	errorMessage := make(map[uint64]string)
 	var userIdList []uint64
-	//区分出是否能改
+
+	// 区分出是否能改
 	for i := range req {
 		if status[req[i].UserID] {
 			continue
 		}
 		status[req[i].UserID] = true
+
+		// 1. 禁止通过批量接口修改自己
+		if req[i].UserID == operatorID {
+			userIdList = append(userIdList, req[i].UserID)
+			errorMessage[req[i].UserID] = "不能修改自己的职位或部门"
+			continue
+		}
+
 		targetUser, err := u.Repo.FindUserById(ctx, req[i].UserID)
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -410,21 +435,28 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 			targetCurrentLevel = targetCurrentRole.Level
 		}
 
-		// 1. 不能修改同级或更高职位的用户
+		// 2. 不能修改同级或更高职位的用户
 		if targetCurrentLevel >= operatorRole.Level {
 			userIdList = append(userIdList, req[i].UserID)
 			errorMessage[req[i].UserID] = "不能修改同级或更高职位的用户"
 			continue
 		}
 
-		// 2. 低于副会长的管理者（如部长），不能修改原本不属于本部门的用户
-		if operatorRole.Level < level && targetUser.DepartmentID != departmentID {
-			userIdList = append(userIdList, req[i].UserID)
-			errorMessage[req[i].UserID] = "不能跨部门修改其他部门的用户"
-			continue
+		// 3. 低于副会长的管理者（副部长 Level 50、部长 Level 60），不能修改其他部门成员且不能调入其他部门
+		if operatorRole.Level < level {
+			if targetUser.DepartmentID != operator.DepartmentID {
+				userIdList = append(userIdList, req[i].UserID)
+				errorMessage[req[i].UserID] = "不能跨部门修改其他部门的用户"
+				continue
+			}
+			if req[i].DepartmentID != operator.DepartmentID {
+				userIdList = append(userIdList, req[i].UserID)
+				errorMessage[req[i].UserID] = "不能跨部门修改其他部门的用户"
+				continue
+			}
 		}
 
-		// 3. 年级修改权限锁：只有副会长及以上（Level >= 80）可操作
+		// 4. 年级修改权限锁：只有副会长及以上（Level >= 80）可操作
 		if req[i].Grade != nil {
 			if operatorRole.Level < level {
 				userIdList = append(userIdList, req[i].UserID)
@@ -433,14 +465,14 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 			}
 		}
 
-		// 4. 入学年份合法性校验（大于 2000 且为四位数）
+		// 5. 入学年份合法性校验（大于 2000 且为四位数）
 		if req[i].Grade != nil && (*req[i].Grade <= 2000 || *req[i].Grade > 9999) {
 			userIdList = append(userIdList, req[i].UserID)
 			errorMessage[req[i].UserID] = "入学年份不合法"
 			continue
 		}
 
-		// 5. 已毕业成员不可任命在任职务
+		// 6. 已毕业成员不可任命在任职务
 		if targetUser.IsGraduated {
 			if targetCurrentRole == nil || targetCurrentRole.Name != "开发者" {
 				if roleMap[req[i].RoleID] != nil && roleMap[req[i].RoleID].Name != "会员" {
@@ -451,69 +483,75 @@ func (u *UserService) BatchUserInfo(ctx context.Context, req []request.BatchUser
 			}
 		}
 
+		// 7. 部门或职位存在性校验
 		if roleMap[req[i].RoleID] == nil || departmentMap[req[i].DepartmentID] == nil {
 			userIdList = append(userIdList, req[i].UserID)
-			tempItem := model.UpdateUserItems{}
-			tempItem.UserID = req[i].UserID
-			if departmentMap[req[i].DepartmentID] != nil {
-				tempItem.DepartmentID = &req[i].DepartmentID
-			} else {
+			if departmentMap[req[i].DepartmentID] == nil && roleMap[req[i].RoleID] == nil {
+				errorMessage[req[i].UserID] = "部门，职位都不存在"
+			} else if departmentMap[req[i].DepartmentID] == nil {
 				errorMessage[req[i].UserID] = "部门不存在"
-			}
-			if roleMap[req[i].RoleID] != nil {
-				tempItem.RoleID = &req[i].RoleID
 			} else {
-				if errorMessage[req[i].UserID] == "" {
-					errorMessage[req[i].UserID] = "职位不存在"
-				} else {
-					errorMessage[req[i].UserID] = "部门，职位都不存在"
-				}
-
+				errorMessage[req[i].UserID] = "职位不存在"
 			}
-		} else if err := u.VerifyDepartmentPosition(ctx, req[i].DepartmentID, req[i].RoleID); err != nil { //职位和部门不合理
+			continue
+		}
+
+		// 8. 部门和职位属性匹配校验
+		if err := u.VerifyDepartmentPosition(ctx, req[i].DepartmentID, req[i].RoleID); err != nil {
 			userIdList = append(userIdList, req[i].UserID)
 			errorMessage[req[i].UserID] = err.Error()
+			continue
+		}
 
-		} else if (operatorRole.Level >= level || //副会长以及以上
-			(operatorRole.Level > roleMap[req[i].RoleID].Level && //职位比要设置的职位大
-				departmentMap[departmentID] != nil &&
-				departmentID == req[i].DepartmentID)) && //同一部门
-			(level > roleMap[req[i].RoleID].Level) { //只能改副会长以下职位
-			update = append(update, model.UpdateUserItems{
-				UserID:       req[i].UserID,
-				DepartmentID: &req[i].DepartmentID,
-				RoleID:       &req[i].RoleID,
-				Grade:        req[i].Grade,
-			})
-		} else {
+		// 9. 目标职位级别约束：
+		// - 只有副会长以下职位可通过批量接口任命（level > targetRole.Level）
+		// - 任命的新职位必须低于操作人自身级别（operatorRole.Level > targetRole.Level）
+		targetNewRole := roleMap[req[i].RoleID]
+		if targetNewRole.Level >= level {
 			userIdList = append(userIdList, req[i].UserID)
-			if level <= roleMap[req[i].RoleID].Level {
-				errorMessage[req[i].UserID] = "不能修改成该职位"
-			} else {
-				errorMessage[req[i].UserID] = "修改人权限不够"
+			errorMessage[req[i].UserID] = "不能修改成该职位"
+			continue
+		}
+		if operatorRole.Level <= targetNewRole.Level {
+			userIdList = append(userIdList, req[i].UserID)
+			errorMessage[req[i].UserID] = "修改人权限不够"
+			continue
+		}
+
+		update = append(update, model.UpdateUserItems{
+			UserID:       req[i].UserID,
+			DepartmentID: &req[i].DepartmentID,
+			RoleID:       &req[i].RoleID,
+			Grade:        req[i].Grade,
+		})
+	}
+
+	// 将修改存入数据库
+	if len(update) > 0 {
+		err = u.Repo.BatchUserInfoList(ctx, update)
+		if err != nil {
+			return res, errors.New("存入修改失败")
+		}
+	}
+
+	// 拼接未修改的数据
+	if len(userIdList) > 0 {
+		usersInfo, err := u.Repo.GetUsersInfo(ctx, userIdList)
+		if err != nil {
+			return res, err
+		}
+		for _, id := range userIdList {
+			temp := model.BatchUserInfo{
+				UserID:       id,
+				StudentID:    usersInfo[id].StudentID,
+				Name:         usersInfo[id].Name,
+				Username:     usersInfo[id].Username,
+				ErrorMessage: errorMessage[id],
 			}
+			res = append(res, temp)
 		}
 	}
-	//将修改存入数据库
-	err = u.Repo.BatchUserInfoList(ctx, update)
-	if err != nil {
-		return res, errors.New("存入修改失败")
-	}
-	//拼接未修改的数据
-	usersInfo, err := u.Repo.GetUsersInfo(ctx, userIdList)
-	if err != nil {
-		return res, err
-	}
-	for _, id := range userIdList {
-		temp := model.BatchUserInfo{
-			UserID:       id,
-			StudentID:    usersInfo[id].StudentID,
-			Name:         usersInfo[id].Name,
-			Username:     usersInfo[id].Username,
-			ErrorMessage: errorMessage[id],
-		}
-		res = append(res, temp)
-	}
+
 	if len(res) == 0 {
 		return res, nil
 	}

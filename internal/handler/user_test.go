@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"suseoaa/internal/model"
@@ -40,7 +41,9 @@ func setupTestUserHandler(t *testing.T) (*UserHandler, *gorm.DB) {
 	})
 
 	repo := repository.NewUserRepository(db, rdb)
-	svc := service.NewUserService(repo, nil, nil, nil, nil)
+	roleRepo := repository.NewRoleRepository(db)
+	deptRepo := repository.NewDepartmentRepository(db)
+	svc := service.NewUserService(repo, roleRepo, deptRepo, nil, nil)
 	return NewUserHandler(svc), db
 }
 
@@ -125,5 +128,132 @@ func TestUserHandler_GetUserList_SuccessForViceMinister(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.Code != 200 {
 		t.Fatalf("expected code 200, got code=%d, msg=%q", resp.Code, resp.Message)
+	}
+}
+
+func TestUserHandler_BatchUserInfo_ForbiddenForMember(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, db := setupTestUserHandler(t)
+
+	dept := model.Department{ID: 3, Name: "宣传部", Type: "部门", IsActive: true}
+	_ = db.Create(&dept).Error
+	roleMember := model.Role{ID: 10, Name: "会员", Level: 10, Type: "部门", IsActive: true}
+	_ = db.Create(&roleMember).Error
+	roleVP := model.Role{ID: 11, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	_ = db.Create(&roleVP).Error
+
+	memberUser := model.User{
+		ID:           201,
+		StudentID:    "201",
+		Username:     "member_user",
+		Name:         "普通会员",
+		DepartmentID: dept.ID,
+		RoleID:       roleMember.ID,
+		IsGraduated:  false,
+	}
+	_ = db.Create(&memberUser).Error
+
+	r := gin.New()
+	r.POST("/user/batch", func(c *gin.Context) {
+		c.Set("user_id", memberUser.ID)
+		h.BatchUserInfo(c)
+	})
+
+	body := strings.NewReader(`[{"user_id":201,"department_id":3,"role_id":10}]`)
+	req, _ := http.NewRequest(http.MethodPost, "/user/batch", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 for member user calling batch, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUserHandler_BatchUserInfo_ForbiddenForGraduated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, db := setupTestUserHandler(t)
+
+	dept := model.Department{ID: 4, Name: "理事会", Type: "理事会", IsActive: true}
+	_ = db.Create(&dept).Error
+	roleVP := model.Role{ID: 12, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	_ = db.Create(&roleVP).Error
+
+	gradUser := model.User{
+		ID:           202,
+		StudentID:    "202",
+		Username:     "grad_vp",
+		Name:         "毕业老会长",
+		DepartmentID: dept.ID,
+		RoleID:       roleVP.ID,
+		IsGraduated:  true,
+	}
+	_ = db.Create(&gradUser).Error
+
+	r := gin.New()
+	r.POST("/user/batch", func(c *gin.Context) {
+		c.Set("user_id", gradUser.ID)
+		h.BatchUserInfo(c)
+	})
+
+	body := strings.NewReader(`[{"user_id":999,"department_id":4,"role_id":12}]`)
+	req, _ := http.NewRequest(http.MethodPost, "/user/batch", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 for graduated user calling batch, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUserHandler_BatchUserInfo_SuccessForViceMinister(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, db := setupTestUserHandler(t)
+
+	dept := model.Department{ID: 5, Name: "技术部", Type: "部门", IsActive: true}
+	_ = db.Create(&dept).Error
+	roleViceMin := model.Role{ID: 20, Name: "副部长", Level: 50, Type: "部门", IsActive: true}
+	_ = db.Create(&roleViceMin).Error
+	roleClerk := model.Role{ID: 21, Name: "干事", Level: 20, Type: "部门", IsActive: true}
+	_ = db.Create(&roleClerk).Error
+	roleVP := model.Role{ID: 22, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	_ = db.Create(&roleVP).Error
+
+	vpMin := model.User{
+		ID:           301,
+		StudentID:    "301",
+		Username:     "vp_min",
+		Name:         "副部长",
+		DepartmentID: dept.ID,
+		RoleID:       roleViceMin.ID,
+		IsGraduated:  false,
+	}
+	targetUser := model.User{
+		ID:           302,
+		StudentID:    "302",
+		Username:     "target_user",
+		Name:         "目标干事",
+		DepartmentID: dept.ID,
+		RoleID:       roleClerk.ID,
+		IsGraduated:  false,
+	}
+	_ = db.Create(&vpMin).Error
+	_ = db.Create(&targetUser).Error
+
+	r := gin.New()
+	r.POST("/user/batch", func(c *gin.Context) {
+		c.Set("user_id", vpMin.ID)
+		h.BatchUserInfo(c)
+	})
+
+	body := strings.NewReader(`[{"user_id":302,"department_id":5,"role_id":21}]`)
+	req, _ := http.NewRequest(http.MethodPost, "/user/batch", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for vice minister calling batch, got %d, body: %s", w.Code, w.Body.String())
 	}
 }

@@ -382,7 +382,7 @@ func TestUserService_BatchUserInfo_Graduation(t *testing.T) {
 			RoleID:       roleMinister.ID,
 		},
 	}
-	res, err := svc.BatchUserInfo(ctx, batchReq1, opUser.DepartmentID, opUser.RoleID)
+	res, err := svc.BatchUserInfo(ctx, opUser.ID, batchReq1)
 	if err == nil {
 		t.Fatalf("expected error for appointing graduated user, got nil")
 	}
@@ -405,7 +405,7 @@ func TestUserService_BatchUserInfo_Graduation(t *testing.T) {
 			Grade:        &newGrade,
 		},
 	}
-	res2, err := svc.BatchUserInfo(ctx, batchReq2, opMinister.DepartmentID, opMinister.RoleID)
+	res2, err := svc.BatchUserInfo(ctx, opMinister.ID, batchReq2)
 	if err == nil {
 		t.Fatalf("expected permission error for minister modifying grade, got nil")
 	}
@@ -414,7 +414,7 @@ func TestUserService_BatchUserInfo_Graduation(t *testing.T) {
 	}
 
 	// Case C: 副会长 (Level 80) 修改年级 -> 成功
-	res3, err := svc.BatchUserInfo(ctx, batchReq2, opUser.DepartmentID, opUser.RoleID)
+	res3, err := svc.BatchUserInfo(ctx, opUser.ID, batchReq2)
 	if err != nil {
 		t.Fatalf("unexpected error for VP modifying grade: %v, res: %v", err, res3)
 	}
@@ -424,6 +424,87 @@ func TestUserService_BatchUserInfo_Graduation(t *testing.T) {
 	}
 	if updatedClerk.Grade != 2023 {
 		t.Fatalf("expected clerk grade to be 2023, got %d", updatedClerk.Grade)
+	}
+
+	// Case D: 低权限操作人（干事 Level 20 或 会员 Level 10）尝试调用 -> 入口直接报“权限不够”拦截
+	opClerk := model.User{ID: 3007, StudentID: "op_clerk", Username: "op_clerk", Name: "操作干事", RoleID: roleClerk.ID, DepartmentID: deptAlgo.ID}
+	_ = db.Create(&opClerk).Error
+	_, err = svc.BatchUserInfo(ctx, opClerk.ID, batchReq2)
+	if err == nil || err.Error() != "权限不够" {
+		t.Fatalf("expected '权限不够' for clerk calling BatchUserInfo, got: %v", err)
+	}
+
+	// Case E: 已毕业成员作为操作人尝试调用 -> 入口直接报“已毕业成员无操作权限”拦截
+	gradOpUser := model.User{ID: 3008, StudentID: "op_grad", Username: "op_grad", Name: "毕业老学长", RoleID: roleVice.ID, DepartmentID: deptAssoc.ID, IsGraduated: true}
+	_ = db.Create(&gradOpUser).Error
+	_, err = svc.BatchUserInfo(ctx, gradOpUser.ID, batchReq2)
+	if err == nil || err.Error() != "已毕业成员无操作权限" {
+		t.Fatalf("expected '已毕业成员无操作权限' for graduated operator, got: %v", err)
+	}
+
+	// Case F: 副部长 (Level 50) 自治测试：
+	roleViceMinister := model.Role{ID: 8, Name: "副部长", Level: 50, Type: "部门", IsActive: true}
+	_ = db.Create(&roleViceMinister).Error
+	deptDev := model.Department{ID: 2, Name: "研发部", Type: "部门", IsActive: true}
+	_ = db.Create(&deptDev).Error
+
+	opViceMin := model.User{ID: 3009, StudentID: "op_vpmin", Username: "op_vpmin", Name: "副部长", RoleID: roleViceMinister.ID, DepartmentID: deptAlgo.ID}
+	targetDeptMember := model.User{ID: 3010, StudentID: "m01", Username: "m01", Name: "本部门干事", RoleID: roleClerk.ID, DepartmentID: deptAlgo.ID}
+	targetOtherDept := model.User{ID: 3011, StudentID: "m02", Username: "m02", Name: "外部门干事", RoleID: roleClerk.ID, DepartmentID: deptDev.ID}
+	_ = db.Create(&opViceMin).Error
+	_ = db.Create(&targetDeptMember).Error
+	_ = db.Create(&targetOtherDept).Error
+
+	// F1: 修改本部门干事职位为干事 -> 成功
+	batchOK := []request.BatchUserInfoReq{
+		{
+			UserID:       targetDeptMember.ID,
+			DepartmentID: deptAlgo.ID,
+			RoleID:       roleClerk.ID,
+		},
+	}
+	resF1, err := svc.BatchUserInfo(ctx, opViceMin.ID, batchOK)
+	if err != nil {
+		t.Fatalf("vice minister modifying same dept member should succeed, got err: %v, res: %v", err, resF1)
+	}
+
+	// F2: 尝试修改其他部门成员 -> 拦截
+	batchCross := []request.BatchUserInfoReq{
+		{
+			UserID:       targetOtherDept.ID,
+			DepartmentID: deptAlgo.ID,
+			RoleID:       roleClerk.ID,
+		},
+	}
+	resF2, err := svc.BatchUserInfo(ctx, opViceMin.ID, batchCross)
+	if err == nil || len(resF2) == 0 || resF2[0].ErrorMessage != "不能跨部门修改其他部门的用户" {
+		t.Fatalf("expected '不能跨部门修改其他部门的用户', got err: %v, res: %v", err, resF2)
+	}
+
+	// F3: 尝试修改自己 -> 拦截
+	batchSelf := []request.BatchUserInfoReq{
+		{
+			UserID:       opViceMin.ID,
+			DepartmentID: deptAlgo.ID,
+			RoleID:       roleViceMinister.ID,
+		},
+	}
+	resF3, err := svc.BatchUserInfo(ctx, opViceMin.ID, batchSelf)
+	if err == nil || len(resF3) == 0 || resF3[0].ErrorMessage != "不能修改自己的职位或部门" {
+		t.Fatalf("expected '不能修改自己的职位或部门', got err: %v, res: %v", err, resF3)
+	}
+
+	// F4: 副部长尝试任命同级（副部长 Level 50） -> 拦截
+	batchSameLevel := []request.BatchUserInfoReq{
+		{
+			UserID:       targetDeptMember.ID,
+			DepartmentID: deptAlgo.ID,
+			RoleID:       roleViceMinister.ID,
+		},
+	}
+	resF4, err := svc.BatchUserInfo(ctx, opViceMin.ID, batchSameLevel)
+	if err == nil || len(resF4) == 0 || resF4[0].ErrorMessage != "修改人权限不够" {
+		t.Fatalf("expected '修改人权限不够' for vice minister appointing vice minister, got err: %v, res: %v", err, resF4)
 	}
 }
 
