@@ -81,78 +81,31 @@ jobs:
     timeout-minutes: 10
     runs-on: [self-hosted, linux]
     steps:
+      - name: Download Build Artifact via Runner
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-${{ github.ref_name }}
+          path: dist
+
       - name: Deploy Binary to Physical Server
         run: |
           set -euo pipefail
-          echo "==> 实体机 Self-Hosted Runner 收到部署指令，开始执行更新..."
+          echo "==> 实体机 Self-Hosted Runner 收到部署指令，通过内部通道接收制品..."
 
           TAG="${{ github.ref_name }}"
-          REPO="${{ github.repository }}"
           APP_NAME="OAAbeta"
           INSTALL_DIR="${HOME}/OAA"
-          TMP_DIR=$(mktemp -d)
-          trap 'rm -rf "${TMP_DIR}"' EXIT
-
           TAR_NAME="suse-oaa-backend-${TAG}-linux-amd64.tar.gz"
-          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${TAR_NAME}"
 
           echo "==> 准备部署版本: ${TAG}"
           echo "==> 目标安装目录: ${INSTALL_DIR}"
           mkdir -p "${INSTALL_DIR}"
 
-          # 开始高速获取制品包
-          echo "==> 开始高速获取制品包..."
-          DOWNLOADED=false
-
-          # 1. 优先使用国内高速镜像源（秒级下载，适合国内机房与物理机）
-          MIRRORS=(
-            "https://ghfast.top/${DOWNLOAD_URL}"
-            "https://gh-proxy.com/${DOWNLOAD_URL}"
-            "https://mirror.ghproxy.com/${DOWNLOAD_URL}"
-          )
-          for mirror in "${MIRRORS[@]}"; do
-            echo "==> 尝试镜像源: ${mirror}"
-            if curl --connect-timeout 8 --max-time 60 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
-              echo "✅ 镜像源下载成功！"
-              DOWNLOADED=true
-              break
-            fi
-            echo "⚠️ 当前镜像源失败，尝试下一个..."
-          done
-
-          # 2. 备用保障：若镜像源未命中，快速尝试官方源（低超时防挂起）
-          if [ "${DOWNLOADED}" != "true" ]; then
-            echo "==> 镜像源未命中，尝试官方源快速直连..."
-            OFFICIAL_IPS=(
-              "140.82.112.4"
-              "140.82.114.4"
-              "default"
-            )
-            for ip in "${OFFICIAL_IPS[@]}"; do
-              if [ "${ip}" = "default" ]; then
-                RESOLVE_ARG=()
-              else
-                RESOLVE_ARG=(--resolve "github.com:443:${ip}")
-              fi
-
-              if curl "${RESOLVE_ARG[@]}" --connect-timeout 5 --max-time 20 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${DOWNLOAD_URL}"; then
-                echo "✅ 官方源下载成功！"
-                DOWNLOADED=true
-                break
-              fi
-            done
-          fi
-
-          if [ "${DOWNLOADED}" != "true" ]; then
-            echo "❌ 所有下载渠道均已尝试，下载制品包失败！"
-            exit 1
-          fi
-
-          # 解压并校验
+          # 解压内部通道接收到的制品
           echo "==> 正在解压制品..."
-          tar -zxvf "${TMP_DIR}/${TAR_NAME}" -C "${TMP_DIR}"
+          tar -zxvf "dist/${TAR_NAME}" -C dist/
 
-          if [ ! -f "${TMP_DIR}/${APP_NAME}" ]; then
+          if [ ! -f "dist/${APP_NAME}" ]; then
             echo "❌ 制品中未找到可执行文件 ${APP_NAME}！"
             exit 1
           fi
@@ -165,8 +118,9 @@ jobs:
 
           # 覆盖安装新版本二进制并赋予执行权限
           echo "==> 覆盖安装新版本二进制..."
-          mv -f "${TMP_DIR}/${APP_NAME}" "${INSTALL_DIR}/${APP_NAME}"
+          mv -f "dist/${APP_NAME}" "${INSTALL_DIR}/${APP_NAME}"
           chmod +x "${INSTALL_DIR}/${APP_NAME}"
+          rm -rf dist
 
           # 重启服务
           echo "==> 正在触发服务重启..."
