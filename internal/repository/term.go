@@ -450,6 +450,18 @@ func (t *TermRepository) ExecuteTermInterviewResults(ctx context.Context, termID
 			}
 		}
 
+		// 兜底处理：将该周期下所有未录入面试结果、仍处于“待定”状态的申请表批量置为“未通过”
+		if err := tx.Model(&model.Application{}).
+			Where("term_id = ? AND decision = ?", term.ID, model.DecisionPending).
+			Updates(map[string]any{
+				"decision":             model.DecisionRejected,
+				"result_department_id": 0,
+				"result_role_id":       0,
+				"decision_remark":      "评审期结束未被录用",
+			}).Error; err != nil {
+			return err
+		}
+
 		termTx := tx.Model(&model.Term{}).
 			Where("id = ? AND is_executed = ?", term.ID, false).
 			Updates(map[string]any{

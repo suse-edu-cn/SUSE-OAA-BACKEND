@@ -1406,3 +1406,177 @@ func TestTermService_InterviewerResultPermission(t *testing.T) {
 		t.Fatalf("expected '已毕业成员无操作权限' for graduated interviewer, got: %v", err)
 	}
 }
+
+func TestTermService_ExecuteDueInterviewResults_Fallback(t *testing.T) {
+	svc, db := setupTestTermService(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	dept1 := model.Department{ID: 301, Name: "技术部", Type: "部门", IsActive: true}
+	dept2 := model.Department{ID: 302, Name: "宣传部", Type: "部门", IsActive: true}
+	db.Create(&dept1)
+	db.Create(&dept2)
+
+	roleMember := model.Role{ID: 401, Name: "会员", Level: 10, Type: "部门", IsActive: true}
+	roleOfficer := model.Role{ID: 402, Name: "干事", Level: 20, Type: "部门", IsActive: true}
+	db.Create(&roleMember)
+	db.Create(&roleOfficer)
+
+	// 考生1（会被录用）
+	userAdmitted := model.User{
+		ID:           7001,
+		StudentID:    "20267001",
+		Username:     "candidate_admitted",
+		Name:         "张三",
+		Grade:        2026,
+		IsGraduated:  false,
+		DepartmentID: 301,
+		RoleID:       401,
+	}
+	// 考生2（从未录入面试结果，待系统兜底）
+	userUnreviewed := model.User{
+		ID:           7002,
+		StudentID:    "20267002",
+		Username:     "candidate_unreviewed",
+		Name:         "李四",
+		Grade:        2026,
+		IsGraduated:  false,
+		DepartmentID: 301,
+		RoleID:       401,
+	}
+	// 面试官操作人
+	interviewer := model.User{
+		ID:           7003,
+		StudentID:    "20237003",
+		Username:     "interviewer_op",
+		Name:         "王部长",
+		Grade:        2023,
+		IsGraduated:  false,
+		DepartmentID: 301,
+		RoleID:       402,
+	}
+	db.Create(&userAdmitted)
+	db.Create(&userUnreviewed)
+	db.Create(&interviewer)
+
+	// 到期的招新周期
+	dueTerm := model.Term{
+		ID:             999,
+		Title:          "2026秋招-自动结单测试",
+		Type:           model.TermTypeRecruit,
+		Year:           2026,
+		EditStartAt:    now.Add(-48 * time.Hour),
+		EditEndAt:      now.Add(-24 * time.Hour),
+		QueryStartAt:   now.Add(-24 * time.Hour),
+		QueryEndAt:     now.Add(-2 * time.Hour),
+		ExecuteAfterAt: now.Add(-1 * time.Hour),
+		IsExecuted:     false,
+	}
+	db.Create(&dueTerm)
+
+	// 申请表 1（有面试结果）
+	appAdmitted := model.Application{
+		ID:           99901,
+		TermID:       dueTerm.ID,
+		UserID:       userAdmitted.ID,
+		Name:         userAdmitted.Name,
+		Decision:     model.DecisionAdmittedFirst,
+		FirstChoice:  model.OrganizationRole{DepartmentID: 301, RoleID: 402},
+		SecondChoice: model.OrganizationRole{DepartmentID: 302, RoleID: 402},
+		Result:       model.OrganizationRole{DepartmentID: 301, RoleID: 402},
+		OperatorID:   interviewer.ID,
+	}
+	// 申请表 2（无面试结果，状态为“待定”）
+	appUnreviewed := model.Application{
+		ID:           99902,
+		TermID:       dueTerm.ID,
+		UserID:       userUnreviewed.ID,
+		Name:         userUnreviewed.Name,
+		Decision:     model.DecisionPending,
+		FirstChoice:  model.OrganizationRole{DepartmentID: 301, RoleID: 402},
+		SecondChoice: model.OrganizationRole{DepartmentID: 302, RoleID: 402},
+	}
+	db.Create(&appAdmitted)
+	db.Create(&appUnreviewed)
+
+	// 为申请表 1 插入 interview_results
+	resAdmitted := model.InterviewResult{
+		ID:                 99901,
+		TermID:             dueTerm.ID,
+		ApplicationID:      appAdmitted.ID,
+		Type:               dueTerm.Type,
+		UserID:             userAdmitted.ID,
+		OperatorID:         interviewer.ID,
+		Decision:           model.DecisionAdmittedFirst,
+		ResultDepartmentID: 301,
+		ResultRoleID:       402,
+		Remark:             "表现优秀录用为干事",
+	}
+	db.Create(&resAdmitted)
+
+	// 执行到期任务
+	executedCount, err := svc.ExecuteDueInterviewResults(ctx)
+	if err != nil {
+		t.Fatalf("ExecuteDueInterviewResults failed: %v", err)
+	}
+	if executedCount != 1 {
+		t.Fatalf("expected executedCount = 1, got %d", executedCount)
+	}
+
+	// 1. 验证周期已被标记为执行完成
+	var updatedTerm model.Term
+	if err := db.First(&updatedTerm, dueTerm.ID).Error; err != nil {
+		t.Fatalf("failed to query term: %v", err)
+	}
+	if !updatedTerm.IsExecuted || updatedTerm.ExecutedAt == nil {
+		t.Fatalf("expected term.IsExecuted=true with ExecutedAt set")
+	}
+
+	// 2. 验证已录用申请人：角色和部门已实际变更
+	var updatedUserAdmitted model.User
+	if err := db.First(&updatedUserAdmitted, userAdmitted.ID).Error; err != nil {
+		t.Fatalf("failed to query admitted user: %v", err)
+	}
+	if updatedUserAdmitted.RoleID != 402 || updatedUserAdmitted.DepartmentID != 301 {
+		t.Fatalf("expected admitted user role=402, dept=301, got role=%d, dept=%d", updatedUserAdmitted.RoleID, updatedUserAdmitted.DepartmentID)
+	}
+
+	// 3. 验证未录入面试结果的申请表：系统兜底置为“未通过”
+	var updatedAppUnreviewed model.Application
+	if err := db.First(&updatedAppUnreviewed, appUnreviewed.ID).Error; err != nil {
+		t.Fatalf("failed to query unreviewed app: %v", err)
+	}
+	if updatedAppUnreviewed.Decision != model.DecisionRejected {
+		t.Fatalf("expected unreviewed app decision=%q, got %q", model.DecisionRejected, updatedAppUnreviewed.Decision)
+	}
+	if updatedAppUnreviewed.DecisionRemark != "评审期结束未被录用" {
+		t.Fatalf("expected decision_remark='评审期结束未被录用', got %q", updatedAppUnreviewed.DecisionRemark)
+	}
+	if updatedAppUnreviewed.Result.DepartmentID != 0 || updatedAppUnreviewed.Result.RoleID != 0 {
+		t.Fatalf("expected result dept=0 role=0, got %v", updatedAppUnreviewed.Result)
+	}
+
+	// 4. 验证未被录用的申请人：users 表的角色和部门不受任何影响
+	var updatedUserUnreviewed model.User
+	if err := db.First(&updatedUserUnreviewed, userUnreviewed.ID).Error; err != nil {
+		t.Fatalf("failed to query unreviewed user: %v", err)
+	}
+	if updatedUserUnreviewed.RoleID != 401 || updatedUserUnreviewed.DepartmentID != 301 {
+		t.Fatalf("unreviewed user should remain unchanged, got role=%d, dept=%d", updatedUserUnreviewed.RoleID, updatedUserUnreviewed.DepartmentID)
+	}
+
+	// 5. 验证个人端视角（GetMyApplications）：未被录用者直接看到“未通过”
+	myApps, err := svc.GetMyApplications(ctx, userUnreviewed.ID)
+	if err != nil {
+		t.Fatalf("GetMyApplications failed: %v", err)
+	}
+	if len(myApps) == 0 {
+		t.Fatalf("expected 1 application for unreviewed user, got 0")
+	}
+	if myApps[0].Decision != model.DecisionRejected {
+		t.Fatalf("expected candidate to see %q, got %q", model.DecisionRejected, myApps[0].Decision)
+	}
+	if myApps[0].DecisionRemark != "评审期结束未被录用" {
+		t.Fatalf("expected remark '评审期结束未被录用', got %q", myApps[0].DecisionRemark)
+	}
+}
