@@ -1209,3 +1209,200 @@ func TestExportInterviewResults(t *testing.T) {
 		}
 	})
 }
+
+func TestTermService_InterviewerResultPermission(t *testing.T) {
+	svc, db := setupTestTermService(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	dept1 := model.Department{ID: 101, Name: "技术部", Type: "部门", IsActive: true}
+	dept2 := model.Department{ID: 102, Name: "宣传部", Type: "部门", IsActive: true}
+	deptAll := model.Department{ID: 6, Name: "开放原子开源协会", Type: "协会", IsActive: true}
+	db.Create(&dept1)
+	db.Create(&dept2)
+	db.Create(&deptAll)
+
+	roleMember := model.Role{ID: 201, Name: "会员", Level: 10, Type: "部门", IsActive: true}
+	roleMinister := model.Role{ID: 202, Name: "部长", Level: 60, Type: "部门", IsActive: true}
+	roleVP := model.Role{ID: 203, Name: "副会长", Level: 80, Type: "理事会", IsActive: true}
+	db.Create(&roleMember)
+	db.Create(&roleMinister)
+	db.Create(&roleVP)
+
+	// 副会长
+	vpUser := model.User{
+		ID: 8001, StudentID: "20228001", Username: "vp_user", Grade: 2022, IsGraduated: false, DepartmentID: 101, RoleID: 203,
+	}
+	// 普通面试官（技术部，部长，Level 60 < 80）
+	interviewerUser := model.User{
+		ID: 8002, StudentID: "20238002", Username: "dept_interviewer", Grade: 2023, IsGraduated: false, DepartmentID: 101, RoleID: 202,
+	}
+	// 全协会面试官（Level 10 < 80, DepartmentID 6）
+	allInterviewerUser := model.User{
+		ID: 8003, StudentID: "20238003", Username: "all_interviewer", Grade: 2023, IsGraduated: false, DepartmentID: 6, RoleID: 201,
+	}
+	// 普通成员（非面试官）
+	plainUser := model.User{
+		ID: 8004, StudentID: "20248004", Username: "plain_user", Grade: 2024, IsGraduated: false, DepartmentID: 101, RoleID: 201,
+	}
+	// 已毕业的面试官
+	gradInterviewerUser := model.User{
+		ID: 8005, StudentID: "20208005", Username: "grad_interviewer", Grade: 2020, IsGraduated: true, DepartmentID: 101, RoleID: 202,
+	}
+	// 考生1（第一志愿技术部101，第二志愿宣传部102）
+	candidateAppUser1 := model.User{
+		ID: 8006, StudentID: "20258006", Username: "candidate1", Grade: 2025, IsGraduated: false, DepartmentID: 101, RoleID: 201,
+	}
+	// 考生2（第一志愿宣传部102，第二志愿宣传部102）
+	candidateAppUser2 := model.User{
+		ID: 8007, StudentID: "20258007", Username: "candidate2", Grade: 2025, IsGraduated: false, DepartmentID: 102, RoleID: 201,
+	}
+
+	for _, u := range []model.User{vpUser, interviewerUser, allInterviewerUser, plainUser, gradInterviewerUser, candidateAppUser1, candidateAppUser2} {
+		db.Create(&u)
+	}
+
+	termAudit := model.Term{
+		ID:             888,
+		Title:          "2026招新-审核测试",
+		Type:           model.TermTypeRecruit,
+		Year:           2026,
+		EditStartAt:    now.Add(-2 * time.Hour),
+		EditEndAt:      now.Add(-1 * time.Hour),
+		QueryStartAt:   now.Add(-1 * time.Hour),
+		QueryEndAt:     now.Add(24 * time.Hour),
+		ExecuteAfterAt: now.Add(25 * time.Hour),
+	}
+	db.Create(&termAudit)
+
+	db.Create(&model.Interviewer{
+		ID: 8881, TermID: termAudit.ID, UserID: interviewerUser.ID, DepartmentID: 101, Remark: "技术部面试官",
+	})
+	db.Create(&model.Interviewer{
+		ID: 8882, TermID: termAudit.ID, UserID: allInterviewerUser.ID, DepartmentID: 6, Remark: "全协会面试官",
+	})
+	db.Create(&model.Interviewer{
+		ID: 8883, TermID: termAudit.ID, UserID: gradInterviewerUser.ID, DepartmentID: 101, Remark: "已毕业面试官",
+	})
+
+	candidateApp1 := model.Application{
+		ID:           88801,
+		TermID:       termAudit.ID,
+		UserID:       candidateAppUser1.ID,
+		Name:         "考生本部门",
+		FirstChoice:  model.OrganizationRole{DepartmentID: 101, RoleID: 202},
+		SecondChoice: model.OrganizationRole{DepartmentID: 102, RoleID: 201},
+	}
+	candidateApp2 := model.Application{
+		ID:           88802,
+		TermID:       termAudit.ID,
+		UserID:       candidateAppUser2.ID,
+		Name:         "考生其他部门",
+		FirstChoice:  model.OrganizationRole{DepartmentID: 102, RoleID: 201},
+		SecondChoice: model.OrganizationRole{DepartmentID: 102, RoleID: 202},
+	}
+	candidateApp3 := model.Application{
+		ID:           88803,
+		TermID:       termAudit.ID,
+		UserID:       plainUser.ID,
+		Name:         "考生3",
+		FirstChoice:  model.OrganizationRole{DepartmentID: 101, RoleID: 202},
+		SecondChoice: model.OrganizationRole{DepartmentID: 102, RoleID: 201},
+	}
+	db.Create(&candidateApp1)
+	db.Create(&candidateApp2)
+	db.Create(&candidateApp3)
+
+	// 1. 普通面试官（Level 60 < 80）成功录入本部门第一志愿面试结果
+	createReq1 := request.CreateInterviewResultReq{
+		ApplicationID:      candidateApp1.ID,
+		Decision:           model.DecisionAdmittedFirst,
+		ResultDepartmentID: 101,
+		ResultRoleID:       202,
+		Remark:             "技术面试通过",
+	}
+	if err := svc.CreateInterviewResult(ctx, interviewerUser.ID, createReq1); err != nil {
+		t.Fatalf("interviewer creating result for self department should succeed, got: %v", err)
+	}
+
+	// 2. 普通面试官（Level 60 < 80）成功更新面试结果
+	updateReq1 := request.UpdateInterviewResultReq{
+		ApplicationID:      candidateApp1.ID,
+		Decision:           model.DecisionAdmittedFirst,
+		ResultDepartmentID: 101,
+		ResultRoleID:       202,
+		Remark:             "更新备注：表现极为突出",
+	}
+	if err := svc.UpdateInterviewResult(ctx, interviewerUser.ID, updateReq1); err != nil {
+		t.Fatalf("interviewer updating result for self department should succeed, got: %v", err)
+	}
+
+	// 3. 普通面试官查询面试结果列表成功
+	resultList, err := svc.GetInterviewResultList(ctx, interviewerUser.ID, termAudit.ID)
+	if err != nil {
+		t.Fatalf("interviewer GetInterviewResultList should succeed, got: %v", err)
+	}
+	if len(resultList) == 0 {
+		t.Fatalf("expected at least 1 interview result in list, got 0")
+	}
+
+	// 4. 普通面试官跨部门审核拦截：技术部面试官尝试录入宣传部志愿的考生2 -> 拦截
+	createReqCrossDept := request.CreateInterviewResultReq{
+		ApplicationID:      candidateApp2.ID,
+		Decision:           model.DecisionRejected,
+		ResultDepartmentID: 0,
+		ResultRoleID:       0,
+		Remark:             "试图越权审核",
+	}
+	err = svc.CreateInterviewResult(ctx, interviewerUser.ID, createReqCrossDept)
+	if err == nil || !strings.Contains(err.Error(), "无权限审核其他部门申请") {
+		t.Fatalf("expected '无权限审核其他部门申请', got: %v", err)
+	}
+
+	// 5. 普通面试官跨部门录取拦截：技术部面试官尝试将考生1录取到第二志愿宣传部 -> 拦截
+	if err := svc.DeleteInterviewResult(ctx, vpUser.ID, candidateApp1.ID); err != nil {
+		t.Fatalf("failed to delete interview result: %v", err)
+	}
+	createReqCrossAdmit := request.CreateInterviewResultReq{
+		ApplicationID:      candidateApp1.ID,
+		Decision:           model.DecisionAdmittedSecond,
+		ResultDepartmentID: 102,
+		ResultRoleID:       201,
+		Remark:             "试图越权录取到部门102",
+	}
+	err = svc.CreateInterviewResult(ctx, interviewerUser.ID, createReqCrossAdmit)
+	if err == nil || !strings.Contains(err.Error(), "无权限录取至其他部门") {
+		t.Fatalf("expected '无权限录取至其他部门', got: %v", err)
+	}
+
+	// 6. 全协会面试官（DepartmentID: 6）允许跨部门录入
+	createReqAllDept := request.CreateInterviewResultReq{
+		ApplicationID:      candidateApp1.ID,
+		Decision:           model.DecisionAdmittedSecond,
+		ResultDepartmentID: 102,
+		ResultRoleID:       201,
+		Remark:             "全协会面试官协调录取到第二志愿",
+	}
+	if err := svc.CreateInterviewResult(ctx, allInterviewerUser.ID, createReqAllDept); err != nil {
+		t.Fatalf("association interviewer should be allowed to admit to second dept, got: %v", err)
+	}
+
+	// 7. 未被任命为面试官的普通用户尝试提交面试结果 -> 权限不够拦截
+	createReq3 := request.CreateInterviewResultReq{
+		ApplicationID:      candidateApp3.ID,
+		Decision:           model.DecisionAdmittedFirst,
+		ResultDepartmentID: 101,
+		ResultRoleID:       202,
+		Remark:             "测试非面试官提交",
+	}
+	err = svc.CreateInterviewResult(ctx, plainUser.ID, createReq3)
+	if err == nil || !strings.Contains(err.Error(), "权限不够") {
+		t.Fatalf("expected '权限不够' for non-interviewer user, got: %v", err)
+	}
+
+	// 8. 已毕业面试官尝试提交 -> 已毕业成员无操作权限拦截
+	err = svc.CreateInterviewResult(ctx, gradInterviewerUser.ID, createReq3)
+	if err == nil || !strings.Contains(err.Error(), "已毕业成员无操作权限") {
+		t.Fatalf("expected '已毕业成员无操作权限' for graduated interviewer, got: %v", err)
+	}
+}

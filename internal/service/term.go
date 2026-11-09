@@ -878,8 +878,33 @@ func (t *TermService) DeleteInterviewResult(ctx context.Context, operatorID uint
 }
 
 func (t *TermService) GetInterviewResultList(ctx context.Context, operatorID uint64, termID uint64) ([]model.InterviewResultInfo, error) {
-	if err := t.CheckLevel(ctx, operatorID); err != nil {
+	user, err := t.UserService.Repo.FindUserById(ctx, operatorID)
+	if err != nil {
 		return nil, err
+	}
+	if user.IsGraduated {
+		return nil, errors.New("已毕业成员无操作权限")
+	}
+
+	isAdmin := t.CheckLevel(ctx, operatorID) == nil
+	if !isAdmin {
+		if termID == 0 {
+			return nil, errors.New("权限不够")
+		}
+		interviewers, err := t.TermRepo.GetInterviewerListByTermID(ctx, termID)
+		if err != nil {
+			return nil, err
+		}
+		hasPermission := false
+		for _, item := range interviewers {
+			if item.UserID == operatorID {
+				hasPermission = true
+				break
+			}
+		}
+		if !hasPermission {
+			return nil, errors.New("权限不够")
+		}
 	}
 
 	if termID != 0 {
@@ -889,6 +914,65 @@ func (t *TermService) GetInterviewResultList(ctx context.Context, operatorID uin
 	}
 
 	return t.TermRepo.GetInterviewResultList(ctx, termID)
+}
+
+func (t *TermService) checkInterviewResultOperatorPermission(
+	ctx context.Context,
+	operatorID uint64,
+	termID uint64,
+	application *model.Application,
+	interviewResult model.InterviewResult,
+) error {
+	user, err := t.UserService.Repo.FindUserById(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	if user.IsGraduated {
+		return errors.New("已毕业成员无操作权限")
+	}
+
+	level, _, err := t.UserService.Repo.GetActiveRoleLevelAndDepartment(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+
+	if level >= 80 {
+		return nil
+	}
+
+	interviewers, err := t.TermRepo.GetInterviewerListByTermID(ctx, termID)
+	if err != nil {
+		return err
+	}
+
+	var currentInterviewer *model.Interviewer
+	for i := range interviewers {
+		if interviewers[i].UserID == operatorID {
+			currentInterviewer = &interviewers[i]
+			break
+		}
+	}
+	if currentInterviewer == nil {
+		return errors.New("权限不够")
+	}
+
+	if currentInterviewer.DepartmentID == 6 {
+		return nil
+	}
+
+	deptID := currentInterviewer.DepartmentID
+	appBelongsToDept := application.FirstChoice.DepartmentID == deptID ||
+		application.SecondChoice.DepartmentID == deptID ||
+		application.Result.DepartmentID == deptID
+	if !appBelongsToDept {
+		return errors.New("无权限审核其他部门申请")
+	}
+
+	if isAdmittedDecision(interviewResult.Decision) && interviewResult.ResultDepartmentID != deptID {
+		return errors.New("无权限录取至其他部门")
+	}
+
+	return nil
 }
 
 func (t *TermService) CheckInterviewResult(
@@ -920,7 +1004,7 @@ func (t *TermService) CheckInterviewResult(
 		return errors.New("不在时间范围内")
 	}
 
-	if err := t.CheckLevel(ctx, operatorID); err != nil {
+	if err := t.checkInterviewResultOperatorPermission(ctx, operatorID, term.ID, application, interviewResult); err != nil {
 		return err
 	}
 
