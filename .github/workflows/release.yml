@@ -104,49 +104,42 @@ jobs:
           echo "==> 开始高速获取制品包..."
           DOWNLOADED=false
 
-          # 1. 方案 A：尝试 GitHub 官方源多 IP 直连优选 (通过 --resolve 避开机房 DNS 污染)
-          OFFICIAL_IPS=(
-            "140.82.112.4"
-            "140.82.114.4"
-            "140.82.113.4"
-            "140.82.112.3"
-            "140.82.114.3"
-            "default"
+          # 1. 优先使用国内高速镜像源（秒级下载，适合国内机房与物理机）
+          MIRRORS=(
+            "https://ghfast.top/${DOWNLOAD_URL}"
+            "https://gh-proxy.com/${DOWNLOAD_URL}"
+            "https://mirror.ghproxy.com/${DOWNLOAD_URL}"
           )
-
-          for ip in "${OFFICIAL_IPS[@]}"; do
-            if [ "${ip}" = "default" ]; then
-              echo "==> 尝试官方源 (系统默认解析)..."
-              RESOLVE_ARG=()
-            else
-              echo "==> 尝试官方源直连 (优选 IP: ${ip})..."
-              RESOLVE_ARG=(--resolve "github.com:443:${ip}")
-            fi
-
-            if curl "${RESOLVE_ARG[@]}" --connect-timeout 8 --max-time 180 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${DOWNLOAD_URL}"; then
-              echo "✅ 官方源直连下载成功！"
+          for mirror in "${MIRRORS[@]}"; do
+            echo "==> 尝试镜像源: ${mirror}"
+            if curl --connect-timeout 8 --max-time 60 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
+              echo "✅ 镜像源下载成功！"
               DOWNLOADED=true
               break
             fi
-            echo "⚠️ 当前官方 IP 失败，尝试下一个..."
+            echo "⚠️ 当前镜像源失败，尝试下一个..."
           done
 
-          # 2. 备用保障：若机房网络无法直连官方 IP，自动无缝切换国内代理镜像并支持断点续传
+          # 2. 备用保障：若镜像源未命中，快速尝试官方源（低超时防挂起）
           if [ "${DOWNLOADED}" != "true" ]; then
-            echo "==> 官方直连受阻，自动无缝切换为高速代理镜像源..."
-            MIRRORS=(
-              "https://gh-proxy.com/${DOWNLOAD_URL}"
-              "https://ghfast.top/${DOWNLOAD_URL}"
-              "https://mirror.ghproxy.com/${DOWNLOAD_URL}"
+            echo "==> 镜像源未命中，尝试官方源快速直连..."
+            OFFICIAL_IPS=(
+              "140.82.112.4"
+              "140.82.114.4"
+              "default"
             )
-            for mirror in "${MIRRORS[@]}"; do
-              echo "==> 尝试镜像源: ${mirror}"
-              if curl --connect-timeout 10 --max-time 300 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${mirror}"; then
-                echo "✅ 镜像源下载成功！"
+            for ip in "${OFFICIAL_IPS[@]}"; do
+              if [ "${ip}" = "default" ]; then
+                RESOLVE_ARG=()
+              else
+                RESOLVE_ARG=(--resolve "github.com:443:${ip}")
+              fi
+
+              if curl "${RESOLVE_ARG[@]}" --connect-timeout 5 --max-time 20 -C - -fL -o "${TMP_DIR}/${TAR_NAME}" "${DOWNLOAD_URL}"; then
+                echo "✅ 官方源下载成功！"
                 DOWNLOADED=true
                 break
               fi
-              echo "⚠️ 当前镜像源失败，尝试下一个..."
             done
           fi
 
