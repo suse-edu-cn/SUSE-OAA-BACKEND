@@ -198,6 +198,7 @@ type ExportInterviewResultReq struct {
 	TermID       uint64 `form:"term_id"`
 	DepartmentID uint64 `form:"department_id"`
 	Fields       string `form:"fields"`
+	HasResult    *bool  `form:"-"`
 }
 
 type ExportFieldDef struct {

@@ -1105,9 +1105,26 @@ func (t *TermService) ExportInterviewResults(ctx context.Context, operatorID uin
 		return nil, "", err
 	}
 
-	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, req.TermID, req.DepartmentID, nil, "")
+	applications, err := t.TermRepo.GetApplicationsByTermIDAndDepartmentID(ctx, req.TermID, req.DepartmentID, req.HasResult, "")
 	if err != nil {
 		return nil, "", err
+	}
+
+	if req.HasResult != nil && *req.HasResult {
+		filtered := make([]*model.Application, 0, len(applications))
+		for _, app := range applications {
+			if app == nil {
+				continue
+			}
+			if !isAdmittedDecision(app.Decision) || app.Result.DepartmentID == 0 {
+				continue
+			}
+			if req.DepartmentID != 0 && app.Result.DepartmentID != req.DepartmentID {
+				continue
+			}
+			filtered = append(filtered, app)
+		}
+		applications = filtered
 	}
 
 	operatorIDs := make([]uint64, 0)

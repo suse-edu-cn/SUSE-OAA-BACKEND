@@ -1112,6 +1112,73 @@ func TestExportInterviewResults(t *testing.T) {
 		}
 	})
 
+	t.Run("导出已审核时仅导出有具体最终录取部门的人（排除未通过与未填部门）", func(t *testing.T) {
+		// 创建一个已审核但未通过的申请（operator_id > 0，但 decision = "未通过"）
+		candidate3 := model.User{
+			ID:        4003,
+			Name:      "赵六",
+			StudentID: "20250003",
+			RoleID:    roleOfficer.ID,
+		}
+		db.Create(&candidate3)
+		appRejected := model.Application{
+			ID:              5003,
+			TermID:          expiredTerm.ID,
+			Type:            model.TermTypeRecruit,
+			UserID:          candidate3.ID,
+			Name:            candidate3.Name,
+			Gender:          "男",
+			StudentID:       candidate3.StudentID,
+			College:         "计算机学院",
+			MajorClass:      "计科243",
+			PoliticalStatus: "群众",
+			BirthDate:       "2005-11",
+			Phone:           "13800000003",
+			QQ:              "10003",
+			FirstChoice:     model.OrganizationRole{DepartmentID: deptDev.ID, RoleID: roleOfficer.ID},
+			SecondChoice:    model.OrganizationRole{DepartmentID: deptNet.ID, RoleID: roleOfficer.ID},
+			AllowAdjust:     &trueVal,
+			Decision:        model.DecisionRejected,
+			Result:          model.OrganizationRole{DepartmentID: 0, RoleID: 0},
+			OperatorID:      vpUser.ID,
+			DecisionRemark:  "面试未通过",
+			CreatedAt:       now.Add(-46 * time.Hour),
+			UpdatedAt:       now.Add(-25 * time.Hour),
+		}
+		db.Create(&appRejected)
+		defer func() {
+			db.Unscoped().Delete(&appRejected)
+			db.Unscoped().Delete(&candidate3)
+		}()
+
+		// 传 has_result = true 导出已审核
+		req := request.ExportInterviewResultReq{
+			TermID:    expiredTerm.ID,
+			HasResult: &trueVal,
+		}
+		bytesData, _, err := svc.ExportInterviewResults(ctx, vpUser.ID, req)
+		if err != nil {
+			t.Fatalf("export with has_result=true failed: %v", err)
+		}
+		excelFile, err := excelize.OpenReader(bytes.NewReader(bytesData))
+		if err != nil {
+			t.Fatalf("open generated excel failed: %v", err)
+		}
+		defer excelFile.Close()
+
+		rows, err := excelFile.GetRows("面试结果")
+		if err != nil {
+			t.Fatalf("get rows failed: %v", err)
+		}
+		// 应该只包含 1 行表头 + 1 行录取数据 (app1)，未审核的 app2 与未通过的 appRejected 均被排除
+		if len(rows) != 2 {
+			t.Fatalf("expected exactly 2 rows (1 header + 1 admitted), got %d rows", len(rows))
+		}
+		if rows[1][2] != candidate1.StudentID || rows[1][15] != model.DecisionAdmittedFirst {
+			t.Fatalf("expected admitted candidate1 in row 1, got student=%s, decision=%s", rows[1][2], rows[1][15])
+		}
+	})
+
 	t.Run("位状态压缩字段导出测试", func(t *testing.T) {
 		// 1. 获取字段定义列表元数据
 		meta := svc.GetExportFieldsDefinition()

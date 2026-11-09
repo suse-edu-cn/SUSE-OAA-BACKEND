@@ -461,6 +461,13 @@ func (t *TermHandler) ExportInterviewResults(c *gin.Context) {
 		return
 	}
 
+	hasResult, err := parseQueryBool(c, "has_result")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	req.HasResult = hasResult
+
 	operatorID := c.GetUint64("user_id")
 	ctx := c.Request.Context()
 

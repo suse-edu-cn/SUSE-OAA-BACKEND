@@ -128,7 +128,7 @@ func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies [
 	app := r.Group("v2/app", middleware.JWTAuth(total.Auth.JwtSecret))
 	{
 		app.POST("create", total.OAuth.CreateOAuthClient)
-		app.GET("", total.OAuth.GetOAuthClient)
+		app.GET("detail", total.OAuth.GetOAuthClient)
 		app.POST("update", total.OAuth.UpdateOAuthClient)
 		app.GET("list", total.OAuth.GetOAuthClientList)
 		app.POST("delete", total.OAuth.DeleteOAuthClient)
