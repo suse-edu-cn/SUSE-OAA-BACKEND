@@ -10,6 +10,7 @@ import (
 
 	"suseoaa/pkg/logger"
 	"suseoaa/pkg/utils"
+	"uuid"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -156,11 +157,8 @@ func (u *UserService) getAvatarURL(ctx context.Context, avatar string) (string, 
 }
 
 func (u *UserService) SaveRefreshToken(ctx context.Context, id uint64, device string, time uint) (string, error) {
-	token, err := utils.GetUUID()
-	if err != nil {
-		return "", errors.New("生成refresh_token失败")
-	}
-	err = u.Repo.SaveRefreshToken(ctx, id, device, token, time)
+	token := uuid.NewV7().String()
+	err := u.Repo.SaveRefreshToken(ctx, id, device, token, time)
 	if err != nil {
 		return "", err
 	}
@@ -321,10 +319,7 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 			return errors.New("账号已处于注销冷静期")
 		}
 	}
-	token, err := utils.GetUUID()
-	if err != nil {
-		token = fmt.Sprintf("%d-%d", user.ID, time.Now().UnixNano())
-	}
+	token := uuid.NewV7().String()
 	acquired, err := u.Repo.SetCooldownNX(ctx, user.ID, token, u.Email.Cooldown)
 	if err != nil {
 		return err

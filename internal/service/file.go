@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"suseoaa/internal/storage"
-	"suseoaa/pkg/utils"
+	"uuid"
 )
 
 // 预定义哨兵错误（Sentinel Errors）
@@ -66,16 +66,13 @@ func (f *FileService) UploadImage(ctx context.Context, file *multipart.FileHeade
 	if !allowedExt[ext] {
 		return nil, ErrInvalidImageType
 	}
-	uuid, err := utils.GetUUID()
-	if err != nil {
-		return nil, errors.New("创建 uuid 失败" + err.Error())
-	}
+	fileUUID := uuid.NewV7().String()
 	fileValue, err := file.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer fileValue.Close()
-	objectName := fmt.Sprintf("%s/%s%s", scene, uuid, ext)
+	objectName := fmt.Sprintf("%s/%s%s", scene, fileUUID, ext)
 	err = f.ImgStorage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
 	if err != nil {
 		return nil, err
@@ -99,17 +96,14 @@ func (f *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 	if file.Size > storage.MaxFileSize {
 		return nil, ErrFileTooLarge
 	}
-	uuid, err := utils.GetUUID()
-	if err != nil {
-		return nil, errors.New("创建 uuid 失败" + err.Error())
-	}
+	fileUUID := uuid.NewV7().String()
 	fileValue, err := file.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer fileValue.Close()
 	ext := strings.ToLower(filepath.Ext(file.Filename))
-	objectName := fmt.Sprintf("%s/%s%s", scene, uuid, ext)
+	objectName := fmt.Sprintf("%s/%s%s", scene, fileUUID, ext)
 	err = f.FileStorage.UploadFile(ctx, objectName, fileValue, file.Size, file.Header.Get("Content-Type"))
 	if err != nil {
 		return nil, err

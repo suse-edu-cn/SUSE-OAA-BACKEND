@@ -1,8 +1,9 @@
 package middleware
 
 import (
+	"uuid"
+
 	"suseoaa/pkg/logger"
-	"suseoaa/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,11 +25,7 @@ func Trace() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		traceID := c.GetHeader(logger.TraceIDHeader)
 		if traceID == "" || !isValidTraceID(traceID) {
-			var err error
-			traceID, err = utils.GetUUID()
-			if err != nil {
-				traceID = "trace-fallback"
-			}
+			traceID = uuid.NewV7().String()
 		}
 
 		c.Header(logger.TraceIDHeader, traceID)
