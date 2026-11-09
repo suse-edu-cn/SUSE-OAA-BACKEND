@@ -125,16 +125,18 @@ func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies [
 		upload.POST("image", total.File.UploadImage)
 		upload.POST("file", total.File.UploadFile)
 	}
+	app := r.Group("v2/app", middleware.JWTAuth(total.Auth.JwtSecret))
+	{
+		app.POST("create", total.OAuth.CreateOAuthClient)
+		app.GET("", total.OAuth.GetOAuthClient)
+		app.POST("update", total.OAuth.UpdateOAuthClient)
+		app.GET("list", total.OAuth.GetOAuthClientList)
+		app.POST("delete", total.OAuth.DeleteOAuthClient)
+		app.POST("secret/reset", total.OAuth.ResetOAuthClientSecret)
+	}
 	oAuth := r.Group("v2/oauth")
 	{
-		client := oAuth.Group("client", middleware.JWTAuth(total.Auth.JwtSecret))
-		{
-			client.POST("create", total.OAuth.CreateOAuthClient)
-			client.GET("", total.OAuth.GetOAuthClient)
-			client.POST("update", total.OAuth.UpdateOAuthClient)
-			client.GET("list", total.OAuth.GetOAuthClientList)
-			client.POST("delete", total.OAuth.DeleteOAuthClient)
-		}
+		oAuth.GET("authorize", middleware.JWTAuth(total.Auth.JwtSecret), total.OAuth.Authorize)
 	}
 	return r
 }

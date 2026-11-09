@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"suseoaa/internal/model"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -48,4 +50,18 @@ func (o *OAuthRepository) GetOAuthClientList(ctx context.Context) ([]model.OAuth
 }
 func (o *OAuthRepository) DeleteOAuthClient(ctx context.Context, clientID string) error {
 	return o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).Delete(&model.OAuthClient{}).Error
+}
+func (o *OAuthRepository) ResetOAuthClientSecret(ctx context.Context, clientID string, secret string, maskSecret string) error {
+	return o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).Updates(map[string]any{
+		"client_secret": secret,
+		"mask_secret":   maskSecret,
+	}).Error
+}
+func (o *OAuthRepository) SaveAuthCode(ctx context.Context, code string, data model.AuthCodeData, ttl time.Duration) error {
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	key := "oauth:code:" + code
+	return o.Rdb.Set(ctx, key, bytes, ttl).Err()
 }

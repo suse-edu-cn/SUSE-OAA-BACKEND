@@ -114,3 +114,27 @@ type GetOAuthClientReq struct {
 type DeleteOAuthClientReq struct {
 	ClientID string `form:"client_id" json:"client_id" binding:"required"`
 }
+type ResetOAuthSecretReq struct {
+	ClientID string `form:"client_id" json:"client_id" binding:"required"`
+}
+type AuthorizeReq struct {
+	ClientID     string `form:"client_id" binding:"required"`
+	RedirectURI  string `form:"redirect_uri" binding:"required"`
+	ResponseType string `form:"response_type" binding:"required"`
+	Scope        string `form:"scope"`
+	State        string `form:"state"`
+}
+
+func (a *AuthorizeReq) Validate() error {
+	a.ClientID = strings.TrimSpace(a.ClientID)
+	a.RedirectURI = strings.TrimSpace(a.RedirectURI)
+	a.ResponseType = strings.TrimSpace(a.ResponseType)
+	a.Scope = strings.TrimSpace(a.Scope)
+	a.State = strings.TrimSpace(a.State)
+
+	if a.ResponseType != "code" {
+		return errors.New("response_type 必须为 code")
+	}
+
+	return nil
+}

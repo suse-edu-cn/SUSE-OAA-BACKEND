@@ -102,3 +102,41 @@ func (o *OAuthHandler) DeleteOAuthClient(c *gin.Context) {
 	response.Success(c, nil)
 	return
 }
+func (o *OAuthHandler) ResetOAuthClientSecret(c *gin.Context) {
+	var req request.ResetOAuthSecretReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ParamError(c, err)
+		return
+	}
+	ctx := c.Request.Context()
+	id := c.GetUint64("user_id")
+	secret, err := o.OAuthService.ResetOAuthClientSecret(ctx, req.ClientID, id)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, secret)
+	return
+}
+func (o *OAuthHandler) Authorize(c *gin.Context) {
+	var req request.AuthorizeReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.ParamError(c, err)
+		return
+	}
+	if err := req.Validate(); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+	userID := c.GetUint64("user_id")
+
+	redirectURL, err := o.OAuthService.Authorize(ctx, userID, req)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, redirectURL)
+	return
+}

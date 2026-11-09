@@ -30,6 +30,12 @@ type OAuthClientInfo struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+type AuthCodeData struct {
+	UserID      uint64 `json:"user_id"`
+	ClientID    string `json:"client_id"`
+	RedirectURI string `json:"redirect_uri"`
+	Scope       string `json:"scope"`
+}
 
 func (o *OAuthClient) TableName() string {
 	return "oauth_clients"

@@ -3,11 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"net/url"
+	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
 	"suseoaa/internal/request"
 	"suseoaa/internal/storage"
 	"suseoaa/pkg/utils"
+	"time"
 	"uuid"
 
 	"golang.org/x/crypto/bcrypt"
@@ -46,6 +49,9 @@ func (o *OAuthService) CreateOAuthClient(ctx context.Context, req request.Create
 		return nil, err
 	}
 	hashSecret, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.New("密钥加密失败")
+	}
 	client := model.OAuthClient{
 		ID:           uuid.NewV7().String(),
 		ClientID:     req.ClientID,
@@ -114,4 +120,74 @@ func (o *OAuthService) DeleteOAuthClient(ctx context.Context, clientID string, u
 		return errors.New("应用不存在")
 	}
 	return o.OAuthRepo.DeleteOAuthClient(ctx, clientID)
+}
+func (o *OAuthService) ResetOAuthClientSecret(ctx context.Context, clientID string, userID uint64) (string, error) {
+	err := o.CheckLevel(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	_, err = o.OAuthRepo.GetOAuthClientByClientID(ctx, clientID)
+	if err != nil {
+		return "", errors.New("应用不存在")
+	}
+	secret, maskSecret, err := utils.GenerateClientSecret()
+	if err != nil {
+		return "", err
+	}
+
+	hashSecret, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+	if err != nil {
+		return "", errors.New("密钥加密失败")
+	}
+	err = o.OAuthRepo.ResetOAuthClientSecret(ctx, clientID, string(hashSecret), maskSecret)
+	if err != nil {
+		return "", err
+	}
+	return secret, nil
+}
+
+func (o *OAuthService) Authorize(ctx context.Context, userID uint64, req request.AuthorizeReq) (string, error) {
+	client, err := o.OAuthRepo.GetOAuthClientByClientID(ctx, req.ClientID)
+	if err != nil {
+		return "", errors.New("应用不存在")
+	}
+	if !client.IsActive {
+		return "", errors.New("应用已停用")
+	}
+	allowedURIs := strings.Split(client.RedirectURIs, ",")
+	isMatch := false
+	for _, u := range allowedURIs {
+		if strings.TrimSpace(u) == req.RedirectURI {
+			isMatch = true
+			break
+		}
+	}
+	if !isMatch {
+		return "", errors.New("redirect_uri 不合法")
+	}
+	if req.Scope == "" {
+		req.Scope = client.Scope
+	}
+	code := "oaa_code_" + strings.ReplaceAll(uuid.NewV7().String(), "-", "")
+	codeData := model.AuthCodeData{
+		UserID:      userID,
+		ClientID:    req.ClientID,
+		RedirectURI: req.RedirectURI,
+		Scope:       req.Scope,
+	}
+	err = o.OAuthRepo.SaveAuthCode(ctx, code, codeData, 5*time.Minute)
+	if err != nil {
+		return "", errors.New("生成授权码失败")
+	}
+	parsedURL, err := url.Parse(req.RedirectURI)
+	if err != nil {
+		return "", errors.New("解析回调地址失败")
+	}
+	query := parsedURL.Query()
+	query.Set("code", code)
+	if req.State != "" {
+		query.Set("state", req.State)
+	}
+	parsedURL.RawQuery = query.Encode()
+	return parsedURL.String(), nil
 }
