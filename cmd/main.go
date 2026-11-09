@@ -32,6 +32,7 @@ func main() {
 	departmentRepo := repository.NewDepartmentRepository(db)
 	announcementRepo := repository.NewAnnouncementRepository(db)
 	termRepo := repository.NewTermRepository(db)
+	oAuthRepo := repository.NewOAuthRepository(db, rdb)
 	imgMinio, fileMinio := storage.NewMinIO(
 		Config.MiniO.MinioEndpoint,
 		Config.MiniO.PublicEndpoint,
@@ -58,7 +59,7 @@ func main() {
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo, fileService)
 	termService := service.NewTermService(termRepo, userService)
-
+	oAuthService := service.NewOAuthService(repo, oAuthRepo, imgMinio)
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 
@@ -86,7 +87,7 @@ func main() {
 	termHandler := handler.NewTermHandler(termService)
 	fileHandler := handler.NewFileHandler(fileService)
 	healthHandler := handler.NewHealthHandler(db, rdb)
-
+	oAuthHandler := handler.NewOAuthHandler(oAuthService)
 	totalHandler := handler.NewTotalHandler(
 		authHandler,
 		userHandler,
@@ -95,7 +96,8 @@ func main() {
 		announcementHandler,
 		termHandler,
 		fileHandler,
-		healthHandler)
+		healthHandler,
+		oAuthHandler)
 
 	r := router.RouterInit(totalHandler, rdb, Config.Server.TrustedProxies)
 

@@ -39,7 +39,7 @@ func NewEmailService(host string, port int, user string, pass string, expire int
 }
 func (e *EmailService) NewVerificationCode(length uint) string {
 	code := make([]byte, length)
-	for i := uint(0); i < length; i++ {
+	for i := range length {
 		num, err := rand.Int(rand.Reader, big.NewInt(10))
 		if err != nil {
 			code[i] = '0'

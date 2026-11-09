@@ -19,11 +19,9 @@ func GenerateToken(name string, userID uint64, studentID string, secret string, 
 		Name:      name,
 		UserID:    userID,
 		StudentID: studentID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireMinute) * time.Minute)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "GrowthOS",
-		},
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireMinute) * time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Issuer:    "OAA",
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(secret))
@@ -34,7 +32,7 @@ func GenerateToken(name string, userID uint64, studentID string, secret string, 
 }
 
 func ParseToken(tokenString string, secret string) (*MyClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &MyClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &MyClaims{}, func(token *jwt.Token) (any, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {

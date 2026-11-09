@@ -63,10 +63,8 @@ func TestRateLimit_Concurrent(t *testing.T) {
 	var blockCount atomic.Int64
 
 	var wg sync.WaitGroup
-	for i := 0; i < totalRequests; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range totalRequests {
+		wg.Go(func() {
 
 			req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 			req.RemoteAddr = "192.168.1.100:12345"
@@ -79,7 +77,7 @@ func TestRateLimit_Concurrent(t *testing.T) {
 			} else if w.Code == http.StatusTooManyRequests {
 				blockCount.Add(1)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -102,23 +100,19 @@ func TestRateLimit_FallbackOnRedisDown(t *testing.T) {
 	})
 	defer rdb.Close()
 
-
 	r := gin.New()
 	r.Use(RateLimit(rdb, "test_down", 5, time.Minute))
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
 
-
 	mr.Close()
-
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
-
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("预期 Redis 宕机时自动降级放行（返回 200），但实际返回了状态码: %d", w.Code)

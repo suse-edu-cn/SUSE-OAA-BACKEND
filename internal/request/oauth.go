@@ -1,0 +1,116 @@
+package request
+
+import (
+	"errors"
+	"net/url"
+	"regexp"
+	"strings"
+)
+
+var SupportedScopes = map[string]bool{
+	"openid":  true,
+	"profile": true,
+	"email":   true,
+	"level":   true,
+}
+var clientIDRegex = regexp.MustCompile(`^[a-z0-9_-]{3,32}$`)
+
+const DefaultScope = "openid profile email"
+
+func validateAndCleanRedirectURIs(raw string) (string, error) {
+	uris := strings.SplitSeq(raw, ",")
+	var redirectURI []string
+	for uri := range uris {
+		u := strings.TrimSpace(uri)
+		if u == "" {
+			continue
+		}
+		parsedURL, err := url.ParseRequestURI(u)
+		if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+			return "", errors.New("redirect_uris 中包含不合法的 URL: " + u)
+		}
+		redirectURI = append(redirectURI, u)
+	}
+	if len(redirectURI) == 0 {
+		return "", errors.New("redirect_uris 不能为空")
+	}
+	return strings.Join(redirectURI, ","), nil
+}
+
+func validateAndCleanScope(raw string) (string, error) {
+	if raw == "" {
+		return DefaultScope, nil
+	}
+	scopes := strings.Fields(raw)
+	for _, scope := range scopes {
+		if !SupportedScopes[scope] {
+			return "", errors.New("scope 中存在不合法权限：" + scope)
+		}
+	}
+	return strings.Join(scopes, " "), nil
+}
+
+type CreateOAuthClientReq struct {
+	Name         string `json:"name" binding:"required"`
+	ClientID     string `json:"client_id" binding:"required"`
+	RedirectURIs string `json:"redirect_uris" binding:"required"`
+	Scope        string `json:"scope"`
+}
+
+func (c *CreateOAuthClientReq) Validate() error {
+	c.Name = strings.TrimSpace(c.Name)
+	c.ClientID = strings.TrimSpace(c.ClientID)
+	if !clientIDRegex.MatchString(c.ClientID) {
+		return errors.New("clientID格式不合法")
+	}
+	cleanedURIs, err := validateAndCleanRedirectURIs(c.RedirectURIs)
+	if err != nil {
+		return err
+	}
+	c.RedirectURIs = cleanedURIs
+	cleanedScope, err := validateAndCleanScope(c.Scope)
+	if err != nil {
+		return err
+	}
+	c.Scope = cleanedScope
+	return nil
+}
+
+type UpdateOAuthClientReq struct {
+	ClientID     string `json:"client_id" binding:"required"`
+	Name         string `json:"name" binding:"required"`
+	RedirectURIs string `json:"redirect_uris" binding:"required"`
+	Scope        string `json:"scope"`
+	IsActive     *bool  `json:"is_active" binding:"required"`
+}
+
+func (u *UpdateOAuthClientReq) Validate() error {
+	u.Name = strings.TrimSpace(u.Name)
+	u.ClientID = strings.TrimSpace(u.ClientID)
+
+	if !clientIDRegex.MatchString(u.ClientID) {
+		return errors.New("clientID格式不合法")
+	}
+
+	cleanedURIs, err := validateAndCleanRedirectURIs(u.RedirectURIs)
+	if err != nil {
+		return err
+	}
+	u.RedirectURIs = cleanedURIs
+
+	cleanedScope, err := validateAndCleanScope(u.Scope)
+	if err != nil {
+		return err
+	}
+	u.Scope = cleanedScope
+
+	return nil
+}
+
+type GetOAuthClientReq struct {
+	ClientID string `form:"client_id" json:"client_id" binding:"required"`
+}
+
+type DeleteOAuthClientReq struct {
+	ClientID string `form:"client_id" json:"client_id" binding:"required"`
+}

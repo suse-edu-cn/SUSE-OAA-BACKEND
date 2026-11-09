@@ -1,0 +1,51 @@
+package repository
+
+import (
+	"context"
+	"suseoaa/internal/model"
+
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+)
+
+type OAuthRepository struct {
+	DB  *gorm.DB
+	Rdb *redis.Client
+}
+
+func NewOAuthRepository(db *gorm.DB, rdb *redis.Client) *OAuthRepository {
+	return &OAuthRepository{
+		DB:  db,
+		Rdb: rdb,
+	}
+}
+
+func (o *OAuthRepository) CreateOAuthClient(ctx context.Context, client model.OAuthClient) error {
+	return o.DB.WithContext(ctx).Create(&client).Error
+}
+func (o *OAuthRepository) UpdateOAuthClient(ctx context.Context, client map[string]any, clientID string) error {
+	return o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).Updates(client).Error
+}
+func (o *OAuthRepository) GetOAuthClientByClientID(ctx context.Context, clientID string) (model.OAuthClientInfo, error) {
+	var client model.OAuthClient
+	err := o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).First(&client).Error
+	if err != nil {
+		return model.OAuthClientInfo{}, err
+	}
+	return client.ToInfo(), nil
+}
+func (o *OAuthRepository) GetOAuthClientList(ctx context.Context) ([]model.OAuthClientInfo, error) {
+	var clients []model.OAuthClient
+	err := o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Find(&clients).Error
+	if err != nil {
+		return nil, err
+	}
+	var clientInfos []model.OAuthClientInfo
+	for _, client := range clients {
+		clientInfos = append(clientInfos, client.ToInfo())
+	}
+	return clientInfos, nil
+}
+func (o *OAuthRepository) DeleteOAuthClient(ctx context.Context, clientID string) error {
+	return o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).Delete(&model.OAuthClient{}).Error
+}

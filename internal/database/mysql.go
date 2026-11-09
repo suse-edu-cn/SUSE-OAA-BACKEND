@@ -61,7 +61,8 @@ func MysqlInit(cfg config.Mysql) *gorm.DB {
 		&model.Application{},
 		&model.Interviewer{},
 		&model.Term{},
-		&model.InterviewResult{})
+		&model.InterviewResult{},
+		&model.OAuthClient{})
 	if err != nil {
 		panic(err)
 	}

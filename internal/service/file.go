@@ -21,10 +21,8 @@ var (
 	ErrEmptyFile        = errors.New("上传文件不能为空")
 )
 
-// sceneRegexp 校验场景标识，只允许字母、数字、下划线 '_' 和中划线 '-'，禁止 '.'、'/'、'\' 等字符以防目录穿越
 var sceneRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// IsValidScene 检查 scene 是否合法（1-64字符，且不包含 ./ 等特殊字符）
 func IsValidScene(scene string) bool {
 	if len(scene) == 0 || len(scene) > 64 {
 		return false
@@ -44,7 +42,7 @@ func NewFileService(imgStorage *storage.MinIO, fileStorage *storage.MinIO) *File
 	}
 }
 
-var ossRegexp = regexp.MustCompile(`oss://[^\s)\]>\"']+`)
+var ossRegexp = regexp.MustCompile(`oss://[^\s)\]>"']+`)
 var allowedExt = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,

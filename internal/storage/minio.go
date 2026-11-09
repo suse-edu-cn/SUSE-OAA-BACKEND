@@ -25,11 +25,11 @@ type MinIO struct {
 
 func cleanEndpoint(rawEndpoint string, useSSL bool) (string, bool) {
 	rawEndpoint = strings.TrimSpace(rawEndpoint)
-	if strings.HasPrefix(rawEndpoint, "https://") {
-		return strings.TrimRight(strings.TrimPrefix(rawEndpoint, "https://"), "/"), true
+	if after, ok := strings.CutPrefix(rawEndpoint, "https://"); ok {
+		return strings.TrimRight(after, "/"), true
 	}
-	if strings.HasPrefix(rawEndpoint, "http://") {
-		return strings.TrimRight(strings.TrimPrefix(rawEndpoint, "http://"), "/"), false
+	if after, ok := strings.CutPrefix(rawEndpoint, "http://"); ok {
+		return strings.TrimRight(after, "/"), false
 	}
 	return strings.TrimRight(rawEndpoint, "/"), useSSL
 }

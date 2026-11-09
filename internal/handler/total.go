@@ -9,6 +9,7 @@ type TotalHandler struct {
 	Term         *TermHandler
 	File         *FileHandler
 	Health       *HealthHandler
+	OAuth        *OAuthHandler
 }
 
 func NewTotalHandler(auth *AuthHandler,
@@ -19,6 +20,7 @@ func NewTotalHandler(auth *AuthHandler,
 	term *TermHandler,
 	file *FileHandler,
 	health *HealthHandler,
+	oAuth *OAuthHandler,
 ) *TotalHandler {
 	return &TotalHandler{
 		Auth:         auth,
@@ -29,5 +31,6 @@ func NewTotalHandler(auth *AuthHandler,
 		Term:         term,
 		File:         file,
 		Health:       health,
+		OAuth:        oAuth,
 	}
 }
