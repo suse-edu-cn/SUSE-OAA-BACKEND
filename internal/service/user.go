@@ -57,6 +57,9 @@ func (u *UserService) Register(ctx context.Context, req request.RegisterReq) err
 	if req.Grade <= 2000 || req.Grade > 9999 {
 		return errors.New("入学年份不合法")
 	}
+	if err := utils.ValidatePassword(req.Password); err != nil {
+		return err
+	}
 
 	if err := u.Repo.CheckExist(ctx, req.StudentID, req.Email, req.Username); err != nil {
 		return err
@@ -231,6 +234,9 @@ func (u *UserService) FindUserByID(ctx context.Context, id uint64) (model.User, 
 }
 
 func (u *UserService) UpdatePassword(ctx context.Context, id uint64, oldPassword string, newPassword string) error {
+	if err := utils.ValidatePassword(newPassword); err != nil {
+		return err
+	}
 	user, err := u.Repo.FindUserById(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -342,6 +348,9 @@ func (u *UserService) SendVerificationCode(ctx context.Context, account string, 
 }
 
 func (u *UserService) ResetPassword(ctx context.Context, account string, code string, resetPassword string) error {
+	if err := utils.ValidatePassword(resetPassword); err != nil {
+		return err
+	}
 	user, err := u.Repo.FindUserByAccount(ctx, account)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

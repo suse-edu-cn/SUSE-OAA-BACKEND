@@ -134,10 +134,46 @@ func TestUserService_Register_ValidationTableDriven(t *testing.T) {
 				Username:  "zhangsan",
 				Name:      "张三",
 				Email:     "zhangsan@test.com",
-				Password:  "123456",
+				Password:  "pass1234",
 				Grade:     10000,
 			},
 			wantErr: "入学年份不合法",
+		},
+		{
+			name: "密码长度不足8位",
+			req: request.RegisterReq{
+				StudentID: "20240101001",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "pass123",
+				Grade:     2024,
+			},
+			wantErr: "密码长度不能少于8位",
+		},
+		{
+			name: "密码纯数字",
+			req: request.RegisterReq{
+				StudentID: "20240101001",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "12345678",
+				Grade:     2024,
+			},
+			wantErr: "密码必须包含字母和数字",
+		},
+		{
+			name: "密码纯字母",
+			req: request.RegisterReq{
+				StudentID: "20240101001",
+				Username:  "zhangsan",
+				Name:      "张三",
+				Email:     "zhangsan@test.com",
+				Password:  "abcdefgh",
+				Grade:     2024,
+			},
+			wantErr: "密码必须包含字母和数字",
 		},
 	}
 
@@ -195,6 +231,16 @@ func TestUserService_UpdatePassword_RealLogic(t *testing.T) {
 	db.First(&updatedUser, testUser.ID)
 	if err := bcrypt.CompareHashAndPassword([]byte(updatedUser.Password), []byte("NewPass456")); err != nil {
 		t.Fatalf("expected new password to match in database, got error: %v", err)
+	}
+
+	// Case 4: 新密码不符合复杂度要求（少于8位或纯数字）
+	err = svc.UpdatePassword(ctx, testUser.ID, "NewPass456", "123456")
+	if err == nil || !strings.Contains(err.Error(), "密码长度不能少于8位") {
+		t.Fatalf("expected '密码长度不能少于8位', got: %v", err)
+	}
+	err = svc.UpdatePassword(ctx, testUser.ID, "NewPass456", "12345678")
+	if err == nil || !strings.Contains(err.Error(), "密码必须包含字母和数字") {
+		t.Fatalf("expected '密码必须包含字母和数字', got: %v", err)
 	}
 }
 

@@ -33,8 +33,8 @@ func TestGenerateAndParseToken(t *testing.T) {
 	if claims.StudentID != studentID {
 		t.Errorf("expected studentID %s, got %s", studentID, claims.StudentID)
 	}
-	if claims.Issuer != "GrowthOS" {
-		t.Errorf("expected issuer GrowthOS, got %s", claims.Issuer)
+	if claims.Issuer != "OAA" {
+		t.Errorf("expected issuer OAA, got %s", claims.Issuer)
 	}
 }
 
