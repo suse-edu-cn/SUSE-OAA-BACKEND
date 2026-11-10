@@ -517,11 +517,6 @@ func (t *TermService) GetApplicationList(ctx context.Context, userID uint64, dep
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	// 在招新换届时间段内（填报修改期或评审决选期）均可查看申请表
-	if !(term.IsInQueryPeriod(now) || term.IsInEditPeriod(now) || (!now.Before(term.EditStartAt) && !now.After(term.QueryEndAt))) {
-		return nil, errors.New("不在查询时间范围内")
-	}
 
 	finalDepartmentID, err := t.resolveApplicationListScope(ctx, userID, termID, departmentID)
 	if err != nil {

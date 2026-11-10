@@ -81,31 +81,37 @@ jobs:
     timeout-minutes: 10
     runs-on: [self-hosted, linux]
     steps:
-      - name: Download Build Artifact via Runner
-        uses: actions/download-artifact@v4
-        with:
-          name: release-package-${{ github.ref_name }}
-          path: dist
-
       - name: Deploy Binary to Physical Server
         run: |
           set -euo pipefail
-          echo "==> 实体机 Self-Hosted Runner 收到部署指令，通过内部通道接收制品..."
+          echo "==> 实体机 Self-Hosted Runner 收到部署指令，开始执行更新..."
 
           TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
           APP_NAME="OAAbeta"
           INSTALL_DIR="${HOME}/OAA"
+          TMP_DIR=$(mktemp -d)
+          trap 'rm -rf "${TMP_DIR}"' EXIT
+
           TAR_NAME="suse-oaa-backend-${TAG}-linux-amd64.tar.gz"
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${TAR_NAME}"
 
           echo "==> 准备部署版本: ${TAG}"
           echo "==> 目标安装目录: ${INSTALL_DIR}"
           mkdir -p "${INSTALL_DIR}"
 
-          # 解压内部通道接收到的制品
-          echo "==> 正在解压制品..."
-          tar -zxvf "dist/${TAR_NAME}" -C dist/
+          # 直接通过国内高速镜像下载（无需走被阻断的 actions.githubusercontent.com）
+          echo "==> 正在通过国内高速镜像源下载制品包..."
+          if ! curl -fL --connect-timeout 10 --max-time 180 -o "${TMP_DIR}/${TAR_NAME}" "https://ghfast.top/${DOWNLOAD_URL}"; then
+            echo "==> ghfast.top 失败，正在尝试备用镜像 gh-proxy.com..."
+            curl -fL --connect-timeout 10 --max-time 180 -o "${TMP_DIR}/${TAR_NAME}" "https://gh-proxy.com/${DOWNLOAD_URL}"
+          fi
 
-          if [ ! -f "dist/${APP_NAME}" ]; then
+          # 解压并校验
+          echo "==> 正在解压制品..."
+          tar -zxvf "${TMP_DIR}/${TAR_NAME}" -C "${TMP_DIR}"
+
+          if [ ! -f "${TMP_DIR}/${APP_NAME}" ]; then
             echo "❌ 制品中未找到可执行文件 ${APP_NAME}！"
             exit 1
           fi
@@ -118,9 +124,8 @@ jobs:
 
           # 覆盖安装新版本二进制并赋予执行权限
           echo "==> 覆盖安装新版本二进制..."
-          mv -f "dist/${APP_NAME}" "${INSTALL_DIR}/${APP_NAME}"
+          mv -f "${TMP_DIR}/${APP_NAME}" "${INSTALL_DIR}/${APP_NAME}"
           chmod +x "${INSTALL_DIR}/${APP_NAME}"
-          rm -rf dist
 
           # 重启服务
           echo "==> 正在触发服务重启..."

@@ -695,7 +695,7 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			t.Fatalf("expected '不在时间范围内' when creating interview result during edit period, got: %v", err)
 		}
 
-		// 3. 超出周期范围后查看应被拦截
+		// 3. 超出周期范围/已执行周期亦可正常查阅历史申请表
 		outTerm := model.Term{
 			ID:             21,
 			Title:          "已过期周期",
@@ -708,9 +708,21 @@ func TestTermService_GraduatedUser_Restrictions(t *testing.T) {
 			ExecuteAfterAt: now.Add(-30 * time.Minute),
 		}
 		db.Create(&outTerm)
-		_, err = svc.GetApplicationList(ctx, operator.ID, 0, outTerm.ID, nil, "")
-		if err == nil || !strings.Contains(err.Error(), "不在查询时间范围内") {
-			t.Fatalf("expected '不在查询时间范围内' for expired term, got: %v", err)
+		outApp := model.Application{
+			ID:           5021,
+			TermID:       outTerm.ID,
+			UserID:       editCandidate.ID,
+			Name:         "考生-历史周期查看测试",
+			FirstChoice:  model.OrganizationRole{DepartmentID: 1, RoleID: 2},
+			SecondChoice: model.OrganizationRole{DepartmentID: 1, RoleID: 1},
+		}
+		db.Create(&outApp)
+		appsOut, err := svc.GetApplicationList(ctx, operator.ID, 0, outTerm.ID, nil, "")
+		if err != nil {
+			t.Fatalf("expected viewing historical/expired term applications to succeed, got: %v", err)
+		}
+		if len(appsOut) == 0 {
+			t.Fatalf("expected applications returned for historical term, got 0")
 		}
 	})
 
