@@ -10,7 +10,7 @@ GOARCH ?= amd64
 CGO_ENABLED ?= 0
 LDFLAGS ?= -s -w
 
-.PHONY: all linux build clean test vet run help
+.PHONY: all linux build clean test vet run push help
 
 all: linux ## 编译 Linux 可执行文件（默认目标）
 
@@ -21,6 +21,11 @@ linux: ## 编译 Linux 可执行文件，默认目标架构为 amd64
 	@echo "已生成: $(FINAL_BINARY)"
 
 build: linux ## linux 的别名
+
+push: linux ## 编译 Linux 可执行文件并推送至实体服务器
+	@echo "==> 正在推送二进制至服务器..."
+	scp $(CURDIR)/$(FINAL_BINARY) suseoaa@192.168.31.105:~/OAA/OAAbeta
+	@echo "==> 推送完成！"
 
 clean: ## 删除构建产物
 	@rm -rf $(BUILD_DIR)
