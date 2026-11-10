@@ -28,13 +28,21 @@ func (o *OAuthRepository) CreateOAuthClient(ctx context.Context, client model.OA
 func (o *OAuthRepository) UpdateOAuthClient(ctx context.Context, client map[string]any, clientID string) error {
 	return o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).Updates(client).Error
 }
-func (o *OAuthRepository) GetOAuthClientByClientID(ctx context.Context, clientID string) (model.OAuthClientInfo, error) {
+func (o *OAuthRepository) GetOAuthClientInfoByClientID(ctx context.Context, clientID string) (model.OAuthClientInfo, error) {
 	var client model.OAuthClient
 	err := o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).First(&client).Error
 	if err != nil {
 		return model.OAuthClientInfo{}, err
 	}
 	return client.ToInfo(), nil
+}
+func (o *OAuthRepository) GetOAuthClientByClientID(ctx context.Context, clientID string) (*model.OAuthClient, error) {
+	var client model.OAuthClient
+	err := o.DB.WithContext(ctx).Model(&model.OAuthClient{}).Where("client_id = ?", clientID).First(&client).Error
+	if err != nil {
+		return nil, err
+	}
+	return &client, nil
 }
 func (o *OAuthRepository) GetOAuthClientList(ctx context.Context) ([]model.OAuthClientInfo, error) {
 	var clients []model.OAuthClient
@@ -64,4 +72,12 @@ func (o *OAuthRepository) SaveAuthCode(ctx context.Context, code string, data mo
 	}
 	key := "oauth:code:" + code
 	return o.Rdb.Set(ctx, key, bytes, ttl).Err()
+}
+
+func (o *OAuthRepository) GetAuthCodeByKey(ctx context.Context, key string) (string, error) {
+	return o.Rdb.GetDel(ctx, key).Result()
+}
+
+func (o *OAuthRepository) SetToken(ctx context.Context, token string, tokenData any, expireTime time.Duration) error {
+	return o.Rdb.Set(ctx, token, tokenData, expireTime).Err()
 }

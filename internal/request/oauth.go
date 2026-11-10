@@ -138,3 +138,41 @@ func (a *AuthorizeReq) Validate() error {
 
 	return nil
 }
+
+type TokenReq struct {
+	GrantType    string `form:"grant_type" json:"grant_type" binding:"required"`
+	ClientID     string `form:"client_id" json:"client_id" binding:"required"`
+	Code         string `form:"code" json:"code" binding:"required"`
+	ClientSecret string `form:"client_secret" json:"client_secret" binding:"required"`
+	RedirectURI  string `form:"redirect_uri" json:"redirect_uri" binding:"required"`
+}
+
+func (t *TokenReq) Validate() error {
+	t.GrantType = strings.TrimSpace(t.GrantType)
+	t.ClientID = strings.TrimSpace(t.ClientID)
+	t.Code = strings.TrimSpace(t.Code)
+	t.ClientSecret = strings.TrimSpace(t.ClientSecret)
+	t.RedirectURI = strings.TrimSpace(t.RedirectURI)
+	if t.GrantType != "authorization_code" {
+		return errors.New("grant_type错误")
+	}
+	return nil
+}
+
+type TokenRes struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	Scope        string `json:"scope,omitempty"`
+	IDToken      string `json:"id_token,omitempty"`
+}
+type UserInfoRes struct {
+	Sub        string `json:"sub"`
+	Name       string `json:"name,omitempty"`
+	StudentID  string `json:"student_id,omitempty"`
+	Email      string `json:"email,omitempty"`
+	Department string `json:"department,omitempty"`
+	Role       string `json:"role,omitempty"`
+	Level      uint64 `json:"level,omitempty"`
+}

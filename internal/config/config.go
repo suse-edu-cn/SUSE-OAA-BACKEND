@@ -13,6 +13,7 @@ type Config struct {
 	Redis  Redis
 	Email  Email
 	MiniO  MiniO
+	Oidc   Oidc
 }
 
 type Mysql struct {
@@ -67,6 +68,11 @@ type MiniO struct {
 	MaxFileSize     int64  `mapstructure:"max_file_size"`
 	MaxImageSize    int64  `mapstructure:"max_image_size"`
 	ExpireTime      int64  `mapstructure:"expire_time"`
+}
+type Oidc struct {
+	Issuer         string `mapstructure:"issuer"`
+	PrivateKeyPath string `mapstructure:"private_key_path"`
+	KeyID          string `mapstructure:"key_id"`
 }
 
 func ConfigInit() Config {

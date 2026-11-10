@@ -10,3 +10,5 @@ docs/*
 !docs/benchmark.md
 !docs/API_UPDATE_NOTICE.md
 bin
+*.pem
+configs/*.pem

@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"suseoaa/internal/model"
 	"suseoaa/internal/repository"
@@ -17,16 +20,18 @@ import (
 )
 
 type OAuthService struct {
-	UserRepo  *repository.UserRepository
-	OAuthRepo *repository.OAuthRepository
-	ImgMinio  *storage.MinIO
+	UserRepo    *repository.UserRepository
+	OAuthRepo   *repository.OAuthRepository
+	ImgMinio    *storage.MinIO
+	OIDCManager *utils.OIDCManager
 }
 
-func NewOAuthService(userRepo *repository.UserRepository, oauthRepo *repository.OAuthRepository, imgMinio *storage.MinIO) *OAuthService {
+func NewOAuthService(userRepo *repository.UserRepository, oauthRepo *repository.OAuthRepository, imgMinio *storage.MinIO, oidc *utils.OIDCManager) *OAuthService {
 	return &OAuthService{
-		UserRepo:  userRepo,
-		OAuthRepo: oauthRepo,
-		ImgMinio:  imgMinio,
+		UserRepo:    userRepo,
+		OAuthRepo:   oauthRepo,
+		ImgMinio:    imgMinio,
+		OIDCManager: oidc,
 	}
 }
 func (o *OAuthService) CheckLevel(ctx context.Context, userID uint64) error {
@@ -97,7 +102,7 @@ func (o *OAuthService) GetOAuthClientByID(ctx context.Context, clientID string, 
 	if err != nil {
 		return model.OAuthClientInfo{}, err
 	}
-	res, err := o.OAuthRepo.GetOAuthClientByClientID(ctx, clientID)
+	res, err := o.OAuthRepo.GetOAuthClientInfoByClientID(ctx, clientID)
 	if err != nil {
 		return model.OAuthClientInfo{}, errors.New("应用不存在")
 	}
@@ -190,4 +195,78 @@ func (o *OAuthService) Authorize(ctx context.Context, userID uint64, req request
 	}
 	parsedURL.RawQuery = query.Encode()
 	return parsedURL.String(), nil
+}
+
+func (o *OAuthService) ExchangeCode(ctx context.Context, req request.TokenReq) (*request.TokenRes, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	client, err := o.OAuthRepo.GetOAuthClientByClientID(ctx, req.ClientID)
+	if err != nil {
+		return nil, errors.New("应用不存在")
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(client.ClientSecret), []byte(req.ClientSecret))
+	if err != nil {
+		return nil, errors.New("客户端密钥错误")
+	}
+	key := "oauth:code:" + req.Code
+	code, err := o.OAuthRepo.GetAuthCodeByKey(ctx, key)
+	if err != nil {
+		return nil, errors.New("获取 auth code失败")
+	}
+	var codeData model.AuthCodeData
+	if err := json.Unmarshal([]byte(code), &codeData); err != nil {
+		return nil, errors.New("解析授权码失败")
+	}
+	if codeData.ClientID != req.ClientID {
+		return nil, errors.New("授权码和客户端不匹配")
+	}
+	if codeData.RedirectURI != req.RedirectURI {
+		return nil, errors.New("redirectURI不匹配")
+	}
+	accessToken := "oaa_at_" + strings.ReplaceAll(uuid.NewV7().String(), "-", "")
+	tokenData, _ := json.Marshal(map[string]any{
+		"user_id":   codeData.UserID,
+		"client_id": codeData.ClientID,
+		"scope":     codeData.Scope,
+	})
+	err = o.OAuthRepo.SetToken(ctx, accessToken, tokenData, 2*time.Hour)
+	if err != nil {
+		return nil, errors.New("保存 Access Token 失败")
+	}
+	hasScope := func(rawScope, target string) bool {
+		return slices.Contains(strings.Fields(rawScope), target)
+	}
+
+	var idToken string
+	if hasScope(codeData.Scope, "openid") {
+		extraClaims := map[string]any{}
+		userInfo, err := o.UserRepo.GetUserInfoById(ctx, codeData.UserID)
+		if err == nil {
+			if hasScope(codeData.Scope, "profile") {
+				extraClaims["name"] = userInfo.Name
+				extraClaims["student_id"] = userInfo.StudentID
+			}
+			if hasScope(codeData.Scope, "email") {
+				extraClaims["email"] = userInfo.Email
+			}
+		}
+
+		idToken, err = o.OIDCManager.GenerateIDToken(
+			strconv.FormatUint(codeData.UserID, 10),
+			req.ClientID,
+			2*time.Hour,
+			extraClaims,
+		)
+		if err != nil {
+			return nil, errors.New("生成 id_token 失败")
+		}
+	}
+	return &request.TokenRes{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   7200,
+		Scope:       codeData.Scope,
+		IDToken:     idToken,
+	}, nil
 }

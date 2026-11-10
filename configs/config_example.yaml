@@ -53,3 +53,7 @@ minio:
   max_file_size: 0
   max_image_size: 0
   expire_time: 0
+oidc:
+  issuer: ""
+  private_key_path: ""
+  key_id: ""

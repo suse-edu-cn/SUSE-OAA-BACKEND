@@ -15,6 +15,7 @@ import (
 	"suseoaa/internal/service"
 	"suseoaa/internal/storage"
 	"suseoaa/pkg/logger"
+	"suseoaa/pkg/utils"
 	"sync"
 	"syscall"
 	"time"
@@ -26,6 +27,10 @@ func main() {
 	Config := config.ConfigInit()
 	db := database.MysqlInit(Config.Mysql)
 	rdb := database.RedisInit(Config.Redis)
+	oidcManager, err := utils.NewOIDCManager(Config.Oidc.PrivateKeyPath, Config.Oidc.Issuer, Config.Oidc.KeyID)
+	if err != nil {
+		panic(err)
+	}
 
 	repo := repository.NewUserRepository(db, rdb)
 	roleRepo := repository.NewRoleRepository(db)
@@ -59,7 +64,7 @@ func main() {
 	roleService := service.NewRoleService(roleRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, departmentRepo, roleRepo, repo, fileService)
 	termService := service.NewTermService(termRepo, userService)
-	oAuthService := service.NewOAuthService(repo, oAuthRepo, imgMinio)
+	oAuthService := service.NewOAuthService(repo, oAuthRepo, imgMinio, oidcManager)
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 
