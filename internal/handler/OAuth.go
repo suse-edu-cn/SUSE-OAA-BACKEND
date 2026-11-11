@@ -156,11 +156,17 @@ func (o *OAuthHandler) resolveUserID(c *gin.Context) uint64 {
 func (o *OAuthHandler) Authorize(c *gin.Context) {
 	var req request.AuthorizeReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.ParamError(c, err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": err.Error(),
+		})
 		return
 	}
 	if err := req.Validate(); err != nil {
-		response.BadRequest(c, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": err.Error(),
+		})
 		return
 	}
 
@@ -174,7 +180,10 @@ func (o *OAuthHandler) Authorize(c *gin.Context) {
 	ctx := c.Request.Context()
 	redirectURL, err := o.OAuthService.Authorize(ctx, userID, req)
 	if err != nil {
-		response.BadRequest(c, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": err.Error(),
+		})
 		return
 	}
 	c.Redirect(http.StatusFound, redirectURL)
@@ -238,13 +247,21 @@ func (o *OAuthHandler) UserInfo(c *gin.Context) {
 		token = strings.TrimSpace(authHeader[7:])
 	}
 	if token == "" {
-		response.BadRequest(c, "缺少或不合法的 Bearer Token")
+		c.Header("WWW-Authenticate", `Bearer error="invalid_token", error_description="missing or invalid bearer token"`)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_token",
+			"error_description": "缺少或不合法的 Bearer Token",
+		})
 		return
 	}
 	ctx := c.Request.Context()
 	res, err := o.OAuthService.GetUserInfo(ctx, token)
 	if err != nil {
-		response.BadRequest(c, err.Error())
+		c.Header("WWW-Authenticate", `Bearer error="invalid_token", error_description="`+err.Error()+`"`)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_token",
+			"error_description": err.Error(),
+		})
 		return
 	}
 	c.JSON(http.StatusOK, res)
