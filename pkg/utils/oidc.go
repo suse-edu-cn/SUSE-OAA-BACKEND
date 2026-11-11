@@ -10,6 +10,7 @@ import (
 	"maps"
 	"math/big"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -105,4 +106,38 @@ func (m *OIDCManager) GenerateIDToken(sub, aud string, expireDuration time.Durat
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = m.KeyID
 	return token.SignedString(m.PrivateKey)
+}
+
+type OpenIDConfiguration struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	UserinfoEndpoint                  string   `json:"userinfo_endpoint"`
+	JwksURI                           string   `json:"jwks_uri"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	SubjectTypesSupported             []string `json:"subject_types_supported"`
+	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
+	ScopesSupported                   []string `json:"scopes_supported"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
+	ClaimsSupported                   []string `json:"claims_supported"`
+}
+
+func (m *OIDCManager) GetOpenIDConfiguration(fallbackBaseURL string) OpenIDConfiguration {
+	base := strings.TrimRight(m.Issuer, "/")
+	if base == "" {
+		base = strings.TrimRight(fallbackBaseURL, "/")
+	}
+	return OpenIDConfiguration{
+		Issuer:                            base,
+		AuthorizationEndpoint:             base + "/v2/oauth/authorize",
+		TokenEndpoint:                     base + "/v2/oauth/token",
+		UserinfoEndpoint:                  base + "/v2/oauth/userinfo",
+		JwksURI:                           base + "/.well-known/jwks.json",
+		ResponseTypesSupported:            []string{"code"},
+		SubjectTypesSupported:             []string{"public"},
+		IDTokenSigningAlgValuesSupported: []string{"RS256"},
+		ScopesSupported:                   []string{"openid", "profile", "email"},
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
+		ClaimsSupported:                   []string{"sub", "iss", "aud", "exp", "iat", "name", "preferred_username", "email", "student_id"},
+	}
 }

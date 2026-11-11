@@ -81,3 +81,6 @@ func (o *OAuthRepository) GetAuthCodeByKey(ctx context.Context, key string) (str
 func (o *OAuthRepository) SetToken(ctx context.Context, token string, tokenData any, expireTime time.Duration) error {
 	return o.Rdb.Set(ctx, token, tokenData, expireTime).Err()
 }
+func (o *OAuthRepository) GetTokenByKey(ctx context.Context, key string) (string, error) {
+	return o.Rdb.Get(ctx, key).Result()
+}

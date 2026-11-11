@@ -141,9 +141,9 @@ func (a *AuthorizeReq) Validate() error {
 
 type TokenReq struct {
 	GrantType    string `form:"grant_type" json:"grant_type" binding:"required"`
-	ClientID     string `form:"client_id" json:"client_id" binding:"required"`
+	ClientID     string `form:"client_id" json:"client_id"`
 	Code         string `form:"code" json:"code" binding:"required"`
-	ClientSecret string `form:"client_secret" json:"client_secret" binding:"required"`
+	ClientSecret string `form:"client_secret" json:"client_secret"`
 	RedirectURI  string `form:"redirect_uri" json:"redirect_uri" binding:"required"`
 }
 
@@ -154,7 +154,13 @@ func (t *TokenReq) Validate() error {
 	t.ClientSecret = strings.TrimSpace(t.ClientSecret)
 	t.RedirectURI = strings.TrimSpace(t.RedirectURI)
 	if t.GrantType != "authorization_code" {
-		return errors.New("grant_type错误")
+		return errors.New("grant_type 错误，必须为 authorization_code")
+	}
+	if t.ClientID == "" {
+		return errors.New("缺少 client_id")
+	}
+	if t.ClientSecret == "" {
+		return errors.New("缺少 client_secret")
 	}
 	return nil
 }
@@ -168,11 +174,12 @@ type TokenRes struct {
 	IDToken      string `json:"id_token,omitempty"`
 }
 type UserInfoRes struct {
-	Sub        string `json:"sub"`
-	Name       string `json:"name,omitempty"`
-	StudentID  string `json:"student_id,omitempty"`
-	Email      string `json:"email,omitempty"`
-	Department string `json:"department,omitempty"`
-	Role       string `json:"role,omitempty"`
-	Level      uint64 `json:"level,omitempty"`
+	Sub               string `json:"sub"`
+	Name              string `json:"name,omitempty"`
+	PreferredUsername string `json:"preferred_username,omitempty"`
+	StudentID         string `json:"student_id,omitempty"`
+	Email             string `json:"email,omitempty"`
+	Department        string `json:"department,omitempty"`
+	Role              string `json:"role,omitempty"`
+	Level             uint64 `json:"level,omitempty"`
 }

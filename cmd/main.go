@@ -92,7 +92,7 @@ func main() {
 	termHandler := handler.NewTermHandler(termService)
 	fileHandler := handler.NewFileHandler(fileService)
 	healthHandler := handler.NewHealthHandler(db, rdb)
-	oAuthHandler := handler.NewOAuthHandler(oAuthService)
+	oAuthHandler := handler.NewOAuthHandler(oAuthService, Config.Jwt.Secret)
 	totalHandler := handler.NewTotalHandler(
 		authHandler,
 		userHandler,

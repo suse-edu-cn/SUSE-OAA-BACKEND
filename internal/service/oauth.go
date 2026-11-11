@@ -205,6 +205,9 @@ func (o *OAuthService) ExchangeCode(ctx context.Context, req request.TokenReq) (
 	if err != nil {
 		return nil, errors.New("应用不存在")
 	}
+	if !client.IsActive {
+		return nil, errors.New("应用已停用")
+	}
 	err = bcrypt.CompareHashAndPassword([]byte(client.ClientSecret), []byte(req.ClientSecret))
 	if err != nil {
 		return nil, errors.New("客户端密钥错误")
@@ -245,6 +248,7 @@ func (o *OAuthService) ExchangeCode(ctx context.Context, req request.TokenReq) (
 		if err == nil {
 			if hasScope(codeData.Scope, "profile") {
 				extraClaims["name"] = userInfo.Name
+				extraClaims["preferred_username"] = userInfo.Name
 				extraClaims["student_id"] = userInfo.StudentID
 			}
 			if hasScope(codeData.Scope, "email") {
@@ -269,4 +273,43 @@ func (o *OAuthService) ExchangeCode(ctx context.Context, req request.TokenReq) (
 		Scope:       codeData.Scope,
 		IDToken:     idToken,
 	}, nil
+}
+
+func (o *OAuthService) GetUserInfo(ctx context.Context, token string) (*request.UserInfoRes, error) {
+	tokenStr, err := o.OAuthRepo.GetTokenByKey(ctx, token)
+	if err != nil {
+		return nil, errors.New("access token 无效或者过期")
+	}
+	var tokenData struct {
+		UserID   uint64 `json:"user_id"`
+		ClientID string `json:"client_id"`
+		Scope    string `json:"scope"`
+	}
+	if err := json.Unmarshal([]byte(tokenStr), &tokenData); err != nil {
+		return nil, errors.New("access token数据损坏")
+	}
+	userInfo, err := o.UserRepo.GetUserInfoById(ctx, tokenData.UserID)
+	if err != nil {
+		return nil, errors.New("用户不存在")
+	}
+	hasScope := func(rawScope, target string) bool {
+		return slices.Contains(strings.Fields(rawScope), target)
+	}
+	resp := &request.UserInfoRes{
+		Sub: strconv.FormatUint(tokenData.UserID, 10),
+	}
+	if hasScope(tokenData.Scope, "profile") {
+		resp.Name = userInfo.Name
+		resp.PreferredUsername = userInfo.Name
+		resp.StudentID = userInfo.StudentID
+	}
+	if hasScope(tokenData.Scope, "email") {
+		resp.Email = userInfo.Email
+	}
+	if hasScope(tokenData.Scope, "level") {
+		resp.Department = userInfo.Department
+		resp.Role = userInfo.Role
+		resp.Level = userInfo.RoleLevel
+	}
+	return resp, nil
 }

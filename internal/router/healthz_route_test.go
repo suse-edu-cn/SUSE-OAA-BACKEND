@@ -24,6 +24,7 @@ func TestRouter_HealthzAndLivez(t *testing.T) {
 		Announcement: &handler.AnnouncementHandler{},
 		Term: &handler.TermHandler{},
 		File: &handler.FileHandler{},
+		OAuth: &handler.OAuthHandler{},
 	}
 
 	r := RouterInit(total, nil, nil)
