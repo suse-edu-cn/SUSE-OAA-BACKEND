@@ -156,6 +156,7 @@ func RouterInit(total *handler.TotalHandler, rdb *redis.Client, trustedProxies [
 			oAuth.POST("token", total.OAuth.Token)
 			oAuth.GET("userinfo", total.OAuth.UserInfo)
 			oAuth.POST("userinfo", total.OAuth.UserInfo)
+			oAuth.GET("client/public", total.OAuth.GetPublicClientInfo)
 		}
 	}
 	return r

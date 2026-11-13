@@ -92,4 +92,12 @@ func TestRouter_OpenIDConfigurationAndJWKS(t *testing.T) {
 	if w3.Code == 404 {
 		t.Fatalf("expected /v2/oauth/token to be mounted, got 404")
 	}
+
+	// Test 4: GET /v2/oauth/client/public (Route mounted under v2)
+	w4 := httptest.NewRecorder()
+	req4 := httptest.NewRequest("GET", "/v2/oauth/client/public", nil)
+	r.ServeHTTP(w4, req4)
+	if w4.Code == 404 {
+		t.Fatalf("expected /v2/oauth/client/public to be mounted, got 404")
+	}
 }

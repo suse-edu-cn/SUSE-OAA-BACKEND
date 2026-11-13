@@ -267,3 +267,23 @@ func (o *OAuthHandler) UserInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 	return
 }
+
+func (o *OAuthHandler) GetPublicClientInfo(c *gin.Context) {
+	var req request.GetPublicClientInfoReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.ParamError(c, err)
+		return
+	}
+	if err := req.Validate(); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	ctx := c.Request.Context()
+	res, err := o.OAuthService.GetPublicClientInfo(ctx, req.ClientID, req.Scope)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, res)
+	return
+}

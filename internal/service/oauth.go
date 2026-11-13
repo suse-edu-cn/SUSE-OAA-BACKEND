@@ -313,3 +313,32 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token string) (*request.
 	}
 	return resp, nil
 }
+
+func (o *OAuthService) GetPublicClientInfo(ctx context.Context, clientID string, requestedScope string) (*request.PublicClientInfoRes, error) {
+	client, err := o.OAuthRepo.GetOAuthClientByClientID(ctx, clientID)
+	if err != nil {
+		return nil, errors.New("应用不存在")
+	}
+	if !client.IsActive {
+		return nil, errors.New("应用已停用")
+	}
+
+	targetScope := requestedScope
+	if targetScope == "" {
+		targetScope = client.Scope
+	}
+
+	scopeKeys := strings.Fields(targetScope)
+	var scopes []request.ScopeDetail
+	for _, key := range scopeKeys {
+		if detail, ok := request.ScopeDictionary[key]; ok {
+			scopes = append(scopes, detail)
+		}
+	}
+
+	return &request.PublicClientInfoRes{
+		ClientID:   client.ClientID,
+		ClientName: client.Name,
+		Scopes:     scopes,
+	}, nil
+}

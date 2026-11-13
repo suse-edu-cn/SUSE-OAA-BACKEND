@@ -183,3 +183,52 @@ type UserInfoRes struct {
 	Role              string `json:"role,omitempty"`
 	Level             uint64 `json:"level,omitempty"`
 }
+
+type ScopeDetail struct {
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+var ScopeDictionary = map[string]ScopeDetail{
+	"openid": {
+		Key:         "openid",
+		Title:       "基础身份标识",
+		Description: "允许验证您的账号身份与唯一用户标识（ID）",
+	},
+	"profile": {
+		Key:         "profile",
+		Title:       "个人公开档案",
+		Description: "允许读取您的真实姓名、学号等公开资料",
+	},
+	"email": {
+		Key:         "email",
+		Title:       "电子邮箱地址",
+		Description: "允许获取您绑定的电子邮箱",
+	},
+	"level": {
+		Key:         "level",
+		Title:       "职务与权限级别",
+		Description: "允许读取您在社团组织中的部门归属、担任角色及管理级别",
+	},
+}
+
+type GetPublicClientInfoReq struct {
+	ClientID string `form:"client_id" json:"client_id" binding:"required"`
+	Scope    string `form:"scope" json:"scope"`
+}
+
+func (g *GetPublicClientInfoReq) Validate() error {
+	g.ClientID = strings.TrimSpace(g.ClientID)
+	if g.ClientID == "" {
+		return errors.New("缺少 client_id")
+	}
+	g.Scope = strings.TrimSpace(g.Scope)
+	return nil
+}
+
+type PublicClientInfoRes struct {
+	ClientID   string        `json:"client_id"`
+	ClientName string        `json:"client_name"`
+	Scopes     []ScopeDetail `json:"scopes"`
+}
