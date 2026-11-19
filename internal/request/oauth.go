@@ -177,6 +177,8 @@ type UserInfoRes struct {
 	Sub               string `json:"sub"`
 	Name              string `json:"name,omitempty"`
 	PreferredUsername string `json:"preferred_username,omitempty"`
+	Nickname          string `json:"nickname,omitempty"`
+	Picture           string `json:"picture,omitempty"`
 	StudentID         string `json:"student_id,omitempty"`
 	Email             string `json:"email,omitempty"`
 	Department        string `json:"department,omitempty"`
@@ -199,7 +201,7 @@ var ScopeDictionary = map[string]ScopeDetail{
 	"profile": {
 		Key:         "profile",
 		Title:       "个人公开档案",
-		Description: "允许读取您的真实姓名、学号等公开资料",
+		Description: "允许读取您的真实姓名、用户名、头像、学号等公开资料",
 	},
 	"email": {
 		Key:         "email",

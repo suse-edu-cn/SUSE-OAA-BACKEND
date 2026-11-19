@@ -12,12 +12,43 @@ import (
 	"suseoaa/internal/repository"
 	"suseoaa/internal/request"
 	"suseoaa/internal/storage"
+	"suseoaa/pkg/logger"
 	"suseoaa/pkg/utils"
 	"time"
 	"uuid"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+const defaultAvatarObject = "avatar/default.png"
+
+func hasOAuthScope(rawScope, target string) bool {
+	return slices.Contains(strings.Fields(rawScope), target)
+}
+
+func resolveAvatarURL(ctx context.Context, imgStorage *storage.MinIO, avatar string) (string, error) {
+	targetAvatar := strings.TrimSpace(avatar)
+	if targetAvatar == "" {
+		targetAvatar = defaultAvatarObject
+	}
+	url, err := imgStorage.GeneratePresignedURL(ctx, targetAvatar)
+	if err != nil && targetAvatar != defaultAvatarObject {
+		return imgStorage.GeneratePresignedURL(ctx, defaultAvatarObject)
+	}
+	return url, err
+}
+
+func (o *OAuthService) getPictureURL(ctx context.Context, avatar string) string {
+	if o.ImgMinio == nil {
+		return ""
+	}
+	pictureURL, err := resolveAvatarURL(ctx, o.ImgMinio, avatar)
+	if err != nil {
+		logger.WarnContext(ctx, "生成 OAuth 用户头像链接失败", "avatar", avatar, "err", err)
+		return ""
+	}
+	return pictureURL
+}
 
 type OAuthService struct {
 	UserRepo    *repository.UserRepository
@@ -237,21 +268,18 @@ func (o *OAuthService) ExchangeCode(ctx context.Context, req request.TokenReq) (
 	if err != nil {
 		return nil, errors.New("保存 Access Token 失败")
 	}
-	hasScope := func(rawScope, target string) bool {
-		return slices.Contains(strings.Fields(rawScope), target)
-	}
-
 	var idToken string
-	if hasScope(codeData.Scope, "openid") {
+	if hasOAuthScope(codeData.Scope, "openid") {
 		extraClaims := map[string]any{}
 		userInfo, err := o.UserRepo.GetUserInfoById(ctx, codeData.UserID)
 		if err == nil {
-			if hasScope(codeData.Scope, "profile") {
+			if hasOAuthScope(codeData.Scope, "profile") {
 				extraClaims["name"] = userInfo.Name
-				extraClaims["preferred_username"] = userInfo.Name
+				extraClaims["preferred_username"] = userInfo.Username
+				extraClaims["nickname"] = userInfo.Username
 				extraClaims["student_id"] = userInfo.StudentID
 			}
-			if hasScope(codeData.Scope, "email") {
+			if hasOAuthScope(codeData.Scope, "email") {
 				extraClaims["email"] = userInfo.Email
 			}
 		}
@@ -292,21 +320,20 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token string) (*request.
 	if err != nil {
 		return nil, errors.New("用户不存在")
 	}
-	hasScope := func(rawScope, target string) bool {
-		return slices.Contains(strings.Fields(rawScope), target)
-	}
 	resp := &request.UserInfoRes{
 		Sub: strconv.FormatUint(tokenData.UserID, 10),
 	}
-	if hasScope(tokenData.Scope, "profile") {
+	if hasOAuthScope(tokenData.Scope, "profile") {
 		resp.Name = userInfo.Name
-		resp.PreferredUsername = userInfo.Name
+		resp.PreferredUsername = userInfo.Username
+		resp.Nickname = userInfo.Username
+		resp.Picture = o.getPictureURL(ctx, userInfo.Avatar.URI)
 		resp.StudentID = userInfo.StudentID
 	}
-	if hasScope(tokenData.Scope, "email") {
+	if hasOAuthScope(tokenData.Scope, "email") {
 		resp.Email = userInfo.Email
 	}
-	if hasScope(tokenData.Scope, "level") {
+	if hasOAuthScope(tokenData.Scope, "level") {
 		resp.Department = userInfo.Department
 		resp.Role = userInfo.Role
 		resp.Level = userInfo.RoleLevel

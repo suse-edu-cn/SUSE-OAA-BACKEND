@@ -136,8 +136,8 @@ func (m *OIDCManager) GetOpenIDConfiguration(fallbackBaseURL string) OpenIDConfi
 		ResponseTypesSupported:            []string{"code"},
 		SubjectTypesSupported:             []string{"public"},
 		IDTokenSigningAlgValuesSupported: []string{"RS256"},
-		ScopesSupported:                   []string{"openid", "profile", "email"},
+		ScopesSupported:                   []string{"openid", "profile", "email", "level"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
-		ClaimsSupported:                   []string{"sub", "iss", "aud", "exp", "iat", "name", "preferred_username", "email", "student_id"},
+		ClaimsSupported:                   []string{"sub", "iss", "aud", "exp", "iat", "name", "preferred_username", "nickname", "picture", "email", "student_id", "department", "role", "level"},
 	}
 }

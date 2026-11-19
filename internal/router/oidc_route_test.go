@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"suseoaa/internal/handler"
@@ -67,6 +68,16 @@ func TestRouter_OpenIDConfigurationAndJWKS(t *testing.T) {
 	}
 	if conf.JwksURI != "https://v2-api.suseoaa.com/.well-known/jwks.json" {
 		t.Errorf("unexpected jwks_uri: %s", conf.JwksURI)
+	}
+	for _, wantScope := range []string{"openid", "profile", "email", "level"} {
+		if !slices.Contains(conf.ScopesSupported, wantScope) {
+			t.Errorf("expected %q in scopes_supported, got %v", wantScope, conf.ScopesSupported)
+		}
+	}
+	for _, wantClaim := range []string{"preferred_username", "nickname", "picture", "department", "role", "level"} {
+		if !slices.Contains(conf.ClaimsSupported, wantClaim) {
+			t.Errorf("expected %q in claims_supported, got %v", wantClaim, conf.ClaimsSupported)
+		}
 	}
 
 	// Test 2: GET /.well-known/jwks.json
